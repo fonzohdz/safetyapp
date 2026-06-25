@@ -1,0 +1,9 @@
+Safety App v6.1 deployment cleanup
+
+Changed:
+- Removed package-lock.json from the upload package because the previous lockfile contained internal registry URLs that GitHub Actions cannot access.
+- Updated GitHub Actions workflow to use npm install instead of npm ci.
+- Removed npm cache setting from setup-node to avoid cache/lockfile hangups.
+- Excluded node_modules and dist from this source ZIP.
+
+Upload all contents of this ZIP to the root of fonzohdz/safetyapp, replacing existing files.
