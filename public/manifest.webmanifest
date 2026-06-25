@@ -1,0 +1,19 @@
+{
+  "name": "Safety Documentation Center",
+  "short_name": "Safety Docs",
+  "description": "Field safety document creator and draft/template workspace.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#111111",
+  "theme_color": "#c1121f",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "./icons/safety-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
