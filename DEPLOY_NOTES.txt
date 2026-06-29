@@ -1,5 +1,1 @@
-Safety App v1.0.2 Tasks/Hazards Hotfix
-
-Upload the contents of this ZIP to the GitHub repository root. Do not upload node_modules, dist, or package-lock.json. Commit to main and let GitHub Actions deploy.
-
-This hotfix fixes the blank white screen when opening the Tasks / Hazards / Controls step.
+Stable rollback build. Upload contents to repo root, not the folder itself. Do not upload node_modules, dist, or package-lock.json. Commit directly to main and let GitHub Actions deploy.

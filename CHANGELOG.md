@@ -1,62 +1,106 @@
-# Changelog
+# v1.0.3 Stable Rollback
 
-## v1.0.2 - Tasks/Hazards Hotfix
-- Fixed blank white screen when opening Tasks / Hazards / Controls step.
-- Passed quick-add toggle handlers correctly into the JSA workflow.
-- Kept v1.0.x onsite behavior and local storage compatibility.
-
-
-## v1.0.1 - Hotfix
-- Fixed blank screen that could occur when opening the Tasks / Hazards step on devices with older or corrupted quick-add storage.
-- Hardened quick-add favorites/recent/custom items so bad local data cannot crash the app.
-- Replaced fragile quick-add list handling with safer normalized lists.
+- Restores the last verified working v6.1 JSA app behavior.
+- Removes the broken v1.0.x quick-add/suggestion changes from the deployed app.
+- Updates service worker cache name so browsers pick up the rollback.
+- Updates GitHub Actions workflow to Node 24 to clear the deprecation warning.
 
 # Safety App — Changelog
 
-## v1.0.1 — Official On-Site JSA App
+## v6.0.0 — JSA Pilot Build (June 2026)
 
-This release promotes the field-tested JSA pilot into the first official working version used on site.
+This release is the pilot-ready JSA update intended for a one-week field test by the safety team.
 
-### Print and PDF layout
+### Print and live preview
 
-- Signature lines now always generate on an attached sign-in sheet, regardless of crew size.
-- The main JSA always displays a crew sign-in notice instead of placing signature boxes on the main page.
-- The main JSA has more room for tasks, hazards, and controls.
-- Printed box/table text was increased for better field readability.
-- The task/hazard/control grid now fills the page more intentionally with adaptive row counts instead of leaving oversized boxes.
-- Continuation pages and attached sign-in sheets remain branded and page-numbered as part of the same packet.
+- The main JSA live preview and printed main JSA now use the same React page component.
+- The preview displays a full Letter sheet with visible default-style margin space around the exact document content.
+- Print CSS is tuned for Letter portrait with professional 0.5-inch margins while Chrome remains set to **Margins: Default**.
+- The main task table expands to use the remaining printable page height instead of stopping halfway down the sheet.
+- Long task content moves by complete row to branded continuation sheets.
+- Attached sign-in sheets distribute lines evenly and stretch rows to use the full printable height.
 
-### Templates
+### Shackelford document styling
 
-- Custom templates now keep saved tasks and detailed task rows.
-- Loading a template still resets daily-changing fields including date, times, tailgate topic, previous-day safety status, signatures, notes, and draft status.
-- Template messaging was updated to explain that templates carry over recurring tasks, hazards, and controls.
+- Retained the official Shackelford logo, charcoal header, red accent rule, coordinated page titles, and matching footers.
+- Main JSA, continuation pages, and sign-in sheets export as one consistent document packet.
+- Added a continuation notice to the main page when extra task rows are attached.
 
-### Quick Add cleanup
+### Quick task, hazard, and control audit
 
-- Daily task quick-add wording was simplified into more field-friendly language.
-- Similar hazards and controls were consolidated so the standard library stays cleaner and faster to use.
-- Specific or unusual language can still be added through custom quick adds.
-- Task, hazard, and control lanes remain separated.
+- Rebuilt the quick-add libraries so each type stays in its correct lane:
+  - **Tasks** describe work being performed.
+  - **Hazards** describe exposures or harmful conditions.
+  - **Controls** describe preventive actions or requirements.
+- Removed or rewrote mixed items such as pre-task planning, wet-down controls, rail-clearance controls, and phone/earbud rules from incorrect categories.
+- Added clearer civil, earthwork, equipment, delivery, excavation, stabilization, and railroad wording.
 
-### Quick Add toggle behavior
+### Task-based suggestions
 
-- Quick-add buttons now work as toggles.
-- Tapping an unselected quick-add adds it.
-- Tapping a selected quick-add removes it.
-- Selected quick-adds display a visible selected state.
-- Removing a task also removes any paired detailed task row/suggestions added with that task.
+- Selecting a supported quick task opens a review panel with common suggested hazards and controls.
+- Users can choose **Task Only**, **Add Selected**, or **Add All Suggestions**.
+- Approved hazards and controls are stored as a paired detailed task row so the printed relationship remains clear.
+- Suggestions are guidance only and include a reminder to review actual site conditions.
 
-### Suggested hazards and controls
+### Duplicate prevention
 
-- Adding a supported task now asks whether the user wants to review suggested hazards and controls.
-- Choosing **No, skip** adds only the task and moves on.
-- Choosing **Yes, review suggestions** opens the suggested hazard/control review screen.
-- Users can add selected suggestions or all suggestions.
-- Suggestions remain review-only and should be checked against actual site conditions.
+- Quick adds normalize capitalization, punctuation, spacing, and close wording before insertion.
+- Exact and strong near-duplicates are skipped.
+- Batch suggestions report skipped duplicates instead of adding repeated language.
+- Detailed task-row templates cannot be added twice.
+- Manual task, hazard, and control lists are cleaned for duplicates when the field loses focus.
+- Custom quick adds cannot be saved when a similar custom item already exists.
 
-### Deployment
+### Quick-add menu improvements
 
-- The GitHub Actions workflow remains configured for GitHub Pages deployment.
-- Source ZIP excludes `node_modules`, `dist`, and `package-lock.json`.
-- Production build was verified before packaging.
+- No horizontal scrolling or clipped options.
+- Category and search controls respond cleanly to narrow panels.
+- Options wrap into readable cards.
+- Included items are marked.
+- Favorites and recently used items are stored separately for each quick-add section.
+
+### Custom quick adds
+
+- Added a Settings manager for custom tasks, hazards, and controls.
+- A type must be selected before saving, preventing custom items from entering the wrong library.
+- Custom items appear in dedicated categories inside the JSA builder.
+
+### Review and export
+
+- Added an export quality checklist covering job information, emergency information, meeting details, tasks, hazards, controls, signatures, and page fit.
+- Added a page-count summary for the main JSA, continuation sheets, sign-in sheets, and total packet.
+- Added a visible suggested PDF filename.
+- Printing warns about incomplete review items but allows an intentional override.
+
+### Templates and drafts
+
+- Draft auto-save remains active.
+- Template messaging now clearly explains which daily fields reset.
+- Loading a template starts a fresh JSA for the current day and clears daily work rows and notes.
+
+### Cache and deployment
+
+- Updated the production service-worker cache to `safety-app-v6-0-0`.
+- Local development still unregisters service workers and clears caches to prevent stale builds.
+- Vite remains configured with `base: './'` for GitHub Pages project URLs.
+
+### Run locally
+
+```bash
+npm install
+npm run dev -- --port 5196
+```
+
+Open:
+
+```text
+http://localhost:5196/
+```
+
+### Build check
+
+```bash
+npm run build
+```
+
+The v6 production build passed before packaging.
