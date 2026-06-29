@@ -12,7 +12,7 @@ const KEYS = {
 const APP_NAME = 'Safety Documentation Center';
 const APP_SUB = 'Field Safety App';
 const SHACKELFORD_LOGO = `${import.meta.env.BASE_URL}icons/shackelford-logo.webp`;
-const APP_VERSION = '1.0.1';
+const APP_VERSION = '1.0.2';
 
 /* ── Helpers ── */
 function todayISO() {
@@ -852,7 +852,7 @@ function App() {
               goDocs={goDocs} goJsaStart={goJsaStart}
               allTemplates={allTemplates} templateId={templateId} setTemplateId={setTemplateId} selectedTemplate={selectedTemplate} loadTemplate={loadTemplate}
               saveName={saveName} setSaveName={setSaveName} saveTemplate={saveTemplate} updateTemplate={updateTemplate}
-              addRow={addRow} updRow={updRow} removeRow={removeRow} insertLine={insertLine} insertLines={insertLines} upsertSuggestedTaskRow={upsertSuggestedTaskRow} addSummaryAsRow={addSummaryAsRow} addRowTemplate={addRowTemplate}
+              addRow={addRow} updRow={updRow} removeRow={removeRow} insertLine={insertLine} insertLines={insertLines} toggleLine={toggleLine} removeTaskAndSuggestions={removeTaskAndSuggestions} upsertSuggestedTaskRow={upsertSuggestedTaskRow} addSummaryAsRow={addSummaryAsRow} addRowTemplate={addRowTemplate}
               clearDraft={clearDraft} saveDraft={saveDraft} markReady={markReady} exportPdf={exportPdf}
               savedDraft={savedDraft} settings={settings}
             />
@@ -1000,7 +1000,7 @@ function JsaStartView({ allTemplates, selectedTemplate, templateId, setTemplateI
 }
 
 /* ── JSA Workflow ── */
-function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTemplates, templateId, setTemplateId, selectedTemplate, loadTemplate, saveName, setSaveName, saveTemplate, updateTemplate, addRow, updRow, removeRow, insertLine, insertLines, upsertSuggestedTaskRow, addSummaryAsRow, addRowTemplate, clearDraft, saveDraft, markReady, exportPdf, savedDraft, settings }) {
+function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTemplates, templateId, setTemplateId, selectedTemplate, loadTemplate, saveName, setSaveName, saveTemplate, updateTemplate, addRow, updRow, removeRow, insertLine, insertLines, toggleLine, removeTaskAndSuggestions, upsertSuggestedTaskRow, addSummaryAsRow, addRowTemplate, clearDraft, saveDraft, markReady, exportPdf, savedDraft, settings }) {
   const fit = calcFit(jsa);
   const sigCount = Math.max(1, Math.min(100, Number(jsa.signatureLineCount) || 1));
   const idx = STEPS.findIndex(s => s.id === jsaStep);

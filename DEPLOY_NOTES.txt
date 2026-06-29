@@ -1,19 +1,5 @@
-Safety App v1.0.1 official on-site release
+Safety App v1.0.2 Tasks/Hazards Hotfix
 
-Upload all contents of this ZIP to the root of fonzohdz/safetyapp, replacing existing files.
+Upload the contents of this ZIP to the GitHub repository root. Do not upload node_modules, dist, or package-lock.json. Commit to main and let GitHub Actions deploy.
 
-Do not upload:
-- node_modules
-- dist
-- package-lock.json
-
-GitHub Actions should run automatically after commit and deploy the updated app to GitHub Pages.
-
-Key changes:
-- Official v1 app label/version.
-- Signatures always print on an attached sign-in sheet.
-- Templates keep saved tasks and detailed task rows.
-- Bigger printed font and better page usage.
-- Cleaned up quick-add tasks, hazards, and controls.
-- Quick-add chips now toggle add/remove.
-- Suggested hazards/controls now ask before opening review.
+This hotfix fixes the blank white screen when opening the Tasks / Hazards / Controls step.

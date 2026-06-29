@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.0.2 - Tasks/Hazards Hotfix
+- Fixed blank white screen when opening Tasks / Hazards / Controls step.
+- Passed quick-add toggle handlers correctly into the JSA workflow.
+- Kept v1.0.x onsite behavior and local storage compatibility.
+
+
 ## v1.0.1 - Hotfix
 - Fixed blank screen that could occur when opening the Tasks / Hazards step on devices with older or corrupted quick-add storage.
 - Hardened quick-add favorites/recent/custom items so bad local data cannot crash the app.
