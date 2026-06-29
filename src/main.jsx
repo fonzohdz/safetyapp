@@ -12,7 +12,7 @@ const KEYS = {
 const APP_NAME = 'Safety Documentation Center';
 const APP_SUB = 'Field Safety App';
 const SHACKELFORD_LOGO = `${import.meta.env.BASE_URL}icons/shackelford-logo.webp`;
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.0.1';
 
 /* ── Helpers ── */
 function todayISO() {
@@ -33,6 +33,41 @@ function dateStr(iso) {
 function hasText(v) { return Boolean(String(v || '').trim()); }
 function splitLines(v) {
   return String(v || '').split(/\n|;/).map(s => s.trim()).filter(Boolean);
+}
+
+function quickLabel(item) {
+  if (typeof item === 'string') return item;
+  if (item && typeof item === 'object') return item.label || item.step || item.value || item.title || '';
+  return '';
+}
+function quickArray(value) {
+  const source = Array.isArray(value) ? value : [];
+  const seen = new Set();
+  const out = [];
+  source.forEach(item => {
+    const label = quickLabel(item).trim();
+    const key = normalizeEntry(label);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    out.push(label);
+  });
+  return out;
+}
+function quickGroups(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((group, index) => ({
+      title: String(group?.title || `Quick Adds ${index + 1}`),
+      items: quickArray(group?.items || []),
+    }))
+    .filter(group => group.items.length);
+}
+function normalizeCustomQuick(value) {
+  return {
+    task: quickArray(value?.task || value?.tasks || []),
+    hazard: quickArray(value?.hazard || value?.hazards || []),
+    control: quickArray(value?.control || value?.controls || []),
+  };
 }
 function normalizeEntry(value) {
   return String(value || '')
@@ -480,7 +515,7 @@ function findTaskSuggestion(taskLabel) {
   const exact = TASK_SUGGESTIONS[key];
   if (exact) return { task: taskLabel, hazards: dedupeList(exact.hazards), controls: dedupeList(exact.controls), source: 'curated' };
 
-  const allTemplates = TASK_ROW_GROUPS.flatMap(group => group.items || []);
+  const allTemplates = TASK_ROW_GROUPS.reduce((items, group) => items.concat(Array.isArray(group.items) ? group.items : []), []);
   const template = allTemplates.find(item => {
     const labelKey = normalizeEntry(item.label);
     const stepKey = normalizeEntry(item.step);
@@ -536,7 +571,10 @@ function getReviewChecks(jsa) {
 
 /* ── App ── */
 function App() {
-  const [settings, setSettings] = useState(() => ({ theme: 'dark', customQuick: { task: [], hazard: [], control: [] }, ...safeJson(localStorage.getItem(KEYS.settings), {}) }));
+  const [settings, setSettings] = useState(() => {
+    const stored = safeJson(localStorage.getItem(KEYS.settings), {});
+    return { theme: stored.theme || 'dark', ...stored, customQuick: normalizeCustomQuick(stored.customQuick) };
+  });
   const [customTemplates, setCustomTemplates] = useState(() => safeJson(localStorage.getItem(KEYS.templates), []));
   const [savedDraft, setSavedDraft] = useState(() => safeJson(localStorage.getItem(KEYS.draft), null));
   const [jsa, setJsa] = useState(() => emptyJsa());
@@ -1098,18 +1136,20 @@ function StepWork({ jsa, upd, insertLine, insertLines, toggleLine, removeTaskAnd
   const [selectedHazards, setSelectedHazards] = useState([]);
   const [selectedControls, setSelectedControls] = useState([]);
 
-  const taskGroups = useMemo(() => customQuick?.task?.length
-    ? [{ title: 'My Custom Tasks', items: customQuick.task }, ...DAILY_TASK_GROUPS]
-    : DAILY_TASK_GROUPS, [customQuick]);
-  const hazardGroups = useMemo(() => customQuick?.hazard?.length
-    ? [{ title: 'My Custom Hazards', items: customQuick.hazard }, ...HAZARD_GROUPS]
-    : HAZARD_GROUPS, [customQuick]);
-  const controlGroups = useMemo(() => customQuick?.control?.length
-    ? [{ title: 'My Custom Controls', items: customQuick.control }, ...CONTROL_GROUPS]
-    : CONTROL_GROUPS, [customQuick]);
+  const safeCustomQuick = useMemo(() => normalizeCustomQuick(customQuick), [customQuick]);
+
+  const taskGroups = useMemo(() => safeCustomQuick.task.length
+    ? [{ title: 'My Custom Tasks', items: safeCustomQuick.task }, ...DAILY_TASK_GROUPS]
+    : DAILY_TASK_GROUPS, [safeCustomQuick]);
+  const hazardGroups = useMemo(() => safeCustomQuick.hazard.length
+    ? [{ title: 'My Custom Hazards', items: safeCustomQuick.hazard }, ...HAZARD_GROUPS]
+    : HAZARD_GROUPS, [safeCustomQuick]);
+  const controlGroups = useMemo(() => safeCustomQuick.control.length
+    ? [{ title: 'My Custom Controls', items: safeCustomQuick.control }, ...CONTROL_GROUPS]
+    : CONTROL_GROUPS, [safeCustomQuick]);
 
   function chooseTask(item, meta = {}) {
-    const task = typeof item === 'string' ? item : item.label;
+    const task = quickLabel(item);
     if (meta.included) {
       removeTaskAndSuggestions(task);
       if (suggestionReview?.task && isNearDuplicate(suggestionReview.task, task)) setSuggestionReview(null);
@@ -1202,11 +1242,11 @@ function StepWork({ jsa, upd, insertLine, insertLines, toggleLine, removeTaskAnd
 
             <div className="fieldWithQuick">
               <TA label="Hazards in Work Area" value={jsa.hazardsSummary} onChange={v => upd({ hazardsSummary: v })} onBlur={() => upd({ hazardsSummary: dedupeList(splitLines(jsa.hazardsSummary)).join('\n') })} rows={6} placeholder="Enter each exposure or hazardous condition on its own line." />
-              <QuickPanel title="Quick Hazards" groups={hazardGroups} onPick={(item, meta) => toggleLine('hazardsSummary', typeof item === 'string' ? item : item.label, 'hazard')} existingValue={jsa.hazardsSummary} itemType="hazard" />
+              <QuickPanel title="Quick Hazards" groups={hazardGroups} onPick={(item, meta) => toggleLine('hazardsSummary', quickLabel(item), 'hazard')} existingValue={jsa.hazardsSummary} itemType="hazard" />
             </div>
             <div className="fieldWithQuick">
               <TA label="Controls and Mitigations" value={jsa.controlsSummary} onChange={v => upd({ controlsSummary: v })} onBlur={() => upd({ controlsSummary: dedupeList(splitLines(jsa.controlsSummary)).join('\n') })} rows={6} placeholder="Enter each preventive action or requirement on its own line." />
-              <QuickPanel title="Quick Controls" groups={controlGroups} onPick={(item, meta) => toggleLine('controlsSummary', typeof item === 'string' ? item : item.label, 'control')} existingValue={jsa.controlsSummary} itemType="control" />
+              <QuickPanel title="Quick Controls" groups={controlGroups} onPick={(item, meta) => toggleLine('controlsSummary', quickLabel(item), 'control')} existingValue={jsa.controlsSummary} itemType="control" />
             </div>
           </div>
         </div>
@@ -1464,7 +1504,7 @@ function TemplatesView({ allTemplates, customTemplates, loadTemplate, deleteTemp
 function SettingsView({ settings, setSettings }) {
   const [quickType, setQuickType] = useState('task');
   const [quickLabel, setQuickLabel] = useState('');
-  const customQuick = settings.customQuick || { task: [], hazard: [], control: [] };
+  const customQuick = normalizeCustomQuick(settings.customQuick);
 
   function addCustomQuick() {
     const label = quickLabel.trim();
@@ -1477,7 +1517,7 @@ function SettingsView({ settings, setSettings }) {
     setSettings(prev => ({
       ...prev,
       customQuick: {
-        ...(prev.customQuick || { task: [], hazard: [], control: [] }),
+        ...normalizeCustomQuick(prev.customQuick),
         [quickType]: [...existing, label],
       },
     }));
@@ -1488,7 +1528,7 @@ function SettingsView({ settings, setSettings }) {
     setSettings(prev => ({
       ...prev,
       customQuick: {
-        ...(prev.customQuick || { task: [], hazard: [], control: [] }),
+        ...normalizeCustomQuick(prev.customQuick),
         [type]: (prev.customQuick?.[type] || []).filter(item => normalizeEntry(item) !== normalizeEntry(label)),
       },
     }));
@@ -1615,9 +1655,9 @@ function QuickPanel({ title, groups, onPick, existingValue = '', itemType = 'ite
   const keyBase = title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
   const recentKey = `sdc.quick.recent.${keyBase}`;
   const favoriteKey = `sdc.quick.favorites.${keyBase}`;
-  const [recent, setRecent] = useState(() => safeJson(localStorage.getItem(recentKey), []));
-  const [favorites, setFavorites] = useState(() => safeJson(localStorage.getItem(favoriteKey), []));
-  const baseGroups = Array.isArray(groups) ? groups : [];
+  const [recent, setRecent] = useState(() => quickArray(safeJson(localStorage.getItem(recentKey), [])));
+  const [favorites, setFavorites] = useState(() => quickArray(safeJson(localStorage.getItem(favoriteKey), [])));
+  const baseGroups = quickGroups(groups);
   const availableGroups = [
     ...(favorites.length ? [{ title: 'Favorites', items: favorites }] : []),
     ...(recent.length ? [{ title: 'Recently Used', items: recent }] : []),
@@ -1628,14 +1668,14 @@ function QuickPanel({ title, groups, onPick, existingValue = '', itemType = 'ite
 
   useEffect(() => {
     if (!availableGroups.some(group => group.title === active)) setActive(availableGroups[0]?.title || '');
-  }, [favorites.length, recent.length, groups]);
+  }, [favorites.length, recent.length, groups, active]);
 
   const group = availableGroups.find(g => g.title === active) || availableGroups[0] || { title: '', items: [] };
-  const allItems = baseGroups.flatMap(g => g.items || []);
-  const sourceItems = search.trim() ? allItems : group.items;
+  const allItems = baseGroups.reduce((items, g) => items.concat(Array.isArray(g.items) ? g.items : []), []);
+  const sourceItems = search.trim() ? allItems : (Array.isArray(group.items) ? group.items : []);
   const seen = new Set();
   const filtered = sourceItems.filter(item => {
-    const label = typeof item === 'string' ? item : item.label;
+    const label = quickLabel(item);
     const key = normalizeEntry(label);
     if (!key || seen.has(key)) return false;
     seen.add(key);
@@ -1644,18 +1684,20 @@ function QuickPanel({ title, groups, onPick, existingValue = '', itemType = 'ite
   const existing = splitLines(existingValue);
 
   function pick(item) {
-    const label = typeof item === 'string' ? item : item.label;
+    const label = quickLabel(item);
+    if (!label) return;
     const isIncluded = existing.some(value => isNearDuplicate(value, label));
     const next = [label, ...recent.filter(value => normalizeEntry(value) !== normalizeEntry(label))].slice(0, 10);
     setRecent(next);
     localStorage.setItem(recentKey, JSON.stringify(next));
-    onPick(item, { included: isIncluded });
+    onPick(label, { included: isIncluded });
   }
 
   function toggleFavorite(event, item) {
     event.preventDefault();
     event.stopPropagation();
-    const label = typeof item === 'string' ? item : item.label;
+    const label = quickLabel(item);
+    if (!label) return;
     const included = favorites.some(value => normalizeEntry(value) === normalizeEntry(label));
     const next = included
       ? favorites.filter(value => normalizeEntry(value) !== normalizeEntry(label))
@@ -1682,16 +1724,16 @@ function QuickPanel({ title, groups, onPick, existingValue = '', itemType = 'ite
         </div>
         <div className="chipGroup">
           {filtered.length ? filtered.map(item => {
-            const label = typeof item === 'string' ? item : item.label;
+            const label = quickLabel(item);
             const isFavorite = favorites.some(value => normalizeEntry(value) === normalizeEntry(label));
             const isIncluded = existing.some(value => isNearDuplicate(value, label));
             return (
               <div className={`quickChipWrap${isIncluded ? ' included' : ''}`} key={label}>
-                <button className="chip" onClick={() => pick(item)} title={isIncluded ? `Remove ${label}` : `Add ${label}`}>
+                <button className="chip" onClick={() => pick(label)} title={isIncluded ? `Remove ${label}` : `Add ${label}`}>
                   <span>{label}</span>
                   {isIncluded && <small>Selected</small>}
                 </button>
-                <button className={`favoriteBtn${isFavorite ? ' active' : ''}`} onClick={event => toggleFavorite(event, item)} aria-label={isFavorite ? `Remove ${label} from favorites` : `Add ${label} to favorites`} title={isFavorite ? 'Remove favorite' : 'Favorite'}>★</button>
+                <button className={`favoriteBtn${isFavorite ? ' active' : ''}`} onClick={event => toggleFavorite(event, label)} aria-label={isFavorite ? `Remove ${label} from favorites` : `Add ${label} to favorites`} title={isFavorite ? 'Remove favorite' : 'Favorite'}>★</button>
               </div>
             );
           }) : <p className="noResults">No items match that search.</p>}

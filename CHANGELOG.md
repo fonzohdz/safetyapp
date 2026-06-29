@@ -1,6 +1,13 @@
+# Changelog
+
+## v1.0.1 - Hotfix
+- Fixed blank screen that could occur when opening the Tasks / Hazards step on devices with older or corrupted quick-add storage.
+- Hardened quick-add favorites/recent/custom items so bad local data cannot crash the app.
+- Replaced fragile quick-add list handling with safer normalized lists.
+
 # Safety App — Changelog
 
-## v1.0.0 — Official On-Site JSA App
+## v1.0.1 — Official On-Site JSA App
 
 This release promotes the field-tested JSA pilot into the first official working version used on site.
 

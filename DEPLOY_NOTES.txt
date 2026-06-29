@@ -1,4 +1,4 @@
-Safety App v1.0.0 official on-site release
+Safety App v1.0.1 official on-site release
 
 Upload all contents of this ZIP to the root of fonzohdz/safetyapp, replacing existing files.
 
