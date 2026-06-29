@@ -12,7 +12,7 @@ const KEYS = {
 const APP_NAME = 'Safety Documentation Center';
 const APP_SUB = 'Field Safety App';
 const SHACKELFORD_LOGO = `${import.meta.env.BASE_URL}icons/shackelford-logo.webp`;
-const APP_VERSION = '1.0.3-stable';
+const APP_VERSION = '1.0.4-safe-upgrade';
 
 /* ── Helpers ── */
 function todayISO() {
@@ -122,13 +122,8 @@ function estimateRowUnits(row) {
     1,
   );
 }
-function mainRowCapacity(jsa) {
-  const sigs = Math.max(1, Math.min(100, Number(jsa.signatureLineCount) || 1));
-  if (sigs > 30) return 16;
-  if (sigs > 20) return 9;
-  return 12;
-}
-function continuationRowCapacity() { return 27; }
+function mainRowCapacity() { return 22; }
+function continuationRowCapacity() { return 32; }
 function paginateRowsByUnits(rows, capacity) {
   const pages = [];
   let current = [];
@@ -171,8 +166,7 @@ function paginateTaskContent(jsa) {
   const remaining = rows.slice(cutAt);
   const paged = paginateRowsByUnits(remaining, continuationRowCapacity());
   oversized = oversized || paged.oversized;
-  const useAttached = Number(jsa.signatureLineCount) > 30;
-  const mainMinRows = useAttached ? 9 : 6;
+  const mainMinRows = Math.max(16, Math.min(22, mainRows.length + 4));
   return {
     contentRows: rows,
     mainContentRows: mainRows,
@@ -185,7 +179,6 @@ function paginateTaskContent(jsa) {
 }
 function getSignaturePages(signatureLineCount) {
   const count = Math.max(1, Math.min(100, Number(signatureLineCount) || 1));
-  if (count <= 30) return [];
   const maxPerPage = 40;
   const pageCount = Math.ceil(count / maxPerPage);
   const baseSize = Math.floor(count / pageCount);
@@ -278,7 +271,7 @@ const BUILT_IN_TEMPLATES = [{
 }];
 
 function makeTodayFromTemplate(data) {
-  return { ...emptyJsa(), ...data, id: crypto.randomUUID?.() || String(Date.now()), status: 'draft', date: todayISO(), timeIssued: '', timeExpired: '', tailgateTopic: '', previousDaySafety: 'None reported.', dailyTasks: '', taskRows: [], notes: '', lastSavedAt: '' };
+  return { ...emptyJsa(), ...data, id: crypto.randomUUID?.() || String(Date.now()), status: 'draft', date: todayISO(), timeIssued: '', timeExpired: '', tailgateTopic: '', previousDaySafety: 'None reported.', signatureLineCount: Number(data?.signatureLineCount) || 30, notes: '', lastSavedAt: '' };
 }
 function templatePayload(jsa, name) {
   return {
@@ -288,7 +281,7 @@ function templatePayload(jsa, name) {
     description: 'Custom saved JSA template',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    data: { ...jsa, id: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'), source: 'custom', status: 'template', templateName: name, date: '', timeIssued: '', timeExpired: '', tailgateTopic: '', previousDaySafety: 'None reported.', dailyTasks: '', notes: '', lastSavedAt: '' },
+    data: { ...jsa, id: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'), source: 'custom', status: 'template', templateName: name, date: '', timeIssued: '', timeExpired: '', tailgateTopic: '', previousDaySafety: 'None reported.', signatureLineCount: Number(jsa.signatureLineCount) || 30, notes: '', lastSavedAt: '' },
   };
 }
 
@@ -313,36 +306,36 @@ const OVERALL_TASK_GROUPS = [
   { title: 'Rail / Industrial', items: ['Railroad support work','Right-of-way support','Industrial site support','Utility corridor work','Track area access support'] },
 ];
 const DAILY_TASK_GROUPS = [
-  { title: 'General Site Work', items: ['Site walkdown','Housekeeping and access maintenance','Barricade installation or maintenance','Site mobilization','Site demobilization','Install signs and work-area controls','Material handling','Tool and equipment setup'] },
-  { title: 'Site Prep / Clearing', items: ['Mark boundaries / limits of disturbance','Mark overhead and underground utilities','Clearing and grubbing','Mulching','Tree and vegetation removal','Demolish existing structures','Remove existing fence','Debris removal','Survey and staking'] },
-  { title: 'Earthwork / Grading', items: ['Mass grading','Rough grading','Fine grading','Finish fill placement','Undercut unsuitable material','Backfill operations','Grade and compact soil','Compaction operations','Proof rolling','Slope dressing','Operate water truck for dust suppression'] },
-  { title: 'Excavation / Drainage', items: ['Excavate work area','Trenching operations','Install storm drainage','Install pipe','Unload pipe and structures','Install culvert or drainage structure','Dewatering operations','Install riprap','Install erosion controls','Maintain erosion controls'] },
-  { title: 'Soil Stabilization', items: ['Receive lime delivery','Spread lime','Mix lime into soil','Lime or cement stabilization of soil','Cement stabilization','Moisture conditioning','Prepare stabilized subgrade'] },
-  { title: 'Material Delivery / Hauling', items: ['Receive rock delivery','Receive stone delivery','Haul dirt','Operate haul trucks on site','Place material','Manage stockpile','Stage trucks','Unload delivered material'] },
-  { title: 'Equipment Operations', items: ['Operate heavy equipment','Operate dozer','Operate excavator','Operate loader','Operate roller or compactor','Operate motor grader','Operate dump truck','Operate water truck','Back and maneuver equipment','Provide equipment spotting','Fuel equipment','Service equipment'] },
-  { title: 'Concrete / Stone', items: ['Place and compact stone','Place stone','Support concrete placement','Install formwork','Handle rebar and materials','Install stabilized construction entrance','Install track-out device'] },
-  { title: 'Rail / Right-of-Way', items: ['Railroad right-of-way support','Access track work area','Work near active rail','Siding or spur support','Place ballast or stone','Provide railroad flagging support'] },
+  { title: 'General Site Work', items: ['Site inspection','Housekeeping','Install/maintain barricades','Site mobilization','Site demobilization','Install signage','Material handling','Equipment setup'] },
+  { title: 'Site Prep / Clearing', items: ['Mark work limits','Mark overhead and underground utilities','Clearing and grubbing','Mulching','Tree and vegetation removal','Demolish existing structures','Remove existing fence','Debris removal','Survey and staking'] },
+  { title: 'Earthwork / Grading', items: ['Mass grading','Rough grading','Fine grading','Finish grading','Strip topsoil','Work in undercut','Backfill','Grade and compact','Compact soil','Proof roll','Dress slopes','GPS grading','Fine tune grade','Water for dust control'] },
+  { title: 'Excavation / Drainage', items: ['Excavation','Trenching','Install storm drain','Install pipe','Unload pipe and structures','Install culvert','Install drainage structure','Dewatering','Install riprap','Install erosion control','Maintain erosion control'] },
+  { title: 'Soil Stabilization', items: ['Lime delivery','Spread lime','Mix lime into soil','Stabilize soil','Cement stabilization','Moisture conditioning','Prepare stabilized subgrade'] },
+  { title: 'Material Delivery / Hauling', items: ['Rock delivery','Stone delivery','Haul dirt','Haul material','Place rock','Place fill','Place topsoil','Place aggregate','Manage stockpiles','Stage trucks','Unload delivered material'] },
+  { title: 'Equipment Operations', items: ['Operate heavy equipment','Operate dozer','Operate excavator','Operate loader','Operate roller or compactor','Operate motor grader','Operate dump truck','Operate water truck','Back and maneuver equipment','Spot equipment','Move equipment','Load equipment','Unload equipment','Transport equipment','Fuel equipment','Service equipment'] },
+  { title: 'Concrete / Stone', items: ['Place and compact stone','Place stone','Concrete placement','Install formwork','Handle rebar and materials','Install stabilized construction entrance','Install track-out device'] },
+  { title: 'Rail / Right-of-Way', items: ['Railroad work','Access rail work area','Work near active rail','Work in siding/spur','Place ballast or stone','Railroad flagging'] },
 ];
 const HAZARD_GROUPS = [
-  { title: 'Line of Fire / People', items: ['Line-of-fire exposure','Struck-by exposure','Caught-between exposure','Pinch-point exposure','Workers on foot near equipment','Equipment blind spots','Equipment swing-radius exposure','Exposure to backing equipment','Falling-object exposure','Suspended-load exposure'] },
-  { title: 'Heavy Equipment', items: ['Heavy-equipment movement','Equipment traffic','Rollover or runover potential','Limited operator visibility','Equipment failure','Rotating equipment','Noise and vibration','Unsafe vehicle speeds','Unsecured equipment or loads'] },
-  { title: 'Ground Conditions', items: ['Slips, trips, and falls','Uneven ground or rough terrain','Soft or unstable ground','Muddy or slippery ground','Steep slopes','Drop-offs','Open excavation','Unstable subgrade','Inadequate access or egress'] },
-  { title: 'Excavation / Utilities', items: ['Trench or excavation exposure','Cave-in potential','Spoil-pile instability','Inadequate excavation access or egress','Water accumulation','Overhead power-line exposure','Underground utilities','Utility-strike potential','Electrical shock or electrocution'] },
-  { title: 'Weather / Environmental', items: ['Heat-stress exposure','Cold-stress exposure','Lightning exposure','High winds','Airborne dust','Reduced visibility','Wet conditions','Erosion or sediment runoff','Wildlife or insect exposure','Poison ivy or poison oak'] },
-  { title: 'Chemical / Dust', items: ['Lime or chemical exposure','Cement dust','Respirable silica exposure','Fuel or oil exposure','Chemical splash','Inhalation exposure','Eye or skin irritation','Flammable vapors'] },
-  { title: 'Traffic / Public', items: ['Public-traffic exposure','Delivery-truck traffic','Haul-road traffic','Roadway vehicle intrusion','Unauthorized vehicle entry','Pedestrian or public access','Congested access points','Third-party vehicle exposure'] },
-  { title: 'Rail / Industrial', items: ['Active rail movement','Insufficient clearance from active rail','Industrial vehicle traffic','Plant or site traffic','Unauthorized entry into restricted areas','Loss of communication during coordinated movement'] },
+  { title: 'People / Line of Fire', items: ['Line of fire','Struck-by exposure','Caught-between exposure','Pinch points','Workers on foot near equipment','Equipment blind spots','Swing radius','Backing equipment','Falling objects','Suspended loads'] },
+  { title: 'Equipment / Traffic', items: ['Moving equipment','Equipment traffic','Rollover/runover potential','Limited visibility','Equipment failure','Rotating equipment','Noise and vibration','Unsafe speeds','Unsecured loads'] },
+  { title: 'Ground Conditions', items: ['Slips, trips, and falls','Uneven ground','Soft or unstable ground','Muddy or slippery ground','Steep slopes','Drop-offs','Open excavation','Unstable subgrade','Poor access/egress'] },
+  { title: 'Excavation / Utilities', items: ['Trench/excavation exposure','Cave-in potential','Spoil pile instability','Water accumulation','Overhead power lines','Underground utilities','Utility strike potential','Electrical shock/electrocution'] },
+  { title: 'Weather / Environmental', items: ['Heat stress','Cold stress','Lightning','High winds','Dust exposure','Reduced visibility','Wet conditions','Erosion/sediment runoff','Wildlife/insects','Poison ivy/oak'] },
+  { title: 'Chemical / Dust', items: ['Lime exposure','Cement dust','Silica dust','Fuel/oil exposure','Chemical splash','Inhalation exposure','Eye/skin irritation','Flammable vapors'] },
+  { title: 'Traffic / Public', items: ['Public traffic','Delivery truck traffic','Haul road traffic','Roadway traffic exposure','Unauthorized vehicle entry','Pedestrian/public access','Congested access points','Third-party traffic'] },
+  { title: 'Rail / Industrial', items: ['Active rail movement','Rail clearance','Industrial vehicle traffic','Plant/site traffic','Restricted area exposure','Loss of communication'] },
 ];
 const CONTROL_GROUPS = [
-  { title: 'Communication / Spotters', items: ['Use a spotter where required','Maintain eye contact with the operator before approaching','Use radios or approved hand signals','Confirm communication before equipment movement','Review the work plan before starting','Maintain communication with operators and supervision'] },
-  { title: 'Equipment Controls', items: ['Maintain a safe distance from equipment','Stay clear of swing radius and blind spots','Inspect tools and equipment before use','Verify horns, lights, and backup alarms operate','Operate at a safe speed','Wear the seat belt','Use mirrors and cameras as available','Park on level ground before servicing','Lower attachments and secure equipment before service'] },
-  { title: 'PPE', items: ['Wear high-visibility clothing','Wear safety glasses','Wear task-appropriate gloves','Wear a hard hat','Use hearing protection','Use respiratory protection when required','Wear proper work boots','Use task-specific PPE'] },
-  { title: 'Excavation / Utilities', items: ['Locate and verify utilities before work','Maintain current one-call tickets','Mark utilities with flagging or paint','Maintain required clearance from overhead power lines','Keep spoil piles back from the excavation edge','Provide safe excavation access and egress','Barricade open excavations','Use the required protective system','Inspect excavations before entry and after changing conditions'] },
-  { title: 'Traffic / Access', items: ['Establish traffic control','Use cones, barricades, and signs','Keep access roads clear','Stage trucks in the designated area','Control delivery traffic','Maintain separation from the public','Use designated haul routes','Coordinate deliveries with supervision'] },
-  { title: 'Weather / Heat', items: ['Hydrate regularly','Take heat breaks as needed','Monitor workers for heat stress','Provide shade or rest areas','Stop work for lightning per site policy','Adjust work for severe weather','Control dust as needed','Apply water for dust control when needed'] },
-  { title: 'Housekeeping / Site', items: ['Keep walkways clear','Remove trip hazards','Maintain clean access and egress','Secure loose materials','Correct housekeeping issues promptly','Keep tools and materials organized','Maintain stable work surfaces'] },
-  { title: 'Rail / Industrial', items: ['Follow railroad safety requirements','Maintain required rail clearance','Coordinate with the flagger or railroad representative','Remain outside restricted areas unless authorized','Maintain communication with site operations','Follow site-specific access controls'] },
-  { title: 'Stop Work / LMRA', items: ['Complete a last-minute risk assessment before each task','Use stop-work authority for unsafe acts or conditions','Report hazards immediately','Review emergency procedures and the muster point','Stop and reassess when conditions change'] },
+  { title: 'Communication / Spotters', items: ['Use a spotter','Maintain eye contact with operator','Use radios or hand signals','Confirm communication before movement','Review work plan before starting','Maintain communication with operators and supervision'] },
+  { title: 'Equipment Controls', items: ['Maintain safe distance from equipment','Stay clear of swing radius and blind spots','Inspect tools and equipment','Verify horn, lights, and backup alarm','Operate at safe speed','Wear seat belt','Use mirrors and cameras','Park on level ground before servicing','Lower attachments before servicing'] },
+  { title: 'PPE', items: ['Wear high-visibility clothing','Wear safety glasses','Wear gloves','Wear hard hat','Use hearing protection','Use respiratory protection when required','Wear proper work boots','Wear required PPE'] },
+  { title: 'Excavation / Utilities', items: ['Locate and verify utilities','Maintain current one-call tickets','Mark utilities','Maintain power line clearance','Keep spoil piles back','Provide safe access/egress','Barricade open excavations','Use required protective system','Inspect excavation before entry'] },
+  { title: 'Traffic / Access', items: ['Establish traffic control','Use cones, barricades, and signs','Keep access roads clear','Stage trucks in designated area','Control delivery traffic','Separate workers from public','Use designated haul routes','Coordinate deliveries with supervision'] },
+  { title: 'Weather / Heat', items: ['Hydrate regularly','Take heat breaks as needed','Monitor for heat stress','Provide shade/rest area','Stop work for lightning per site policy','Adjust work for severe weather','Control dust','Apply water for dust control'] },
+  { title: 'Housekeeping / Site', items: ['Keep walkways clear','Remove trip hazards','Maintain clean access/egress','Secure loose materials','Correct housekeeping issues','Keep tools/materials organized','Maintain stable work surfaces'] },
+  { title: 'Rail / Industrial', items: ['Follow railroad safety requirements','Maintain rail clearance','Coordinate with flagger/railroad representative','Stay out of restricted areas unless authorized','Maintain communication with site operations','Follow site access controls'] },
+  { title: 'Stop Work / LMRA', items: ['Complete LMRA before each task','Use stop work authority','Report hazards immediately','Review emergency procedures and muster point','Stop and reassess when conditions change'] },
 ];
 
 const TASK_ROW_GROUPS = [
@@ -387,85 +380,93 @@ const TASK_ROW_GROUPS = [
 
 
 const TASK_SUGGESTIONS = {
-  [normalizeEntry('Site walkdown')]: {
-    hazards: ['Slips, trips, and falls','Uneven ground or rough terrain','Workers on foot near equipment','Weather exposure'],
-    controls: ['Wear required PPE','Maintain a safe distance from equipment','Use designated access routes','Report and correct hazards identified during the walkdown'],
+  [normalizeEntry('Site inspection')]: {
+    hazards: ['Slips, trips, and falls','Uneven ground','Workers on foot near equipment','Weather exposure'],
+    controls: ['Wear required PPE','Maintain safe distance from equipment','Use designated access routes','Report and correct hazards'],
   },
-  [normalizeEntry('Housekeeping and access maintenance')]: {
-    hazards: ['Slips, trips, and falls','Obstructed access or egress','Sharp or protruding materials'],
-    controls: ['Keep walkways clear','Remove trip hazards','Maintain clean access and egress','Secure or remove protruding materials'],
+  [normalizeEntry('Housekeeping')]: {
+    hazards: ['Slips, trips, and falls','Poor access/egress','Sharp or protruding materials'],
+    controls: ['Keep walkways clear','Remove trip hazards','Maintain clean access/egress','Secure or remove protruding materials'],
   },
-  [normalizeEntry('Barricade installation or maintenance')]: {
-    hazards: ['Workers on foot near equipment','Pinch-point exposure','Public or unauthorized access','Slips, trips, and falls'],
-    controls: ['Use cones, barricades, and signs','Maintain separation from the public','Wear high-visibility clothing','Maintain communication with operators and supervision'],
+  [normalizeEntry('Install/maintain barricades')]: {
+    hazards: ['Workers on foot near equipment','Pinch points','Public/pedestrian access','Slips, trips, and falls'],
+    controls: ['Use cones, barricades, and signs','Separate workers from public','Wear high-visibility clothing','Maintain communication with operators and supervision'],
   },
   [normalizeEntry('Mass grading')]: {
-    hazards: ['Heavy-equipment movement','Line-of-fire exposure','Equipment blind spots','Rollover or runover potential','Airborne dust','Noise and vibration'],
-    controls: ['Maintain a safe distance from equipment','Stay clear of swing radius and blind spots','Use a spotter where required','Wear the seat belt','Control dust as needed','Use hearing protection'],
+    hazards: ['Moving equipment','Line of fire','Equipment blind spots','Rollover/runover potential','Dust exposure','Noise and vibration'],
+    controls: ['Maintain safe distance from equipment','Stay clear of swing radius and blind spots','Use a spotter','Wear seat belt','Control dust','Use hearing protection'],
   },
   [normalizeEntry('Rough grading')]: {
-    hazards: ['Heavy-equipment movement','Uneven ground or rough terrain','Equipment blind spots','Rollover or runover potential','Airborne dust'],
-    controls: ['Maintain a safe distance from equipment','Wear the seat belt','Use a spotter where required','Operate at a safe speed','Control dust as needed'],
+    hazards: ['Moving equipment','Uneven ground','Equipment blind spots','Rollover/runover potential','Dust exposure'],
+    controls: ['Maintain safe distance from equipment','Wear seat belt','Use a spotter','Operate at safe speed','Control dust'],
   },
   [normalizeEntry('Fine grading')]: {
-    hazards: ['Heavy-equipment movement','Workers on foot near equipment','Equipment blind spots','Airborne dust'],
-    controls: ['Maintain a safe distance from equipment','Confirm communication before equipment movement','Use a spotter where required','Control dust as needed'],
+    hazards: ['Moving equipment','Workers on foot near equipment','Equipment blind spots','Dust exposure'],
+    controls: ['Maintain safe distance from equipment','Confirm communication before movement','Use a spotter','Control dust'],
   },
-  [normalizeEntry('Excavate work area')]: {
-    hazards: ['Cave-in potential','Underground utilities','Open excavation','Workers on foot near equipment','Spoil-pile instability','Water accumulation'],
-    controls: ['Locate and verify utilities before work','Maintain current one-call tickets','Use the required protective system','Barricade open excavations','Keep spoil piles back from the excavation edge','Provide safe excavation access and egress','Inspect excavations before entry and after changing conditions'],
+  [normalizeEntry('Excavation')]: {
+    hazards: ['Cave-in potential','Underground utilities','Open excavation','Workers on foot near equipment','Spoil pile instability','Water accumulation'],
+    controls: ['Locate and verify utilities','Maintain current one-call tickets','Use required protective system','Barricade open excavations','Keep spoil piles back','Provide safe access/egress','Inspect excavation before entry'],
   },
-  [normalizeEntry('Trenching operations')]: {
-    hazards: ['Cave-in potential','Underground utilities','Open excavation','Inadequate excavation access or egress','Water accumulation'],
-    controls: ['Locate and verify utilities before work','Use the required protective system','Provide safe excavation access and egress','Barricade open excavations','Inspect excavations before entry and after changing conditions'],
+  [normalizeEntry('Trenching')]: {
+    hazards: ['Cave-in potential','Underground utilities','Open excavation','Poor access/egress','Water accumulation'],
+    controls: ['Locate and verify utilities','Use required protective system','Provide safe access/egress','Barricade open excavations','Inspect excavation before entry'],
   },
   [normalizeEntry('Install pipe')]: {
-    hazards: ['Caught-between exposure','Pinch-point exposure','Suspended-load exposure','Falling-object exposure','Open excavation','Workers on foot near equipment'],
-    controls: ['Use approved lifting equipment','Remain clear of suspended loads','Use tag lines where appropriate','Maintain communication with the operator','Use a spotter where required','Barricade open excavations'],
+    hazards: ['Caught-between exposure','Pinch points','Suspended loads','Falling objects','Open excavation','Workers on foot near equipment'],
+    controls: ['Use approved lifting equipment','Stay clear of suspended loads','Use tag lines when needed','Maintain communication with operator','Use a spotter','Barricade open excavations'],
   },
   [normalizeEntry('Unload pipe and structures')]: {
-    hazards: ['Suspended-load exposure','Falling-object exposure','Caught-between exposure','Pinch-point exposure','Delivery-truck traffic'],
-    controls: ['Inspect rigging before use','Remain clear of suspended loads','Use tag lines where appropriate','Use a spotter where required','Control delivery traffic','Maintain communication with operators and supervision'],
+    hazards: ['Suspended loads','Falling objects','Caught-between exposure','Pinch points','Delivery truck traffic'],
+    controls: ['Inspect rigging before use','Stay clear of suspended loads','Use tag lines when needed','Use a spotter','Control delivery traffic','Maintain communication with operators and supervision'],
   },
-  [normalizeEntry('Lime or cement stabilization of soil')]: {
-    hazards: ['Lime or chemical exposure','Respirable silica exposure','Eye or skin irritation','Heavy-equipment movement','Noise and vibration','Overhead power-line exposure'],
-    controls: ['Use task-specific PPE','Use respiratory protection when required','Apply water for dust control when needed','Maintain a safe distance from equipment','Use hearing protection','Maintain required clearance from overhead power lines'],
+  [normalizeEntry('Stabilize soil')]: {
+    hazards: ['Lime exposure','Silica dust','Eye/skin irritation','Moving equipment','Noise and vibration','Overhead power lines'],
+    controls: ['Wear required PPE','Use respiratory protection when required','Apply water for dust control','Maintain safe distance from equipment','Use hearing protection','Maintain power line clearance'],
   },
-  [normalizeEntry('Receive rock delivery')]: {
-    hazards: ['Delivery-truck traffic','Exposure to backing equipment','Line-of-fire exposure','Equipment blind spots','Airborne dust'],
-    controls: ['Control delivery traffic','Stage trucks in the designated area','Use a spotter where required','Wear high-visibility clothing','Maintain a safe distance from equipment','Control dust as needed'],
+  [normalizeEntry('Lime delivery')]: {
+    hazards: ['Delivery truck traffic','Lime exposure','Dust exposure','Workers on foot near equipment'],
+    controls: ['Control delivery traffic','Stage trucks in designated area','Wear required PPE','Maintain safe distance from equipment','Apply water for dust control'],
   },
-  [normalizeEntry('Receive stone delivery')]: {
-    hazards: ['Delivery-truck traffic','Exposure to backing equipment','Line-of-fire exposure','Equipment blind spots','Airborne dust'],
-    controls: ['Control delivery traffic','Stage trucks in the designated area','Use a spotter where required','Wear high-visibility clothing','Maintain a safe distance from equipment','Control dust as needed'],
+  [normalizeEntry('Rock delivery')]: {
+    hazards: ['Delivery truck traffic','Backing equipment','Line of fire','Equipment blind spots','Dust exposure'],
+    controls: ['Control delivery traffic','Stage trucks in designated area','Use a spotter','Wear high-visibility clothing','Maintain safe distance from equipment','Control dust'],
+  },
+  [normalizeEntry('Stone delivery')]: {
+    hazards: ['Delivery truck traffic','Backing equipment','Line of fire','Equipment blind spots','Dust exposure'],
+    controls: ['Control delivery traffic','Stage trucks in designated area','Use a spotter','Wear high-visibility clothing','Maintain safe distance from equipment','Control dust'],
+  },
+  [normalizeEntry('Haul material')]: {
+    hazards: ['Haul road traffic','Moving equipment','Dust exposure','Roadway traffic exposure','Unsafe speeds'],
+    controls: ['Use designated haul routes','Operate at safe speed','Control dust','Maintain communication with operators and supervision','Stage trucks in designated area'],
   },
   [normalizeEntry('Operate heavy equipment')]: {
-    hazards: ['Heavy-equipment movement','Equipment blind spots','Rollover or runover potential','Line-of-fire exposure','Noise and vibration'],
-    controls: ['Inspect tools and equipment before use','Verify horns, lights, and backup alarms operate','Wear the seat belt','Operate at a safe speed','Use a spotter where required','Stay clear of swing radius and blind spots'],
+    hazards: ['Moving equipment','Equipment blind spots','Rollover/runover potential','Line of fire','Noise and vibration'],
+    controls: ['Inspect tools and equipment','Verify horn, lights, and backup alarm','Wear seat belt','Operate at safe speed','Use a spotter','Stay clear of swing radius and blind spots'],
   },
   [normalizeEntry('Back and maneuver equipment')]: {
-    hazards: ['Exposure to backing equipment','Equipment blind spots','Struck-by exposure','Caught-between exposure'],
-    controls: ['Use a spotter where required','Confirm communication before equipment movement','Verify backup alarms operate','Stop when visual contact with the spotter is lost'],
+    hazards: ['Backing equipment','Equipment blind spots','Struck-by exposure','Caught-between exposure'],
+    controls: ['Use a spotter','Confirm communication before movement','Verify backup alarm','Stop when visual contact is lost'],
   },
-  [normalizeEntry('Provide equipment spotting')]: {
-    hazards: ['Struck-by exposure','Line-of-fire exposure','Equipment blind spots','Loss of communication during coordinated movement'],
-    controls: ['Use approved hand signals or radio communication','Maintain eye contact with the operator','Remain visible and outside the equipment path','Stop movement when communication is lost'],
+  [normalizeEntry('Spot equipment')]: {
+    hazards: ['Struck-by exposure','Line of fire','Equipment blind spots','Loss of communication'],
+    controls: ['Use radios or hand signals','Maintain eye contact with operator','Stay visible and outside equipment path','Stop movement when communication is lost'],
   },
   [normalizeEntry('Fuel equipment')]: {
-    hazards: ['Fuel or oil exposure','Flammable vapors','Chemical splash','Fire or explosion','Vehicle or equipment movement'],
-    controls: ['Shut down the engine before fueling','Prohibit smoking and ignition sources','Wear task-specific PPE','Prevent overfilling and clean spills promptly','Keep a fire extinguisher available'],
+    hazards: ['Fuel/oil exposure','Flammable vapors','Chemical splash','Fire/explosion','Moving equipment'],
+    controls: ['Shut down engine before fueling','Keep ignition sources away','Wear required PPE','Clean spills promptly','Keep fire extinguisher available'],
   },
   [normalizeEntry('Service equipment')]: {
-    hazards: ['Stored energy','Pinch-point exposure','Crush exposure','Hot surfaces','Fuel or oil exposure','Unexpected equipment movement'],
-    controls: ['Apply lockout/tagout when required','Park on level ground before servicing','Lower attachments and secure equipment before service','Release stored energy','Use task-specific PPE'],
+    hazards: ['Stored energy','Pinch points','Crush exposure','Hot surfaces','Fuel/oil exposure','Unexpected movement'],
+    controls: ['Apply lockout/tagout when required','Park on level ground before servicing','Lower attachments before servicing','Release stored energy','Wear required PPE'],
   },
   [normalizeEntry('Place and compact stone')]: {
-    hazards: ['Heavy-equipment movement','Workers on foot near equipment','Airborne dust','Flying material','Rollover or runover potential'],
-    controls: ['Maintain a safe distance from equipment','Use a spotter where required','Control dust as needed','Wear safety glasses','Wear the seat belt'],
+    hazards: ['Moving equipment','Workers on foot near equipment','Dust exposure','Flying material','Rollover/runover potential'],
+    controls: ['Maintain safe distance from equipment','Use a spotter','Control dust','Wear safety glasses','Wear seat belt'],
   },
   [normalizeEntry('Work near active rail')]: {
-    hazards: ['Active rail movement','Insufficient clearance from active rail','Industrial vehicle traffic','Loss of communication during coordinated movement'],
-    controls: ['Follow railroad safety requirements','Maintain required rail clearance','Coordinate with the flagger or railroad representative','Remain outside restricted areas unless authorized'],
+    hazards: ['Active rail movement','Rail clearance','Industrial vehicle traffic','Loss of communication'],
+    controls: ['Follow railroad safety requirements','Maintain rail clearance','Coordinate with flagger/railroad representative','Stay out of restricted areas unless authorized'],
   },
 };
 
@@ -1216,7 +1217,7 @@ function StepWork({ jsa, upd, insertLine, insertLines, upsertSuggestedTaskRow, a
 
 /* ── Step: Signatures ── */
 function StepSignatures({ jsa, upd, sigCount, prev, next }) {
-  const useAttached = sigCount > 30;
+  const useAttached = true;
   return (
     <div className="stepStack">
       <div className="card">
@@ -1722,8 +1723,6 @@ function PrintTaskTable({ rows, className = '' }) {
 
 function MainJsaDocumentPage({ jsa, plan, className = '' }) {
   const sigCount = Math.max(1, Math.min(100, Number(jsa.signatureLineCount) || 1));
-  const useAttached = sigCount > 30;
-  const sigLines = Array.from({ length: useAttached ? 0 : sigCount }, (_, i) => i + 1);
   return (
     <div className={`documentPage mainJsaPage ${className}`.trim()}>
       <PrintBrandHeader title="Job Safety Analysis" subtitle="JSA & Tailgate Meeting Form" pageNumber={1} totalPages={plan.totalPages} />
@@ -1736,9 +1735,7 @@ function MainJsaDocumentPage({ jsa, plan, className = '' }) {
         </tbody>
       </table>
       <div className="ackBlock"><strong>Subcontractors/Employee(s) Acknowledgement:</strong> {jsa.acknowledgement}</div>
-      {useAttached
-        ? <div className="attachedSignInNotice"><strong>Sign-In:</strong> Attached sign-in sheet generated for {sigCount} signatures.</div>
-        : <div className="signatureGrid">{sigLines.map(n => <div className="sigLine" key={n}>{n}.</div>)}</div>}
+      <div className="attachedSignInNotice"><strong>Sign-In:</strong> Attached sign-in sheet generated for {sigCount} signatures.</div>
       <table className="printSimpleTable">
         <tbody>
           <tr><th>Assigned Mentor &amp; SSE Number:</th><td>{jsa.assignedMentorSse}</td></tr>
@@ -1770,8 +1767,6 @@ function MainJsaDocumentPage({ jsa, plan, className = '' }) {
 }
 
 function PrintableJsa({ jsa }) {
-  const sigCount = Math.max(1, Math.min(100, Number(jsa.signatureLineCount) || 1));
-  const useAttached = sigCount > 30;
   const plan = getPagePlan(jsa);
 
   return (
@@ -1790,14 +1785,12 @@ function PrintableJsa({ jsa }) {
         />
       ))}
 
-      {useAttached && (
-        <AttachedSignIn
-          jsa={jsa}
-          pages={plan.signInPages}
-          pageOffset={1 + plan.continuationPages.length}
-          totalPages={plan.totalPages}
-        />
-      )}
+      <AttachedSignIn
+        jsa={jsa}
+        pages={plan.signInPages}
+        pageOffset={1 + plan.continuationPages.length}
+        totalPages={plan.totalPages}
+      />
     </div>
   );
 }

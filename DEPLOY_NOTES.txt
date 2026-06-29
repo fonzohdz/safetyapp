@@ -1,1 +1,1 @@
-Stable rollback build. Upload contents to repo root, not the folder itself. Do not upload node_modules, dist, or package-lock.json. Commit directly to main and let GitHub Actions deploy.
+Upload the contents of this folder to the GitHub repo root. Do not upload node_modules, dist, or package-lock.json. This is v1.0.4-safe-upgrade built from the stable v1.0.3 rollback base.

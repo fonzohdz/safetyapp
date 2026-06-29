@@ -1,33 +1,8 @@
-# Safety Documentation Center — v6 JSA Pilot
+# Safety Documentation Center — v1.0.4 Safe Upgrade
 
-Shackelford-branded field safety document creator. The JSA module is the active pilot feature.
+Stable onsite app with print/layout and template improvements applied from the working v6.1 base.
 
-## Run locally
-
-```bash
-npm install
-npm run dev -- --port 5196
-```
-
-Open `http://localhost:5196/`.
-
-## Production build
-
-```bash
-npm run build
-```
-
-The production files are generated in `dist/`.
-
-## GitHub Pages
-
-This project includes `.github/workflows/deploy-pages.yml`. After the files are pushed to the repository's `main` branch, enable **GitHub Actions** as the Pages source in the repository settings. The workflow builds and publishes the `dist` folder automatically.
-
-## Pilot print settings
-
-- Destination: Save to PDF or office printer
-- Paper size: Letter
-- Margins: Default
-- Scale: 100%
-- Headers and footers: Off
-- Background graphics: On for the branded header
+## Notes
+- Built from the confirmed working v1.0.3/v6.1 code path.
+- Quick-add core behavior was intentionally left stable.
+- Riskier toggle/suggestion workflow changes are not included in this safe upgrade.

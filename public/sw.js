@@ -1,4 +1,4 @@
-const CACHE_NAME = 'safety-app-v1-0-3-stable-rollback';
+const CACHE_NAME = 'safety-app-v1-0-4-safe-upgrade';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
