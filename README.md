@@ -1,6 +1,6 @@
-# Safety Documentation Center — v6 JSA Pilot
+# Safety Documentation Center — Official v1
 
-Shackelford-branded field safety document creator. The JSA module is the active pilot feature.
+Shackelford-branded field safety document creator. The JSA module is the active working on-site app.
 
 ## Run locally
 
@@ -23,7 +23,7 @@ The production files are generated in `dist/`.
 
 This project includes `.github/workflows/deploy-pages.yml`. After the files are pushed to the repository's `main` branch, enable **GitHub Actions** as the Pages source in the repository settings. The workflow builds and publishes the `dist` folder automatically.
 
-## Pilot print settings
+## Print settings
 
 - Destination: Save to PDF or office printer
 - Paper size: Letter

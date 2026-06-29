@@ -1,9 +1,19 @@
-Safety App v6.1 deployment cleanup
-
-Changed:
-- Removed package-lock.json from the upload package because the previous lockfile contained internal registry URLs that GitHub Actions cannot access.
-- Updated GitHub Actions workflow to use npm install instead of npm ci.
-- Removed npm cache setting from setup-node to avoid cache/lockfile hangups.
-- Excluded node_modules and dist from this source ZIP.
+Safety App v1.0.0 official on-site release
 
 Upload all contents of this ZIP to the root of fonzohdz/safetyapp, replacing existing files.
+
+Do not upload:
+- node_modules
+- dist
+- package-lock.json
+
+GitHub Actions should run automatically after commit and deploy the updated app to GitHub Pages.
+
+Key changes:
+- Official v1 app label/version.
+- Signatures always print on an attached sign-in sheet.
+- Templates keep saved tasks and detailed task rows.
+- Bigger printed font and better page usage.
+- Cleaned up quick-add tasks, hazards, and controls.
+- Quick-add chips now toggle add/remove.
+- Suggested hazards/controls now ask before opening review.
