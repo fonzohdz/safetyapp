@@ -30,17 +30,46 @@ When a change trades one of these off against another, favor the higher one, hig
 - Mobile usability
 - iPad compatibility
 
-## Required workflow
+## Required workflow (streamlined, local-first)
 
-**Before implementing any feature:**
-- Explain the implementation plan.
-- List every file expected to change.
-- Wait for approval before writing code.
+Treat a requested change as approval to implement it — do not wait for a second
+go-ahead to start routine local work. For each requested change:
 
-**After implementing:**
-- Run `npm run build` and fix all build errors.
-- Summarize exactly what changed.
-- Do not commit. Do not push. Wait for approval before any git operation.
+1. Briefly explain the implementation plan.
+2. Make the smallest necessary code changes; preserve existing behavior unless asked otherwise.
+3. Run `npm run build` and any other relevant local checks.
+4. Inspect `git status` and the exact diff.
+5. Summarize: exactly what changed, every file touched, whether build/checks passed,
+   and any risks or manual checks to perform.
+6. Stop and ask, verbatim: **"The change is tested and ready. Shall I commit and push it live?"**
+
+No separate approval is needed for: reading/searching files, editing files required
+by the request, `npm run dev`/`npm run build`, inspecting `localhost`, restarting the
+Vite dev server (ask first if killing a stray process is required), or read-only
+git/GitHub checks (`git status`, `git diff`, `git log`, `git fetch`, `git rev-list`,
+`git rev-parse`, GitHub Actions status, the live GitHub Pages site).
+
+**Commit and push are gated by conversational approval, not the permission system.**
+`git commit` and `git push origin main` are technically pre-authorized (no OS-level
+prompt) so that once approval is given, shipping the change completes in one step —
+but that authorization must never be exercised until the exact question above has
+been asked in this conversation and the user has given an explicit "yes" (or
+equivalent unambiguous approval) in that turn. Never commit or push proactively,
+speculatively, or as a bundled follow-on to unrelated approved work. If there is any
+doubt whether approval was actually given, ask again rather than proceeding.
+
+Approval is still always required — every time, regardless of how routine the
+underlying change felt — before: creating, switching, merging, or rebasing branches;
+installing or removing packages; deleting files; any other destructive git command;
+changing deployment configuration; or pushing to anything other than `origin main`.
+Force-pushing is blocked at the permission-system level in addition to never being
+requested. Never bypass the permission system.
+
+If a change touches printing, templates, localStorage, or signatures, call that out
+explicitly before proceeding — this doesn't require a second approval unless the
+change grows beyond what was requested, but it must be flagged.
+
+If an important requirement is unclear, ask rather than guess.
 
 ## Coding philosophy
 
