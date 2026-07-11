@@ -71,6 +71,36 @@ change grows beyond what was requested, but it must be flagged.
 
 If an important requirement is unclear, ask rather than guess.
 
+## Command hygiene
+
+Keep commands simple and predictable so routine work doesn't generate redundant
+permission prompts:
+
+- Run commands directly from the repository's existing working directory. Never
+  prefix an approved command with `cd`, `pushd`, or chain a directory change into it.
+- Run one simple command at a time whenever possible, instead of combining steps.
+- Do not use shell loops, temporary diff files, command substitution, complex
+  pipelines, or compound Bash scripts for routine verification (build checks,
+  `git status`, diff review, deployment checks). Use the simplest command that
+  answers the question.
+- After the user's final conversational approval to ship, run exactly:
+  ```
+  git commit -m "..."
+  git push origin main
+  ```
+  Nothing more elaborate.
+- For deployment verification, use simple read-only commands already on the
+  allowlist (`git status`, `git diff`, `git log`, `git fetch`, `git rev-list`,
+  `git rev-parse`, checking GitHub Actions status, the live GitHub Pages site)
+  instead of constructing new ad-hoc scripts.
+- Once GitHub Actions reports success for the exact pushed commit, stop. Do not go
+  on to parse the live bundle, inspect asset hashes, or fetch and diff deployed
+  CSS/JS — tell the user to refresh the live site themselves for final visual
+  confirmation instead.
+- If a verification command fails mechanically (e.g. a parse error), don't ask for
+  approval to fix it — just replace it with a simpler command, or skip the check
+  if it's redundant with something already confirmed.
+
 ## Coding philosophy
 
 - Prefer simple code over clever abstractions.
