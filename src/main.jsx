@@ -754,7 +754,6 @@ function App() {
     <>
       <div className="appShell">
         <header className="topbar">
-          <img className="brandLogo" src={SHACKELFORD_LOGO} alt="Shackelford Construction and Hauling" />
           <div className="brandText">
             <h1>{APP_NAME}</h1>
             <p>{APP_SUB} · v{APP_VERSION}</p>
