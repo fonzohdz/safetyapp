@@ -957,7 +957,6 @@ input:focus, select:focus, textarea:focus {
   .summaryBox h3 { margin: 0 0 2px; font-size: 9px; text-transform: uppercase; }
   .summaryBox p { margin: 0; white-space: pre-line; }
 
-  .signInPage { break-before: page; page-break-before: always; }
   .signInHeader { margin-bottom: 6px; }
   .signInInfoTable th { width: 15%; }
   .signInInfoTable td { width: 18%; }
