@@ -529,6 +529,8 @@ function getReviewChecks(jsa) {
   ];
 }
 
+function IconLock(props) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}><rect x="5" y="10.5" width="14" height="9" rx="1.5" /><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" /></svg>; }
+
 /* ── App ── */
 function App() {
   const [settings, setSettings] = useState(() => ({ theme: 'dark', customQuick: { task: [], hazard: [], control: [] }, ...safeJson(localStorage.getItem(KEYS.settings), {}) }));
@@ -805,55 +807,91 @@ function App() {
 
 /* ── Home view ── */
 function HomeView({ savedDraft, customTemplates, goJsaStart, setTab, loadSavedDraft }) {
-  const today = new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-  const draftLabel = savedDraft?.lastSavedAt ? `Draft saved ${nowNice(new Date(savedDraft.lastSavedAt))}` : 'No draft saved on this device';
+  const hasDraft = Boolean(savedDraft);
+  const draftLabel = savedDraft?.lastSavedAt ? `Last saved ${nowNice(new Date(savedDraft.lastSavedAt))}` : 'Saved on this device';
+  const draftTitle = savedDraft?.jobSite || savedDraft?.templateName || 'Untitled JSA Draft';
   return (
     <div className="homeLayout">
-      <div className="card">
-        <div className="homeHero">
-          <div>
-            <div className="eyebrow">Document Workspace</div>
-            <h2>What do you need to work on?</h2>
-            <p>Create editable drafts inside the app. When finished, export the final PDF and save it to your device, network folder, or cloud drive.</p>
+      <section className={`homeWorkspace${hasDraft ? '' : ' single'}`}>
+        {hasDraft && (
+          <div className="workspacePanel workspacePanelMain">
+            <span className="workspaceEyebrow">Continue Working</span>
+            <h2>{draftTitle}</h2>
+            <p>{draftLabel}</p>
+            <button className="btn primary lg" onClick={loadSavedDraft}>Open Current Draft</button>
           </div>
-          <div className="homeMeta">
-            <span>{today}</span>
-            <span>{customTemplates.length} custom template{customTemplates.length !== 1 ? 's' : ''}</span>
-            <span>{savedDraft ? '1 saved draft' : 'No saved drafts'}</span>
-          </div>
+        )}
+        <div className={`workspacePanel${hasDraft ? '' : ' workspacePanelMain'}`}>
+          <span className="workspaceEyebrow">{hasDraft ? 'New Document' : 'Get Started'}</span>
+          <h2>Create New Document</h2>
+          <p>Choose a document type and starting method.</p>
+          <button className="btn primary lg" onClick={goJsaStart}>Start New Document</button>
         </div>
-      </div>
-      <div className="homeGrid">
-        <button className="homeAction primary" onClick={goJsaStart}>
-          <strong>Start New Document</strong>
-          <span>Choose your document type and starting method.</span>
+      </section>
+
+      <div className="homeSecondaryActions">
+        <button className="secondaryLink" onClick={() => setTab('drafts')}>
+          <span>Open Drafts</span>
+          <small>{hasDraft ? '1 saved draft' : 'No saved drafts'}</small>
         </button>
-        <button className="homeAction" onClick={() => setTab('drafts')}>
-          <strong>Open Drafts</strong>
-          <span>{draftLabel}</span>
-        </button>
-        <button className="homeAction" onClick={() => setTab('templates')}>
-          <strong>Manage Templates</strong>
-          <span>Save, load, and organize reusable JSA templates.</span>
+        <button className="secondaryLink" onClick={() => setTab('templates')}>
+          <span>Manage Templates</span>
+          <small>{customTemplates.length} custom template{customTemplates.length !== 1 ? 's' : ''}</small>
         </button>
       </div>
-      <div className="card">
-        <div className="cardHeader"><h3>Document Types</h3></div>
-        <div className="cardBody">
-          <div className="docGrid">
-            <button className="docTile active" onClick={goJsaStart}>
+
+      <section className="homeModules">
+        <h3 className="homeModulesTitle">Document Types</h3>
+        <div className="moduleGrid">
+          <button className="moduleTile active" onClick={goJsaStart}>
+            <div className="moduleTileHead">
               <strong>Job Safety Analysis</strong>
               <span className="badge avail">Active</span>
-              <p>Build a JSA, load a template, set crew count, and export the final PDF.</p>
-            </button>
-            <div className="docTile disabled"><strong>Incident Report</strong><span className="badge soon">Coming Later</span><p>Document incidents and near misses in a structured format.</p></div>
-            <div className="docTile disabled"><strong>Field Observation</strong><span className="badge soon">Coming Later</span><p>Record corrective actions and safety observations.</p></div>
-            <div className="docTile disabled"><strong>Unplanned Event Report</strong><span className="badge soon">Coming Later</span><p>Capture unplanned events before they escalate.</p></div>
-            <div className="docTile disabled"><strong>Sign-In Sheet</strong><span className="badge soon">Coming Later</span><p>Standalone sign-in sheet for meetings and training.</p></div>
-            <div className="docTile disabled"><strong>Weekly Inspection</strong><span className="badge soon">Coming Later</span><p>Site safety inspection checklists.</p></div>
+            </div>
+            <p>Build a JSA, load a template, set crew count, and export the final PDF.</p>
+          </button>
+          <div className="moduleTile locked">
+            <div className="moduleTileHead">
+              <IconLock className="moduleLockIcon" />
+              <strong>Incident Report</strong>
+              <span className="badge soon">Coming Later</span>
+            </div>
+            <p>Document incidents and near misses in a structured format.</p>
+          </div>
+          <div className="moduleTile locked">
+            <div className="moduleTileHead">
+              <IconLock className="moduleLockIcon" />
+              <strong>Field Observation</strong>
+              <span className="badge soon">Coming Later</span>
+            </div>
+            <p>Record corrective actions and safety observations.</p>
+          </div>
+          <div className="moduleTile locked">
+            <div className="moduleTileHead">
+              <IconLock className="moduleLockIcon" />
+              <strong>Unplanned Event Report</strong>
+              <span className="badge soon">Coming Later</span>
+            </div>
+            <p>Capture unplanned events before they escalate.</p>
+          </div>
+          <div className="moduleTile locked">
+            <div className="moduleTileHead">
+              <IconLock className="moduleLockIcon" />
+              <strong>Sign-In Sheet</strong>
+              <span className="badge soon">Coming Later</span>
+            </div>
+            <p>Standalone sign-in sheet for meetings and training.</p>
+          </div>
+          <div className="moduleTile locked">
+            <div className="moduleTileHead">
+              <IconLock className="moduleLockIcon" />
+              <strong>Weekly Inspection</strong>
+              <span className="badge soon">Coming Later</span>
+            </div>
+            <p>Site safety inspection checklists.</p>
           </div>
         </div>
-      </div>
+      </section>
     </div>
   );
 }
