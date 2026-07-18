@@ -502,6 +502,10 @@ const STEPS = [
   { id: 'review', label: 'Review / Export', helper: 'Save draft, templates, and export PDF' },
 ];
 
+function hasMeaningfulJsaContent(jsa) {
+  return [jsa.location, jsa.jobSite, jsa.superintendentForeman, jsa.tailgateTopic, jsa.overallWorkTask, jsa.dailyTasks, jsa.hazardsSummary, jsa.controlsSummary].some(hasText)
+    || normalizeRows(jsa.taskRows).length > 0;
+}
 function stepStatus(jsa, id) {
   switch (id) {
     case 'job': return hasText(jsa.location) && hasText(jsa.jobSite) && hasText(jsa.superintendentForeman) ? 'complete' : 'needs-info';
@@ -581,13 +585,11 @@ function useDebugLayoutFlag() {
 function CompactStepper({ steps, jsa, jsaStep, setJsaStep }) {
   const idx = Math.max(0, steps.findIndex(s => s.id === jsaStep));
   const current = steps[idx];
-  const status = stepStatus(jsa, jsaStep);
   return (
     <div className="compactStepper">
       <div className="compactStepperHead">
         <span className="compactStepperCount">Step {idx + 1} of {steps.length}</span>
         <span className="compactStepperTitle">{current.label}</span>
-        <span className={`stepChip ${status}`}>{stepStatusLabel(status)}</span>
       </div>
       <div className="compactStepperTrack">
         {steps.map((s, i) => {
@@ -654,6 +656,52 @@ function LayoutDebugPanel({ containerRef, layoutMode, stepperMode, jobPairMode, 
   );
 }
 
+/* ── Accessible modal dialog primitive: focus trap, Escape to cancel,
+   focus returns to whatever triggered it on close. No dependency. ── */
+function useFocusTrapDialog(onCancel) {
+  const dialogRef = useRef(null);
+  useEffect(() => {
+    const previouslyFocused = document.activeElement;
+    const dialog = dialogRef.current;
+    const focusable = dialog ? Array.from(dialog.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')) : [];
+    focusable[0]?.focus();
+    function onKeyDown(e) {
+      if (e.key === 'Escape') { onCancel(); return; }
+      if (e.key !== 'Tab' || !focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      if (previouslyFocused && typeof previouslyFocused.focus === 'function') previouslyFocused.focus();
+    };
+  }, [onCancel]);
+  return dialogRef;
+}
+
+function ConfirmReplaceDialog({ templateName, onCancel, onContinue }) {
+  const dialogRef = useFocusTrapDialog(onCancel);
+  return (
+    <div className="dialogOverlay" onMouseDown={e => { if (e.target === e.currentTarget) onCancel(); }}>
+      <div className="dialogPanel" role="alertdialog" aria-modal="true" aria-labelledby="confirmReplaceTitle" aria-describedby="confirmReplaceBody" ref={dialogRef}>
+        <h3 id="confirmReplaceTitle">Replace current draft?</h3>
+        <p id="confirmReplaceBody">
+          {templateName
+            ? `Loading "${templateName}" will replace the JSA you're currently editing. This can't be undone.`
+            : "Starting a new blank JSA will replace the one you're currently editing. This can't be undone."}
+        </p>
+        <div className="dialogActions">
+          <button className="btn ghost" onClick={onCancel}>Cancel</button>
+          <button className="btn primary" onClick={onContinue}>Continue</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── App ── */
 function App() {
   const [settings, setSettings] = useState(() => ({ theme: 'dark', customQuick: { task: [], hazard: [], control: [] }, ...safeJson(localStorage.getItem(KEYS.settings), {}) }));
@@ -666,6 +714,8 @@ function App() {
   const [templateId, setTemplateId] = useState('blank-jsa');
   const [saveName, setSaveName] = useState('');
   const [toast, setToast] = useState('');
+  const [saveStatus, setSaveStatus] = useState('idle'); // 'idle' | 'saving' | 'saved' | 'error'
+  const [confirmReplace, setConfirmReplace] = useState(null); // null | { action: 'blank' } | { action: 'template', templateId }
   const autoSaveTimer = useRef(null);
   const lastAutoSaveSnapshot = useRef('');
 
@@ -703,18 +753,22 @@ function App() {
 
   useEffect(() => {
     if (activeDoc !== 'jsa') return undefined;
-    const meaningful = [jsa.location, jsa.jobSite, jsa.superintendentForeman, jsa.tailgateTopic, jsa.overallWorkTask, jsa.dailyTasks, jsa.hazardsSummary, jsa.controlsSummary].some(hasText)
-      || normalizeRows(jsa.taskRows).length > 0;
-    if (!meaningful) return undefined;
+    if (!hasMeaningfulJsaContent(jsa)) return undefined;
     const snapshot = JSON.stringify({ ...jsa, lastSavedAt: '' });
     if (snapshot === lastAutoSaveSnapshot.current) return undefined;
+    setSaveStatus('saving');
     clearTimeout(autoSaveTimer.current);
     autoSaveTimer.current = setTimeout(() => {
       const next = { ...jsa, status: jsa.status === 'ready' ? 'ready' : 'draft', lastSavedAt: new Date().toISOString() };
-      lastAutoSaveSnapshot.current = snapshot;
-      localStorage.setItem(KEYS.draft, JSON.stringify(next));
-      setSavedDraft(next);
-      setJsa(prev => ({ ...prev, lastSavedAt: next.lastSavedAt }));
+      try {
+        localStorage.setItem(KEYS.draft, JSON.stringify(next));
+        lastAutoSaveSnapshot.current = snapshot;
+        setSavedDraft(next);
+        setJsa(prev => ({ ...prev, lastSavedAt: next.lastSavedAt }));
+        setSaveStatus('saved');
+      } catch {
+        setSaveStatus('error');
+      }
     }, 900);
     return () => clearTimeout(autoSaveTimer.current);
   }, [jsa, activeDoc]);
@@ -729,17 +783,29 @@ function App() {
 
   function saveDraft(msg = true) {
     const next = { ...jsa, status: 'draft', lastSavedAt: new Date().toISOString() };
-    setJsa(next);
-    localStorage.setItem(KEYS.draft, JSON.stringify(next));
-    setSavedDraft(next);
-    if (msg) showToast('Draft saved on this device.');
+    try {
+      localStorage.setItem(KEYS.draft, JSON.stringify(next));
+      setJsa(next);
+      setSavedDraft(next);
+      setSaveStatus('saved');
+      if (msg) showToast('Draft saved on this device.');
+    } catch {
+      setSaveStatus('error');
+      if (msg) showToast('Save failed. Check available storage on this device.');
+    }
   }
   function markReady() {
     const next = { ...jsa, status: 'ready', lastSavedAt: new Date().toISOString() };
-    setJsa(next);
-    localStorage.setItem(KEYS.draft, JSON.stringify(next));
-    setSavedDraft(next);
-    showToast('Marked ready to export. Save the PDF outside the app.');
+    try {
+      localStorage.setItem(KEYS.draft, JSON.stringify(next));
+      setJsa(next);
+      setSavedDraft(next);
+      setSaveStatus('saved');
+      showToast('Marked ready to export. Save the PDF outside the app.');
+    } catch {
+      setSaveStatus('error');
+      showToast('Save failed. Check available storage on this device.');
+    }
   }
   function clearDraft() {
     if (!confirm('Clear this JSA draft? Custom templates will not be affected.')) return;
@@ -774,6 +840,20 @@ function App() {
     setTemplateId('blank-jsa');
     goJsa('job');
   }
+  function requestStartBlank() {
+    if (hasMeaningfulJsaContent(jsa)) { setConfirmReplace({ action: 'blank' }); return; }
+    startBlank();
+  }
+  function requestLoadTemplate(id) {
+    if (hasMeaningfulJsaContent(jsa)) { setConfirmReplace({ action: 'template', templateId: id }); return; }
+    loadTemplate(id);
+  }
+  function confirmReplaceContinue() {
+    if (confirmReplace?.action === 'blank') startBlank();
+    else if (confirmReplace?.action === 'template') loadTemplate(confirmReplace.templateId);
+    setConfirmReplace(null);
+  }
+  function confirmReplaceCancel() { setConfirmReplace(null); }
   function saveTemplate() {
     const name = saveName.trim();
     if (!name) { showToast('Enter a name for the template first.'); return; }
@@ -912,7 +992,7 @@ function App() {
           {tab === 'home' && <HomeView savedDraft={savedDraft} customTemplates={customTemplates} goJsaStart={goJsaStart} setTab={setTab} loadSavedDraft={loadSavedDraft} />}
           {tab === 'documents' && !activeDoc && <DocCenterView goJsaStart={goJsaStart} />}
           {tab === 'documents' && activeDoc === 'jsa-start' && (
-            <JsaStartView allTemplates={allTemplates} selectedTemplate={selectedTemplate} templateId={templateId} setTemplateId={setTemplateId} loadTemplate={loadTemplate} loadSavedDraft={loadSavedDraft} startBlank={startBlank} savedDraft={savedDraft} />
+            <JsaStartView allTemplates={allTemplates} selectedTemplate={selectedTemplate} templateId={templateId} setTemplateId={setTemplateId} loadTemplate={requestLoadTemplate} loadSavedDraft={loadSavedDraft} startBlank={requestStartBlank} savedDraft={savedDraft} />
           )}
           {tab === 'documents' && activeDoc === 'jsa' && (
             <JsaWorkflow
@@ -922,14 +1002,22 @@ function App() {
               saveName={saveName} setSaveName={setSaveName} saveTemplate={saveTemplate} updateTemplate={updateTemplate}
               addRow={addRow} updRow={updRow} removeRow={removeRow} insertLine={insertLine} insertLines={insertLines} upsertSuggestedTaskRow={upsertSuggestedTaskRow} addSummaryAsRow={addSummaryAsRow} addRowTemplate={addRowTemplate}
               clearDraft={clearDraft} saveDraft={saveDraft} markReady={markReady} exportPdf={exportPdf}
-              savedDraft={savedDraft} settings={settings}
+              savedDraft={savedDraft} settings={settings} saveStatus={saveStatus}
             />
           )}
           {tab === 'drafts' && <DraftsView savedDraft={savedDraft} loadSavedDraft={loadSavedDraft} clearDraft={() => { if (!savedDraft) return; if (!confirm('Delete this draft?')) return; setJsa(emptyJsa()); localStorage.removeItem(KEYS.draft); setSavedDraft(null); showToast('Draft deleted.'); }} />}
-          {tab === 'templates' && <TemplatesView allTemplates={allTemplates} customTemplates={customTemplates} loadTemplate={loadTemplate} deleteTemplate={deleteTemplate} startBlank={startBlank} />}
+          {tab === 'templates' && <TemplatesView allTemplates={allTemplates} customTemplates={customTemplates} loadTemplate={requestLoadTemplate} deleteTemplate={deleteTemplate} startBlank={requestStartBlank} />}
           {tab === 'settings' && <SettingsView settings={settings} setSettings={setSettings} />}
         </main>
       </div>
+
+      {confirmReplace && (
+        <ConfirmReplaceDialog
+          templateName={confirmReplace.action === 'template' ? allTemplates.find(t => t.id === confirmReplace.templateId)?.name : null}
+          onCancel={confirmReplaceCancel}
+          onContinue={confirmReplaceContinue}
+        />
+      )}
 
       <PrintableJsa jsa={jsa} />
       {toast && <div className="toast">{toast}</div>}
@@ -1103,8 +1191,34 @@ function JsaStartView({ allTemplates, selectedTemplate, templateId, setTemplateI
   );
 }
 
+/* ── Sticky workflow action bar (touch devices): one Back/Next location,
+   quiet save status, reachable above the keyboard and Safari's bottom UI. ── */
+function StickyActionBar({ idx, steps, prev, next, exportPdf, showPreview, setShowPreview, saveStatus }) {
+  const isFirst = idx === 0;
+  const isLast = idx === steps.length - 1;
+  const nextStep = steps[idx + 1];
+  const statusText = saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'Saved' : saveStatus === 'error' ? 'Save failed' : '';
+  return (
+    <div className="stickyActionBar">
+      <div className="stickyActionSide stickyActionLeft">
+        {!isFirst && <button className="btn ghost sm" onClick={prev}>Back</button>}
+      </div>
+      <div className={`stickyActionStatus${saveStatus === 'error' ? ' error' : ''}`} aria-live="polite">{statusText}</div>
+      <div className="stickyActionSide stickyActionRight">
+        {!isLast && (
+          <button className="btn outline sm" onClick={() => setShowPreview(v => !v)}>
+            {showPreview ? 'Hide Preview' : 'Preview'}
+          </button>
+        )}
+        {!isLast && nextStep && <button className="btn primary sm" onClick={next}>Next: {nextStep.label}</button>}
+        {isLast && <button className="btn primary sm" onClick={exportPdf}>Print / Save PDF</button>}
+      </div>
+    </div>
+  );
+}
+
 /* ── JSA Workflow ── */
-function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTemplates, templateId, setTemplateId, selectedTemplate, loadTemplate, saveName, setSaveName, saveTemplate, updateTemplate, addRow, updRow, removeRow, insertLine, insertLines, upsertSuggestedTaskRow, addSummaryAsRow, addRowTemplate, clearDraft, saveDraft, markReady, exportPdf, savedDraft, settings }) {
+function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTemplates, templateId, setTemplateId, selectedTemplate, loadTemplate, saveName, setSaveName, saveTemplate, updateTemplate, addRow, updRow, removeRow, insertLine, insertLines, upsertSuggestedTaskRow, addSummaryAsRow, addRowTemplate, clearDraft, saveDraft, markReady, exportPdf, savedDraft, settings, saveStatus }) {
   const fit = calcFit(jsa);
   const sigCount = Math.max(1, Math.min(100, Number(jsa.signatureLineCount) || 1));
   const idx = STEPS.findIndex(s => s.id === jsaStep);
@@ -1146,7 +1260,7 @@ function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTem
           <div className="docHeaderMeta">
             <span className={`fitBadge ${fit.status}`}>{fit.label}</span>
             <span className={`badge ${jsa.status}`}>{jsa.status === 'ready' ? 'Ready to Export' : 'Draft'}</span>
-            {!canSideBySide && jsaStep !== 'review' && (
+            {!canSideBySide && !isTouchPrimary && jsaStep !== 'review' && (
               <button className="btn sm outline" onClick={() => setShowPreview(v => !v)}>
                 {showPreview ? 'Hide Preview' : 'Preview JSA'}
               </button>
@@ -1204,6 +1318,19 @@ function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTem
           quickPanelMode={isTouchPrimary ? 'stacked full-width, collapsed by default' : 'side-by-side column'}
         />
       )}
+
+      {isTouchPrimary && (
+        <StickyActionBar
+          idx={idx}
+          steps={STEPS}
+          prev={prev}
+          next={next}
+          exportPdf={exportPdf}
+          showPreview={showPreview}
+          setShowPreview={setShowPreview}
+          saveStatus={saveStatus}
+        />
+      )}
     </>
   );
 }
@@ -1251,8 +1378,55 @@ function StepJob({ jsa, upd, prev, next }) {
   );
 }
 
+/* ── Shared contextual Suggestions system (touch devices) ──
+   Reuses QuickPanel exactly as-is (same component, same recent/favorites/
+   search/localStorage logic) — only changes where it renders. Desktop keeps
+   the existing always-visible side-by-side QuickPanel unchanged. `quickPanelTitle`
+   is passed straight through to QuickPanel unchanged so its derived localStorage
+   keys never change; `sheetTitle` is only the overlay's own visible heading. */
+function SuggestionsSheet({ title, onClose, children }) {
+  const dialogRef = useFocusTrapDialog(onClose);
+  return (
+    <div className="suggestionsOverlay" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="suggestionsSheet" role="dialog" aria-modal="true" aria-label={title} ref={dialogRef}>
+        <div className="suggestionsSheetHead">
+          <strong>{title}</strong>
+          <button className="btn sm ghost" onClick={onClose} aria-label="Close suggestions">Close</button>
+        </div>
+        <div className="suggestionsSheetBody">{children}</div>
+      </div>
+    </div>
+  );
+}
+function FieldWithSuggestions({ label, value, onChange, onBlur, rows, placeholder, quickPanelTitle, sheetTitle, groups, onPick, itemType, fieldKey, activeSuggestion, setActiveSuggestion }) {
+  const isTouchPrimary = useIsTouchPrimary();
+  if (!isTouchPrimary) {
+    return (
+      <div className="fieldWithQuick">
+        <TA label={label} value={value} onChange={onChange} onBlur={onBlur} rows={rows} placeholder={placeholder} />
+        <QuickPanel title={quickPanelTitle} groups={groups} onPick={onPick} existingValue={value} itemType={itemType} />
+      </div>
+    );
+  }
+  const isOpen = activeSuggestion === fieldKey;
+  return (
+    <div className="fieldStack">
+      <TA label={label} value={value} onChange={onChange} onBlur={onBlur} rows={rows} placeholder={placeholder} />
+      <button type="button" className="suggestionsTrigger" onClick={() => setActiveSuggestion(fieldKey)}>
+        Suggestions
+      </button>
+      {isOpen && (
+        <SuggestionsSheet title={sheetTitle} onClose={() => setActiveSuggestion(null)}>
+          <QuickPanel forceOpen title={quickPanelTitle} groups={groups} onPick={onPick} existingValue={value} itemType={itemType} />
+        </SuggestionsSheet>
+      )}
+    </div>
+  );
+}
+
 /* ── Step: Meeting Info ── */
 function StepMeeting({ jsa, upd, prev, next }) {
+  const [activeSuggestion, setActiveSuggestion] = useState(null);
   return (
     <div className="stepStack">
       <div className="card">
@@ -1262,18 +1436,24 @@ function StepMeeting({ jsa, upd, prev, next }) {
         </div>
         <div className="cardBody">
           <div className="formGrid">
-            <div className="fieldWithQuick">
-              <TA label="Tailgate Safety Topic" value={jsa.tailgateTopic} onChange={v => upd({ tailgateTopic: v })} rows={4} placeholder="Topic discussed at today's tailgate meeting." />
-              <QuickPanel title="Quick Topics" groups={TAILGATE_GROUPS} onPick={item => upd({ tailgateTopic: item })} />
-            </div>
-            <div className="fieldWithQuick">
-              <TA label="Previous Day Injury / Near Miss" value={jsa.previousDaySafety} onChange={v => upd({ previousDaySafety: v })} rows={4} placeholder="Enter previous day safety status." />
-              <QuickPanel title="Quick Previous Day" groups={PREV_DAY_GROUPS} onPick={item => upd({ previousDaySafety: item })} />
-            </div>
-            <div className="fieldWithQuick">
-              <TA label="Overall Work Task or Activity" value={jsa.overallWorkTask} onChange={v => upd({ overallWorkTask: v })} rows={4} placeholder="Describe the overall scope of work today." />
-              <QuickPanel title="Quick Overall Tasks" groups={OVERALL_TASK_GROUPS} onPick={item => upd({ overallWorkTask: item })} />
-            </div>
+            <FieldWithSuggestions
+              label="Tailgate Safety Topic" value={jsa.tailgateTopic} onChange={v => upd({ tailgateTopic: v })} rows={4}
+              placeholder="Topic discussed at today's tailgate meeting."
+              quickPanelTitle="Quick Topics" sheetTitle="Topic Suggestions" groups={TAILGATE_GROUPS} onPick={item => upd({ tailgateTopic: item })}
+              fieldKey="topic" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
+            />
+            <FieldWithSuggestions
+              label="Previous Day Injury / Near Miss" value={jsa.previousDaySafety} onChange={v => upd({ previousDaySafety: v })} rows={4}
+              placeholder="Enter previous day safety status."
+              quickPanelTitle="Quick Previous Day" sheetTitle="Previous Day Suggestions" groups={PREV_DAY_GROUPS} onPick={item => upd({ previousDaySafety: item })}
+              fieldKey="previousDay" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
+            />
+            <FieldWithSuggestions
+              label="Overall Work Task or Activity" value={jsa.overallWorkTask} onChange={v => upd({ overallWorkTask: v })} rows={4}
+              placeholder="Describe the overall scope of work today."
+              quickPanelTitle="Quick Overall Tasks" sheetTitle="Overall Task Suggestions" groups={OVERALL_TASK_GROUPS} onPick={item => upd({ overallWorkTask: item })}
+              fieldKey="overallTask" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
+            />
           </div>
         </div>
       </div>
@@ -1287,6 +1467,7 @@ function StepWork({ jsa, upd, insertLine, insertLines, upsertSuggestedTaskRow, a
   const [suggestionReview, setSuggestionReview] = useState(null);
   const [selectedHazards, setSelectedHazards] = useState([]);
   const [selectedControls, setSelectedControls] = useState([]);
+  const [activeSuggestion, setActiveSuggestion] = useState(null);
 
   const taskGroups = useMemo(() => customQuick?.task?.length
     ? [{ title: 'My Custom Tasks', items: customQuick.task }, ...DAILY_TASK_GROUPS]
@@ -1329,10 +1510,13 @@ function StepWork({ jsa, upd, insertLine, insertLines, upsertSuggestedTaskRow, a
         </div>
         <div className="cardBody">
           <div className="formGrid">
-            <div className="fieldWithQuick">
-              <TA label="Tasks for Today" value={jsa.dailyTasks} onChange={v => upd({ dailyTasks: v })} onBlur={() => upd({ dailyTasks: dedupeList(splitLines(jsa.dailyTasks)).join('\n') })} rows={6} placeholder="Enter each work activity on its own line." />
-              <QuickPanel title="Quick Daily Tasks" groups={taskGroups} onPick={chooseTask} existingValue={jsa.dailyTasks} itemType="task" />
-            </div>
+            <FieldWithSuggestions
+              label="Tasks for Today" value={jsa.dailyTasks} onChange={v => upd({ dailyTasks: v })}
+              onBlur={() => upd({ dailyTasks: dedupeList(splitLines(jsa.dailyTasks)).join('\n') })} rows={6}
+              placeholder="Enter each work activity on its own line."
+              quickPanelTitle="Quick Daily Tasks" sheetTitle="Daily Task Suggestions" groups={taskGroups} onPick={chooseTask}
+              fieldKey="dailyTasks" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
+            />
 
             {suggestionReview && (
               <div className="taskSuggestionCard">
@@ -1372,61 +1556,71 @@ function StepWork({ jsa, upd, insertLine, insertLines, upsertSuggestedTaskRow, a
               </div>
             )}
 
-            <div className="fieldWithQuick">
-              <TA label="Hazards in Work Area" value={jsa.hazardsSummary} onChange={v => upd({ hazardsSummary: v })} onBlur={() => upd({ hazardsSummary: dedupeList(splitLines(jsa.hazardsSummary)).join('\n') })} rows={6} placeholder="Enter each exposure or hazardous condition on its own line." />
-              <QuickPanel title="Quick Hazards" groups={hazardGroups} onPick={item => insertLine('hazardsSummary', item, 'hazard')} existingValue={jsa.hazardsSummary} itemType="hazard" />
-            </div>
-            <div className="fieldWithQuick">
-              <TA label="Controls and Mitigations" value={jsa.controlsSummary} onChange={v => upd({ controlsSummary: v })} onBlur={() => upd({ controlsSummary: dedupeList(splitLines(jsa.controlsSummary)).join('\n') })} rows={6} placeholder="Enter each preventive action or requirement on its own line." />
-              <QuickPanel title="Quick Controls" groups={controlGroups} onPick={item => insertLine('controlsSummary', item, 'control')} existingValue={jsa.controlsSummary} itemType="control" />
-            </div>
+            <FieldWithSuggestions
+              label="Hazards in Work Area" value={jsa.hazardsSummary} onChange={v => upd({ hazardsSummary: v })}
+              onBlur={() => upd({ hazardsSummary: dedupeList(splitLines(jsa.hazardsSummary)).join('\n') })} rows={6}
+              placeholder="Enter each exposure or hazardous condition on its own line."
+              quickPanelTitle="Quick Hazards" sheetTitle="Hazard Suggestions" groups={hazardGroups} onPick={item => insertLine('hazardsSummary', item, 'hazard')}
+              fieldKey="hazards" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
+            />
+            <FieldWithSuggestions
+              label="Controls and Mitigations" value={jsa.controlsSummary} onChange={v => upd({ controlsSummary: v })}
+              onBlur={() => upd({ controlsSummary: dedupeList(splitLines(jsa.controlsSummary)).join('\n') })} rows={6}
+              placeholder="Enter each preventive action or requirement on its own line."
+              quickPanelTitle="Quick Controls" sheetTitle="Control Suggestions" groups={controlGroups} onPick={item => insertLine('controlsSummary', item, 'control')}
+              fieldKey="controls" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
+            />
           </div>
         </div>
       </div>
 
-      <div className="card">
-        <div className="cardHeader">
-          <h3>Detailed Task Rows</h3>
-          <p>Optional — pairs one task with its own hazards and controls.</p>
-        </div>
-        <div className="cardBody">
-          <div className="formGrid">
-            <div className="standardBehaviorBox">
-              <div>
-                <strong>Most JSAs skip this</strong>
-                <p>The summary fields above are enough — they're pulled into the printed table automatically.</p>
-              </div>
-              <button className="btn ghost sm" onClick={addSummaryAsRow}>Create Row From Summary</button>
+      <details className="detailedRowsDisclosure" open={(jsa.taskRows || []).length > 0}>
+        <summary>
+          <div className="detailedRowsSummaryText">
+            <div className="detailedRowsSummaryTitle">
+              <strong>Detailed Task Rows</strong>
+              <span className="badge draft">Optional</span>
             </div>
+            <p>Pair a task with its own hazards and controls. Most JSAs can use the summary fields above.</p>
+          </div>
+          <span className="detailedRowsSummaryAction">{(jsa.taskRows || []).length > 0 ? 'Show Details' : 'Add Details'}</span>
+        </summary>
+        <div className="detailedRowsBody">
+          <div className="standardBehaviorBox">
+            <div>
+              <strong>Auto-fill from summary</strong>
+              <p>Creates one row from the Tasks, Hazards, and Controls fields above.</p>
+            </div>
+            <button className="btn ghost sm" onClick={addSummaryAsRow}>Create Row From Summary</button>
+          </div>
 
-            <details className="quickPanel">
-              <summary>Task Row Templates</summary>
-              <div className="quickPickerInner">
-                <QuickRowTemplateSelector groups={TASK_ROW_GROUPS} onPick={addRowTemplate} />
-              </div>
-            </details>
+          <details className="quickPanel">
+            <summary>Task Row Templates</summary>
+            <div className="quickPickerInner">
+              <QuickRowTemplateSelector groups={TASK_ROW_GROUPS} onPick={addRowTemplate} />
+            </div>
+          </details>
 
-            {(jsa.taskRows || []).length > 0 && (
-              <div className="taskRowList">
-                {(jsa.taskRows || []).map((row, i) => (
-                  <div className="taskRow" key={i}>
-                    <div className="taskRowHead">
-                      <strong>Task Row #{i + 1}</strong>
-                      <button className="miniDanger" onClick={() => removeRow(i)}>Remove</button>
-                    </div>
-                    <div className="taskRowBody">
-                      <TA label="Task / Activity" value={row.step} onChange={v => updRow(i, { step: v })} rows={3} />
-                      <TA label="Task-Specific Hazards" value={row.hazards} onChange={v => updRow(i, { hazards: v })} onBlur={() => updRow(i, { hazards: dedupeList(splitLines(row.hazards)).join('\n') })} rows={3} />
-                      <TA label="Task-Specific Controls" value={row.controls} onChange={v => updRow(i, { controls: v })} onBlur={() => updRow(i, { controls: dedupeList(splitLines(row.controls)).join('\n') })} rows={3} />
-                    </div>
+          {(jsa.taskRows || []).length > 0 && (
+            <div className="taskRowList">
+              {(jsa.taskRows || []).map((row, i) => (
+                <div className="taskRow" key={i}>
+                  <div className="taskRowHead">
+                    <strong>Task Row #{i + 1}</strong>
+                    <button className="miniDanger" onClick={() => removeRow(i)}>Remove</button>
                   </div>
-                ))}
-              </div>
-            )}
-            <button className="btn ghost full" onClick={addRow}>Add Blank Task Row</button>
-          </div>
+                  <div className="taskRowBody">
+                    <TA label="Task / Activity" value={row.step} onChange={v => updRow(i, { step: v })} rows={3} />
+                    <TA label="Task-Specific Hazards" value={row.hazards} onChange={v => updRow(i, { hazards: v })} onBlur={() => updRow(i, { hazards: dedupeList(splitLines(row.hazards)).join('\n') })} rows={3} />
+                    <TA label="Task-Specific Controls" value={row.controls} onChange={v => updRow(i, { controls: v })} onBlur={() => updRow(i, { controls: dedupeList(splitLines(row.controls)).join('\n') })} rows={3} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <button className="btn ghost full" onClick={addRow}>Add Blank Task Row</button>
         </div>
-      </div>
+      </details>
       <StepFooter prev={prev} next={next} hasPrev hasNext />
     </div>
   );
@@ -1545,6 +1739,10 @@ function StepReview({ jsa, upd, fit, saveName, setSaveName, saveTemplate, update
 
 /* ── Step footer ── */
 function StepFooter({ prev, next, hasPrev, hasNext }) {
+  // Touch devices get the sticky workflow action bar (JsaWorkflow) instead —
+  // this avoids duplicate Back/Next controls on the same screen.
+  const isTouchPrimary = useIsTouchPrimary();
+  if (isTouchPrimary) return null;
   return (
     <div className="stepFooter">
       <div className="leftBtns">
@@ -1783,7 +1981,7 @@ function JsaPreview({ jsa }) {
 }
 
 /* ── Quick panel (details/summary) ── */
-function QuickPanel({ title, groups, onPick, existingValue = '', itemType = 'item' }) {
+function QuickPanel({ title, groups, onPick, existingValue = '', itemType = 'item', forceOpen = false }) {
   const isTouchPrimary = useIsTouchPrimary();
   const keyBase = title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
   const recentKey = `sdc.quick.recent.${keyBase}`;
@@ -1837,7 +2035,7 @@ function QuickPanel({ title, groups, onPick, existingValue = '', itemType = 'ite
   }
 
   return (
-    <details className="quickPanel" open={!isTouchPrimary}>
+    <details className="quickPanel" open={forceOpen || !isTouchPrimary}>
       <summary>{title}</summary>
       <div className="quickPickerInner">
         <div className="quickControls">
@@ -1904,10 +2102,20 @@ function F({ label, value, onChange, type = 'text', placeholder = '' }) {
   );
 }
 function TA({ label, value, onChange, onBlur, rows = 4, placeholder = '' }) {
+  // Content-aware height: grows with typed content up to a CSS max-height,
+  // then scrolls internally. Resizing style.height doesn't touch the value
+  // or selection, so it never causes a cursor jump.
+  const ref = useRef(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
   return (
     <label className="field">
       <span>{label}</span>
-      <textarea rows={rows} value={value || ''} placeholder={placeholder} onChange={e => onChange(e.target.value)} onBlur={onBlur} style={{ minHeight: rows * 24 + 16 }} />
+      <textarea ref={ref} rows={rows} value={value || ''} placeholder={placeholder} onChange={e => onChange(e.target.value)} onBlur={onBlur} className="autoGrow" />
     </label>
   );
 }

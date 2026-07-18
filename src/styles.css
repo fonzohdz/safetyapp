@@ -66,6 +66,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; border: none; background: none; }
 a { color: var(--accent); }
 img { display: block; max-width: 100%; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0.001ms !important; animation-duration: 0.001ms !important; }
+}
 
 /* ── App Shell ── */
 .appShell { min-height: 100vh; display: flex; flex-direction: column; }
@@ -339,6 +342,10 @@ select, textarea {
   min-height: 44px;
 }
 textarea { resize: vertical; line-height: 1.5; min-height: 100px; }
+/* Content-aware height (see TA in main.jsx): starts small, grows with
+   content up to max-height, then scrolls internally. JS-driven, so manual
+   drag-resize is disabled to avoid fighting the auto-grow on next keystroke. */
+textarea.autoGrow { resize: none; min-height: 64px; max-height: 320px; overflow-y: auto; }
 input:focus, select:focus, textarea:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
@@ -383,10 +390,34 @@ input:focus, select:focus, textarea:focus {
   pointer-events: none;
 }
 
+/* ── Sticky workflow action bar (touch devices) ── */
+.stickyActionBar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 150;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px max(14px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(14px, env(safe-area-inset-left, 0px));
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  box-shadow: 0 -4px 16px rgba(0,0,0,.12);
+}
+.stickyActionSide { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.stickyActionStatus { flex: 1 1 auto; text-align: center; font-size: 12px; font-weight: 600; color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stickyActionStatus.error { color: var(--danger); }
+.stickyActionBar .btn { min-height: 44px; }
+/* Keep the last field/button clear of the fixed bar on touch devices. */
+html[data-pointer='coarse'] .page { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+
 /* ── Layout diagnostics overlay (?debug=layout only, see main.jsx LayoutDebugPanel) ── */
 .layoutDebugPanel {
   position: fixed;
   right: 10px;
+  /* Clears the sticky workflow action bar's typical height on touch devices. */
   bottom: calc(10px + env(safe-area-inset-bottom, 0px));
   z-index: 200;
   width: 260px;
@@ -401,11 +432,40 @@ input:focus, select:focus, textarea:focus {
   line-height: 1.4;
   pointer-events: none;
 }
+/* Clear the sticky workflow action bar on touch devices. */
+html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-area-inset-bottom, 0px)); }
 .layoutDebugPanel strong { display: block; color: #fff; font-size: 10.5px; margin-bottom: 4px; text-transform: uppercase; letter-spacing: .5px; }
 .layoutDebugPanel dl { display: grid; gap: 2px; }
 .layoutDebugPanel dl > div { display: flex; justify-content: space-between; gap: 8px; }
 .layoutDebugPanel dt { color: #8fefb0; }
 .layoutDebugPanel dd { color: #fff; text-align: right; }
+
+/* ── Accessible confirm dialog (Start Blank / load template over meaningful work) ── */
+.dialogOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0,0,0,.5);
+}
+.dialogPanel {
+  width: 100%;
+  max-width: 420px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  padding: 20px;
+  display: grid;
+  gap: 12px;
+}
+.dialogPanel h3 { font-size: 17px; font-weight: 700; }
+.dialogPanel p { color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+.dialogActions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+.dialogActions .btn { min-height: 44px; }
 
 /* ── Home ── */
 .homeLayout { display: grid; gap: 28px; }
@@ -775,11 +835,75 @@ input:focus, select:focus, textarea:focus {
 }
 .fieldWithQuick .field { width: 100%; }
 .fieldWithQuick .quickPanel { margin-top: 24px; }
-/* Touch devices: QuickPanel never sits in a narrow side column — it always
-   expands full-width below the field. Keyed off the reliable application-level
-   data-pointer attribute (App() + useIsTouchPrimary), not viewport width. */
-html[data-pointer='coarse'] .fieldWithQuick { grid-template-columns: 1fr; }
-html[data-pointer='coarse'] .fieldWithQuick .quickPanel { margin-top: 0; }
+/* .fieldWithQuick now only ever renders on desktop — FieldWithSuggestions
+   (main.jsx) branches to the contextual Suggestions sheet on touch devices
+   before this markup is reached at all, so no touch override is needed here. */
+
+/* Touch devices: field + a small "Suggestions" trigger, stacked full width.
+   The QuickPanel itself only mounts inside the overlay it opens. */
+.fieldStack { display: grid; gap: 8px; min-width: 0; }
+.suggestionsTrigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--accent);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.suggestionsTrigger:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--line) 55%); }
+
+/* Contextual Suggestions overlay: bottom sheet on portrait/phones, side
+   drawer on iPad landscape widths. Always an overlay — never a permanent
+   second layout column, on any orientation. */
+.suggestionsOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 260;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0,0,0,.45);
+}
+.suggestionsSheet {
+  width: 100%;
+  max-height: 82vh;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-bottom: none;
+  border-radius: 16px 16px 0 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.suggestionsSheetHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+  flex: 0 0 auto;
+}
+.suggestionsSheetHead strong { font-size: 16px; font-weight: 700; }
+.suggestionsSheetBody { flex: 1 1 auto; overflow-y: auto; padding: 10px 12px 16px; min-height: 0; }
+@media (min-width: 860px) and (orientation: landscape) {
+  .suggestionsOverlay { align-items: stretch; justify-content: flex-end; }
+  .suggestionsSheet {
+    width: min(420px, 92vw);
+    max-height: 100%;
+    border-radius: 0;
+    border-left: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    border-top: none;
+  }
+}
 
 /* ── Quick-add panels (consolidated: recent/favorites, add behavior, custom quick-add) ── */
 .quickPanel {
@@ -1190,6 +1314,48 @@ html[data-pointer='coarse'] .fieldWithQuick .quickPanel { margin-top: 0; }
 .standardBehaviorBox strong { font-size: 14px; font-weight: 700; }
 .standardBehaviorBox p { color: var(--muted); margin: 4px 0 0; font-size: 13.5px; line-height: 1.5; max-width: 620px; }
 
+/* Detailed Task Rows: one compact optional disclosure instead of a stack
+   of separate boxes. Summary-first hierarchy — detailed rows only when needed. */
+.detailedRowsDisclosure {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.detailedRowsDisclosure summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px 20px;
+  min-height: 44px;
+  user-select: none;
+}
+.detailedRowsDisclosure summary::-webkit-details-marker { display: none; }
+.detailedRowsDisclosure[open] summary { border-bottom: 1px solid var(--line); }
+.detailedRowsSummaryText { min-width: 0; }
+.detailedRowsSummaryTitle { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.detailedRowsSummaryTitle strong { font-size: 15px; font-weight: 700; }
+.detailedRowsSummaryText p { color: var(--muted); font-size: 13px; line-height: 1.45; max-width: 60ch; }
+.detailedRowsSummaryAction {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line) 60%);
+  border-radius: 999px;
+  padding: 6px 12px;
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+}
+.detailedRowsBody { padding: 20px; display: grid; gap: 14px; }
+
 .taskSuggestionCard {
   border: 1px solid color-mix(in srgb, var(--accent) 48%, var(--line) 52%);
   border-radius: var(--radius-sm);
@@ -1424,7 +1590,7 @@ html[data-pointer='coarse'] .fieldWithQuick .quickPanel { margin-top: 0; }
 @media print {
   @page { size: letter portrait; margin: 0.5in; }
   html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; color: #000 !important; }
-  .appShell, .toast, .layoutDebugPanel { display: none !important; }
+  .appShell, .toast, .layoutDebugPanel, .dialogOverlay, .suggestionsOverlay, .stickyActionBar { display: none !important; }
   .printOnly { display: block !important; }
   table { width: 100%; border-collapse: collapse; }
 
