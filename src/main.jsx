@@ -574,7 +574,10 @@ function useDebugLayoutFlag() {
   }, []);
 }
 
-/* ── Compact stepper (touch devices): status strip + tap targets, never wraps ── */
+/* ── Compact stepper (touch devices): every segment always shows its own
+   number, title, and a non-color status glyph. Layout is an explicit
+   3+2 grid that switches to a single row of 5 via container query at
+   wider actual widths — never an accidental auto-wrap. ── */
 function CompactStepper({ steps, jsa, jsaStep, setJsaStep }) {
   const idx = Math.max(0, steps.findIndex(s => s.id === jsaStep));
   const current = steps[idx];
@@ -586,18 +589,24 @@ function CompactStepper({ steps, jsa, jsaStep, setJsaStep }) {
         <span className="compactStepperTitle">{current.label}</span>
         <span className={`stepChip ${status}`}>{stepStatusLabel(status)}</span>
       </div>
-      <div className="compactStepperTrack" style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }}>
-        {steps.map(s => {
+      <div className="compactStepperTrack">
+        {steps.map((s, i) => {
           const st = stepStatus(jsa, s.id);
+          const glyph = stepStatusLabel(st) === 'Needs Info' ? '!' : '✓';
           return (
             <button
               key={s.id}
-              className={`compactStepperDot ${st}${s.id === jsaStep ? ' active' : ''}`}
+              className={`compactStepperSeg ${st}${s.id === jsaStep ? ' active' : ''}`}
               onClick={() => setJsaStep(s.id)}
               aria-current={s.id === jsaStep ? 'step' : undefined}
               aria-label={`${s.label}: ${stepStatusLabel(st)}`}
-              title={s.label}
-            />
+            >
+              <span className="compactStepperSegTop">
+                <span className="compactStepperSegNum">{i + 1}</span>
+                <span className="compactStepperSegGlyph" aria-hidden="true">{glyph}</span>
+              </span>
+              <span className="compactStepperSegLabel">{s.label}</span>
+            </button>
           );
         })}
       </div>
@@ -606,7 +615,7 @@ function CompactStepper({ steps, jsa, jsaStep, setJsaStep }) {
 }
 
 /* ── Layout diagnostics overlay, only mounted behind ?debug=layout ── */
-function LayoutDebugPanel({ containerRef, layoutMode }) {
+function LayoutDebugPanel({ containerRef, layoutMode, stepperMode, jobPairMode, quickPanelMode, previewMode }) {
   const [, forceTick] = useState(0);
   useEffect(() => {
     const onChange = () => forceTick(t => t + 1);
@@ -627,15 +636,19 @@ function LayoutDebugPanel({ containerRef, layoutMode }) {
     <div className="layoutDebugPanel">
       <strong>Layout Debug (?debug=layout)</strong>
       <dl>
+        <div><dt>touch-primary</dt><dd>{String(coarse)}</dd></div>
+        <div><dt>any-pointer: coarse</dt><dd>{String(coarse)}</dd></div>
+        <div><dt>maxTouchPoints</dt><dd>{navigator.maxTouchPoints}</dd></div>
         <div><dt>innerWidth × innerHeight</dt><dd>{window.innerWidth} × {window.innerHeight}</dd></div>
         <div><dt>visualViewport</dt><dd>{vv ? `${Math.round(vv.width)} × ${Math.round(vv.height)}` : 'n/a'}</dd></div>
         <div><dt>screen</dt><dd>{screen.width} × {screen.height}</dd></div>
         <div><dt>devicePixelRatio</dt><dd>{window.devicePixelRatio}</dd></div>
-        <div><dt>maxTouchPoints</dt><dd>{navigator.maxTouchPoints}</dd></div>
-        <div><dt>any-pointer: coarse</dt><dd>{String(coarse)}</dd></div>
         <div><dt>orientation</dt><dd>{orientation}</dd></div>
         <div><dt>workspace width</dt><dd>{containerWidth != null ? `${containerWidth}px` : 'n/a'}</dd></div>
-        <div><dt>layout mode</dt><dd>{layoutMode}</dd></div>
+        <div><dt>live preview mode</dt><dd>{previewMode ?? layoutMode ?? 'n/a'}</dd></div>
+        <div><dt>stepper mode</dt><dd>{stepperMode ?? 'n/a'}</dd></div>
+        <div><dt>job info pair mode</dt><dd>{jobPairMode ?? 'n/a'}</dd></div>
+        <div><dt>QuickPanel mode</dt><dd>{quickPanelMode ?? 'n/a'}</dd></div>
       </dl>
     </div>
   );
@@ -657,11 +670,19 @@ function App() {
   const lastAutoSaveSnapshot = useRef('');
 
   const allTemplates = useMemo(() => [...BUILT_IN_TEMPLATES, ...customTemplates], [customTemplates]);
+  const isTouchPrimary = useIsTouchPrimary();
 
   useEffect(() => {
     document.documentElement.dataset.theme = settings.theme || 'dark';
     localStorage.setItem(KEYS.settings, JSON.stringify(settings));
   }, [settings]);
+
+  useEffect(() => {
+    // Application-level layout signal every component can key off via CSS
+    // (html[data-pointer='coarse']) without prop drilling. Based on the real
+    // (any-pointer: coarse) capability, not viewport width or UA sniffing.
+    document.documentElement.dataset.pointer = isTouchPrimary ? 'coarse' : 'fine';
+  }, [isTouchPrimary]);
 
   useEffect(() => {
     localStorage.setItem(KEYS.templates, JSON.stringify(customTemplates));
@@ -1173,13 +1194,30 @@ function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTem
         )}
       </div>
 
-      {debugLayout && <LayoutDebugPanel containerRef={shellRef} layoutMode={layoutMode} />}
+      {debugLayout && (
+        <LayoutDebugPanel
+          containerRef={shellRef}
+          layoutMode={layoutMode}
+          previewMode={layoutMode}
+          stepperMode={isTouchPrimary ? 'compact (3+2 / 5 via container query)' : 'expanded cards'}
+          jobPairMode={isTouchPrimary ? 'forced-stack (date/time); container-query (client/muster)' : 'container-query (all pairs)'}
+          quickPanelMode={isTouchPrimary ? 'stacked full-width, collapsed by default' : 'side-by-side column'}
+        />
+      )}
     </>
   );
 }
 
 /* ── Step: Job Info ── */
 function StepJob({ jsa, upd, prev, next }) {
+  const isTouchPrimary = useIsTouchPrimary();
+  // Date/Job # and Time Issued/Time Expired pair native date/time controls, whose
+  // real intrinsic width in WebKit cannot be reliably measured from this codebase
+  // (see reports/audits — Chromium-based testing cannot reproduce Safari's native
+  // control rendering). On touch devices these always stack as independent
+  // full-width fields rather than risk it. Client/Muster Point are plain text
+  // inputs with predictable sizing, so they keep the container-query pairing.
+  const datePairClass = `formPairRow${isTouchPrimary ? ' forcedStack' : ''}`;
   return (
     <div className="stepStack">
       <div className="card">
@@ -1188,7 +1226,7 @@ function StepJob({ jsa, upd, prev, next }) {
           <div className="formGrid">
             <F label="Location / City" value={jsa.location} onChange={v => upd({ location: v })} />
             <F label="Job Site" value={jsa.jobSite} onChange={v => upd({ jobSite: v })} />
-            <div className="formPairRow">
+            <div className={datePairClass}>
               <F label="Date" type="date" value={jsa.date} onChange={v => upd({ date: v })} />
               <F label="Job #" value={jsa.jobNumber} onChange={v => upd({ jobNumber: v })} />
             </div>
@@ -1196,7 +1234,7 @@ function StepJob({ jsa, upd, prev, next }) {
               <F label="Client" value={jsa.client} onChange={v => upd({ client: v })} />
               <F label="Muster Point" value={jsa.musterPoint} onChange={v => upd({ musterPoint: v })} />
             </div>
-            <div className="formPairRow">
+            <div className={datePairClass}>
               <F label="Time Issued" type="time" value={jsa.timeIssued} onChange={v => upd({ timeIssued: v })} />
               <F label="Time Expired" type="time" value={jsa.timeExpired} onChange={v => upd({ timeExpired: v })} />
             </div>
@@ -1349,14 +1387,14 @@ function StepWork({ jsa, upd, insertLine, insertLines, upsertSuggestedTaskRow, a
       <div className="card">
         <div className="cardHeader">
           <h3>Detailed Task Rows</h3>
-          <p>Optional. Use these when a task needs its hazards and controls paired together. The printout uses the summary fields when no detailed rows are added.</p>
+          <p>Optional — pairs one task with its own hazards and controls.</p>
         </div>
         <div className="cardBody">
           <div className="formGrid">
             <div className="standardBehaviorBox">
               <div>
-                <strong>Standard behavior</strong>
-                <p>Leave detailed rows blank for a normal JSA. The summary lists above will be aligned into the printed table.</p>
+                <strong>Most JSAs skip this</strong>
+                <p>The summary fields above are enough — they're pulled into the printed table automatically.</p>
               </div>
               <button className="btn ghost sm" onClick={addSummaryAsRow}>Create Row From Summary</button>
             </div>
@@ -1746,6 +1784,7 @@ function JsaPreview({ jsa }) {
 
 /* ── Quick panel (details/summary) ── */
 function QuickPanel({ title, groups, onPick, existingValue = '', itemType = 'item' }) {
+  const isTouchPrimary = useIsTouchPrimary();
   const keyBase = title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
   const recentKey = `sdc.quick.recent.${keyBase}`;
   const favoriteKey = `sdc.quick.favorites.${keyBase}`;
@@ -1798,7 +1837,7 @@ function QuickPanel({ title, groups, onPick, existingValue = '', itemType = 'ite
   }
 
   return (
-    <details className="quickPanel" open>
+    <details className="quickPanel" open={!isTouchPrimary}>
       <summary>{title}</summary>
       <div className="quickPickerInner">
         <div className="quickControls">

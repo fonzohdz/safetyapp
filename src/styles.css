@@ -628,9 +628,12 @@ input:focus, select:focus, textarea:focus {
 .stepChip.complete, .stepChip.ready { background: color-mix(in srgb, var(--good) 16%, transparent); color: var(--good); }
 .stepChip.needs-info { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
 
-/* ── Compact stepper (touch devices): status line + fixed-column tap
-   track that can never wrap unevenly, unlike an auto-wrapping card grid. ── */
-.compactStepper { display: grid; gap: 10px; min-width: 0; }
+/* ── Compact stepper (touch devices): every segment always shows its own
+   number, title, and a non-color status glyph — never a blank box. Layout
+   is an explicit 3-column grid (5 items auto-place as an intentional 3+2),
+   switching to a single row of 5 via container query once the stepper's
+   own actual width has room — not an accidental viewport-based wrap. ── */
+.compactStepper { display: grid; gap: 10px; min-width: 0; container-type: inline-size; }
 .compactStepperHead {
   display: flex;
   align-items: center;
@@ -655,20 +658,62 @@ input:focus, select:focus, textarea:focus {
 }
 .compactStepperTrack {
   display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
   min-width: 0;
 }
-.compactStepperDot {
+@container (min-width: 480px) {
+  .compactStepperTrack { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
+.compactStepperSeg {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
   min-height: 44px;
+  min-width: 0;
+  padding: 6px 8px;
   border: 1px solid var(--line);
   border-bottom: 3px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--surface);
+  color: var(--text);
+  text-align: left;
 }
-.compactStepperDot.active { border-color: var(--accent); border-bottom-color: var(--accent); background: color-mix(in srgb, var(--surface) 90%, var(--accent) 10%); }
-.compactStepperDot.complete { border-bottom-color: var(--good); }
-.compactStepperDot.ready { border-bottom-color: var(--good); }
-.compactStepperDot.needs-info { border-bottom-color: var(--warn); }
+.compactStepperSegTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 4px;
+}
+.compactStepperSegNum {
+  font-size: 10px;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  color: var(--muted);
+}
+.compactStepperSegGlyph {
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--warn);
+}
+.compactStepperSegLabel {
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.compactStepperSeg.active {
+  border-color: var(--accent);
+  border-bottom-color: var(--accent);
+  background: color-mix(in srgb, var(--surface) 90%, var(--accent) 10%);
+}
+.compactStepperSeg.complete, .compactStepperSeg.ready { border-bottom-color: var(--good); }
+.compactStepperSeg.complete .compactStepperSegGlyph, .compactStepperSeg.ready .compactStepperSegGlyph { color: var(--good); }
+.compactStepperSeg.needs-info { border-bottom-color: var(--warn); }
+.compactStepperSeg.needs-info .compactStepperSegGlyph { color: var(--warn); }
 
 /* ── Document header ── */
 .docHeader {
@@ -717,6 +762,9 @@ input:focus, select:focus, textarea:focus {
     gap: 14px 18px;
   }
 }
+/* Forced on touch devices for pairs holding native date/time controls —
+   see StepJob in main.jsx for why this can't rely on container width alone. */
+.formPairRow.forcedStack { grid-template-columns: 1fr; }
 
 /* Field+quick-add side by side when space allows */
 .fieldWithQuick {
@@ -727,6 +775,11 @@ input:focus, select:focus, textarea:focus {
 }
 .fieldWithQuick .field { width: 100%; }
 .fieldWithQuick .quickPanel { margin-top: 24px; }
+/* Touch devices: QuickPanel never sits in a narrow side column — it always
+   expands full-width below the field. Keyed off the reliable application-level
+   data-pointer attribute (App() + useIsTouchPrimary), not viewport width. */
+html[data-pointer='coarse'] .fieldWithQuick { grid-template-columns: 1fr; }
+html[data-pointer='coarse'] .fieldWithQuick .quickPanel { margin-top: 0; }
 
 /* ── Quick-add panels (consolidated: recent/favorites, add behavior, custom quick-add) ── */
 .quickPanel {
