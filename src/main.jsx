@@ -79,11 +79,6 @@ function mergeUniqueEntries(existingValue, candidates) {
 function dedupeList(items) {
   return mergeUniqueEntries('', items).added;
 }
-function chunk(arr, n) {
-  const out = [];
-  for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
-  return out;
-}
 function isGenericRow(row) {
   const s = String(row?.step || '').trim().toLowerCase();
   return !s || s === 'daily tasks as discussed during tailgate meeting' || s === 'daily tasks as discussed during the tailgate meeting';
@@ -199,9 +194,6 @@ function getPagePlan(jsa) {
     signInPages,
     totalPages: 1 + taskPlan.continuationPages.length + signInPages.length,
   };
-}
-function getPrintRows(jsa) {
-  return paginateTaskContent(jsa).mainRows;
 }
 function calcFit(jsa) {
   const plan = getPagePlan(jsa);
@@ -1254,7 +1246,6 @@ function StepWork({ jsa, upd, insertLine, insertLines, upsertSuggestedTaskRow, a
 
 /* ── Step: Signatures ── */
 function StepSignatures({ jsa, upd, sigCount, prev, next }) {
-  const useAttached = true;
   return (
     <div className="stepStack">
       <div className="card">
@@ -1266,11 +1257,11 @@ function StepSignatures({ jsa, upd, sigCount, prev, next }) {
               <label className="field">
                 <span>Number of Signature Lines</span>
                 <input type="number" min="1" max="100" value={sigCount} onChange={e => upd({ signatureLineCount: Math.max(1, Math.min(100, Number(e.target.value) || 1)) })} />
-                <small>1–30: signature lines print on the JSA. 31–100: signatures move to an attached sign-in sheet.</small>
+                <small>Signatures always print on a separate attached sign-in sheet, up to 40 lines per sheet.</small>
               </label>
               <div className="sigRuleBox">
-                <strong>{useAttached ? 'Attached sign-in sheet will be generated.' : 'Signatures will print on the main JSA.'}</strong>
-                <p>{useAttached ? `The main JSA will note an attached sign-in sheet. Requested lines: ${sigCount}.` : `This works well for smaller crews. The signature grid will stay on the main JSA page.`}</p>
+                <strong>Attached sign-in sheet will be generated.</strong>
+                <p>The main JSA will note an attached sign-in sheet. Requested lines: {sigCount}.</p>
               </div>
             </div>
           </div>

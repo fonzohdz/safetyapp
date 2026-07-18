@@ -123,7 +123,7 @@ Keep this in mind when naming things or structuring data — code that assumes "
 
 ## Historical lessons
 
-- Printing has been a frequent source of regressions — treat any print CSS or pagination change as high-risk (see the three-`@media print`-blocks issue under Gotchas).
+- Printing has been a frequent source of regressions — treat any print CSS or pagination change as high-risk. `styles.css` previously had three conflicting `@media print` blocks; they were consolidated into one authoritative block (2026-07-18, `refactor: consolidate legacy JSA styles`) — see Gotchas and `reports/audits/2026-07-18_full-application-audit.md` section C1/F for the history.
 - localStorage changes have previously caused white screens — see the `QuickPanel` white-screen regression under Gotchas.
 - Signature pages intentionally print separately from the main JSA (attached sign-in sheet) — this is deliberate design, not a bug to "fix."
 - iPad printing must remain supported — verify print/PDF changes work in Safari/iPadOS behavior, not just desktop Chrome.
@@ -131,7 +131,7 @@ Keep this in mind when naming things or structuring data — code that assumes "
 ## Commands
 
 ```
-npm install       # install deps (no lockfile is committed — see Gotchas)
+npm install       # install deps (package-lock.json is committed — see Gotchas)
 npm run dev        # vite dev server, bound to 0.0.0.0
 npm run build       # vite build -> dist/
 npm run preview     # serve the built dist/ locally, bound to 0.0.0.0
@@ -149,7 +149,7 @@ Historically this repo has been pushed to by uploading whole-folder zips through
 
 The entire application is two files:
 - `src/main.jsx` (~1840 lines) — every component, all state management, all business logic, and large hard-coded content libraries (hazard/control/task-suggestion text), all in one file.
-- `src/styles.css` (~1640 lines) — all styling, including three separate `@media print` blocks (see Gotchas).
+- `src/styles.css` (~1410 lines) — all styling, including one consolidated `@media print` block (see Gotchas; this used to be three conflicting blocks).
 
 There is no router, no component/hooks/utils folder structure, and no state management library — everything is `useState`/`useMemo`/`useRef` inside the root `App` component, passed down via props (deep prop-drilling is normal here, e.g. `JsaWorkflow` takes ~24 props).
 
@@ -185,7 +185,7 @@ Pagination is computed in JS, not left to the browser: `paginateTaskContent()` /
 
 ## Gotchas / known-fragile areas
 
-- **Three `@media print` blocks in `styles.css`** (around L860, L1128, L1594), each redeclaring `@page` margins and `.printPage` dimensions differently. The last one in source order wins for conflicting properties. This is leftover from earlier CSS versions layered on top of each other — treat as needing consolidation, not as three intentional layers. If print output looks wrong, check for a rule further down the file silently overriding the one you just edited.
+- **Print CSS lives in one consolidated `@media print` block** near the end of `styles.css` (search for "single authoritative print system"). It used to be three separate blocks that redeclared `@page` margins and `.printPage` dimensions differently (0.22in/auto-height, 0.22in/10.56in, 0.5in/10in — the last always won by source order); they were merged 2026-07-18 (`refactor: consolidate legacy JSA styles`) keeping the winning 0.5in/10in geometry and folding in every still-live property from the other two. See `reports/audits/2026-07-18_full-application-audit.md` section C1/F for the full cascade analysis. Physical iPad/AirPrint behavior was **not** re-verified as part of that consolidation — treat print changes as high-risk regardless.
 - **No error boundaries anywhere.** An uncaught render exception (e.g. a wrong-shaped value pulled from `localStorage`) blanks the whole app. `CHANGELOG.md` documents a real prior white-screen regression tied to `QuickPanel` open/add behavior — that interaction (`QuickPanel` component) has since been treated as "don't change casually."
 - **Single draft slot, no confirmation on overwrite.** `startBlank()` and `loadTemplate()` silently replace the in-memory `jsa` with no unsaved-changes guard (unlike `clearDraft()`, which does `confirm()`). Keep this in mind if asked to add new entry points that discard the current draft.
-- **No lockfile is committed** (`package-lock.json` was intentionally removed) — `npm install` in CI can resolve different transitive versions between builds.
+- **`package-lock.json` is committed and git-tracked**, so `npm install` (including in CI) resolves deterministically from it. An earlier version of this doc claimed no lockfile was committed and `DEPLOY_NOTES.txt` still says to exclude it from manual zip uploads — both are stale; verify with `git ls-files | grep lock` before trusting either claim again.

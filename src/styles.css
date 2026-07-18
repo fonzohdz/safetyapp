@@ -295,6 +295,8 @@ html[data-theme='dark'] .btn.secondary { background: var(--surface-3); color: va
   flex-direction: column;
   gap: 6px;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 .field > span {
   font-size: 13px;
@@ -305,12 +307,15 @@ html[data-theme='dark'] .btn.secondary { background: var(--surface-3); color: va
 input[type=text], input[type=date], input[type=time], input[type=number],
 select, textarea {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--text);
   padding: 10px 12px;
-  font-size: 15px;
+  font-size: 16px;
   outline: none;
   transition: border-color .15s, box-shadow .15s;
   min-height: 44px;
@@ -621,12 +626,14 @@ input:focus, select:focus, textarea:focus {
 .fieldWithQuick .field { width: 100%; }
 .fieldWithQuick .quickPanel { margin-top: 24px; }
 
-/* ── Quick-add panels ── */
+/* ── Quick-add panels (consolidated: recent/favorites, add behavior, custom quick-add) ── */
 .quickPanel {
+  min-width: 0;
+  width: 100%;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--surface-2);
-  overflow: hidden;
+  overflow: clip;
 }
 .quickPanel summary {
   list-style: none;
@@ -660,49 +667,99 @@ input:focus, select:focus, textarea:focus {
   display: grid;
   gap: 10px;
   padding: 12px;
-  max-height: 380px;
-  overflow: auto;
+  max-height: 430px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-width: 0;
 }
 .quickControls {
   display: grid;
-  grid-template-columns: minmax(160px, 220px) 1fr;
-  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
   align-items: end;
-  position: sticky;
-  top: 0;
+  position: static;
   background: var(--surface-2);
   padding-bottom: 8px;
-  z-index: 2;
+  min-width: 0;
 }
-.quickField { display: grid; gap: 5px; }
+.quickField { display: grid; gap: 5px; min-width: 0; width: 100%; }
 .quickField span { font-size: 11.5px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
 .quickField select, .quickField input {
   min-height: 36px;
   padding: 6px 10px;
   font-size: 13.5px;
   border-radius: 6px;
+  min-width: 0;
+  width: 100%;
 }
 .chipGroup {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
 }
 .chip {
   border: 1px solid var(--line);
   background: var(--surface);
   color: var(--text);
-  border-radius: 999px;
-  padding: 5px 10px;
+  border-radius: 8px;
+  padding: 7px 9px;
   font-size: 12.5px;
   font-weight: 500;
   line-height: 1.2;
-  text-align: left;
+  text-align: center;
   cursor: pointer;
   transition: border-color .15s, color .15s;
+  width: 100%;
+  min-width: 0;
   max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .chip:hover { border-color: var(--accent); color: var(--accent); }
 .noResults { color: var(--muted); font-size: 13px; }
+
+/* Quick-add chip with favorite toggle and "included" state (used by QuickPanel) */
+.quickChipWrap {
+  position: relative;
+  min-width: 0;
+  display: grid;
+}
+.quickChipWrap .chip {
+  min-height: 48px;
+  padding: 8px 34px 8px 9px;
+  display: grid;
+  place-content: center;
+  gap: 2px;
+}
+.quickChipWrap .chip small {
+  color: var(--success);
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: .4px;
+  text-transform: uppercase;
+}
+.quickChipWrap.included .chip {
+  border-color: color-mix(in srgb, var(--success) 65%, var(--line) 35%);
+  background: color-mix(in srgb, var(--success) 11%, var(--surface) 89%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--success) 24%, transparent);
+}
+.favoriteBtn {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 25px;
+  height: 25px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.favoriteBtn:hover, .favoriteBtn.active { color: #d69b18; background: color-mix(in srgb, #d69b18 12%, transparent); }
 
 /* ── Task rows ── */
 .taskRowList { display: grid; gap: 12px; }
@@ -840,18 +897,6 @@ input:focus, select:focus, textarea:focus {
 }
 .previewPanelHeader strong { font-weight: 700; font-size: 14px; }
 .previewPanelHeader span { color: var(--muted); font-size: 12px; }
-.previewPaper {
-  margin: 14px;
-  background: #fff;
-  color: #000;
-  border: 1px solid #ccc;
-  box-shadow: 0 4px 20px rgba(0,0,0,.18);
-  aspect-ratio: 8.5 / 11;
-  overflow: hidden;
-  padding: 9px;
-  font-family: Arial, Helvetica, sans-serif;
-  font-size: 7.6px;
-}
 .previewFit {
   font-size: 5.5px;
   border-radius: 999px;
@@ -866,161 +911,10 @@ input:focus, select:focus, textarea:focus {
 .previewFit.good { background: color-mix(in srgb, var(--good) 14%, transparent); color: var(--good); border-color: color-mix(in srgb, var(--good) 35%, transparent); }
 .previewFit.warn { background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--warn); border-color: color-mix(in srgb, var(--warn) 35%, transparent); }
 .previewFit.bad { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); border-color: color-mix(in srgb, var(--danger) 35%, transparent); }
-.previewDocHeader { text-align: center; margin-bottom: 3px; }
-.previewDocHeader h4 { margin: 0; font-size: 10.5px; letter-spacing: .2px; font-weight: 700; }
-.previewDocHeader h5 { margin: 1px 0 3px; font-size: 7px; text-transform: uppercase; letter-spacing: .3px; font-weight: 400; }
-.previewInfoGrid { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid #000; border-bottom: 0; }
-.previewInfoGrid span { min-height: 15px; border-right: 1px solid #000; border-bottom: 1px solid #000; padding: 2px 3px; overflow: hidden; font-size: 6.8px; }
-.previewInfoGrid span:nth-child(3n) { border-right: 0; }
-.previewAck { border: 1px solid #000; border-top: 0; padding: 2px 3px; font-size: 6.2px; text-transform: uppercase; line-height: 1.2; }
-.previewSigGrid { display: grid; grid-template-columns: repeat(3, 1fr); border-left: 1px solid #000; border-top: 1px solid #000; }
-.previewSigGrid span { min-height: 13px; border-right: 1px solid #000; border-bottom: 1px solid #000; padding: 2px 3px; font-size: 6.5px; }
-.previewSignNotice { border: 1px solid #000; border-top: 0; background: #f4f4f4; padding: 3px 4px; font-weight: 700; font-size: 6.8px; }
-.previewMeeting { display: grid; border-left: 1px solid #000; }
-.previewMeeting span { min-height: 14px; border-right: 1px solid #000; border-bottom: 1px solid #000; padding: 2px 3px; font-size: 6.8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.previewEnergy { border: 1px solid #000; border-top: 0; padding: 3px; text-align: center; font-size: 6.2px; text-transform: uppercase; line-height: 1.15; }
-.previewTaskTable { width: 100%; border-collapse: collapse; margin-top: 3px; table-layout: fixed; }
-.previewTaskTable th, .previewTaskTable td { border: 1px solid #000; padding: 2px 3px; vertical-align: top; overflow-wrap: break-word; }
-.previewTaskTable th { background: #ddd; text-transform: uppercase; font-size: 6.5px; }
-.previewTaskTable td { min-height: 20px; font-size: 6.8px; line-height: 1.25; }
 
-/* ── Preview toggle (mobile) ── */
-.previewToggle {
-  display: none;
-  width: 100%;
-  justify-content: center;
-  padding: 8px;
-  background: var(--surface-2);
-  border-top: 1px solid var(--line);
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--accent);
-  gap: 6px;
-}
-
-/* ── Print styles ── */
+/* ── Print (screen-only switch; physical print geometry is one consolidated
+   @media print block further down this file) ── */
 .printOnly { display: none; }
-
-@media print {
-  @page { size: letter portrait; margin: 0.22in; }
-  body { background: #fff !important; color: #000 !important; }
-  .appShell, .toast { display: none !important; }
-  .printOnly { display: block !important; }
-
-  .printPage {
-    width: 100%;
-    height: auto;
-    overflow: visible;
-    font-family: Arial, Helvetica, sans-serif;
-    color: #000;
-    font-size: 9.6px;
-  }
-  .printHeader { text-align: center; margin-bottom: 4px; }
-  .printHeader h1 { margin: 0; font-size: 15.5px; font-weight: 700; }
-  .printHeader h2 { margin: 1px 0 4px; font-size: 10px; text-transform: uppercase; letter-spacing: .3px; }
-
-  table { width: 100%; border-collapse: collapse; }
-  .printInfoTable th, .printInfoTable td,
-  .printSimpleTable th, .printSimpleTable td,
-  .printTaskTable th, .printTaskTable td {
-    border: 1px solid #000;
-    padding: 3px 5px;
-    vertical-align: middle;
-  }
-  .printInfoTable th { width: 13%; background: #efefef; font-weight: 700; text-align: left; }
-  .printInfoTable td { width: 20%; }
-
-  .ackBlock {
-    border: 1px solid #000;
-    border-top: 0;
-    padding: 4px 5px;
-    font-size: 7.8px;
-    text-transform: uppercase;
-    line-height: 1.22;
-  }
-  .attachedSignInNotice {
-    border-left: 1px solid #000;
-    border-right: 1px solid #000;
-    border-bottom: 1px solid #000;
-    padding: 5px 6px;
-    font-size: 8.8px;
-    background: #f4f4f4;
-  }
-  .signatureGrid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    border-left: 1px solid #000;
-    border-top: 1px solid #000;
-  }
-  .sigLine {
-    min-height: 18px;
-    border-right: 1px solid #000;
-    border-bottom: 1px solid #000;
-    padding: 3px 5px;
-    font-size: 9.2px;
-  }
-  .printSimpleTable th { width: 28%; text-align: left; background: #efefef; font-weight: 700; }
-  .printSimpleTable td { white-space: pre-line; }
-
-  .energyBox {
-    border: 1px solid #000;
-    border-top: 0;
-    padding: 4px 6px;
-  }
-  .energyBox h3 {
-    margin: 0 0 3px;
-    text-align: center;
-    text-transform: uppercase;
-    font-size: 9px;
-  }
-  .energyGrid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 3px 10px;
-  }
-  .energyGrid p { margin: 0; line-height: 1.2; font-size: 8.2px; }
-
-  .printTaskTable { table-layout: fixed; margin-top: 4px; }
-  .printTaskTable th:nth-child(1), .printTaskTable td:nth-child(1) { width: 33%; }
-  .printTaskTable th:nth-child(2), .printTaskTable td:nth-child(2) { width: 32%; }
-  .printTaskTable th:nth-child(3), .printTaskTable td:nth-child(3) { width: 35%; }
-  .printTaskTable th { background: #d9d9d9; text-transform: uppercase; font-size: 9.4px; padding: 4px 5px; }
-  .printTaskTable td {
-    height: 30px;
-    min-height: 30px;
-    white-space: pre-line;
-    overflow-wrap: break-word;
-    word-break: normal;
-    line-height: 1.22;
-    font-size: 10px;
-    padding: 4px 5px;
-    vertical-align: top;
-  }
-
-  .summaryBox { margin-top: 4px; border: 1px solid #000; padding: 4px; }
-  .summaryBox h3 { margin: 0 0 2px; font-size: 9px; text-transform: uppercase; }
-  .summaryBox p { margin: 0; white-space: pre-line; }
-
-  .signInHeader { margin-bottom: 6px; }
-  .signInInfoTable th { width: 15%; }
-  .signInInfoTable td { width: 18%; }
-  .signInAck { border-top: 0; font-size: 8.4px; line-height: 1.22; }
-  .attachedSignatureGrid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    border-left: 1px solid #000;
-    border-top: 1px solid #000;
-    margin-top: 8px;
-  }
-  .attachedSigLine {
-    min-height: 32px;
-    border-right: 1px solid #000;
-    border-bottom: 1px solid #000;
-    padding: 7px 8px;
-    font-size: 10px;
-  }
-  .signInFooter { margin-top: 6px; text-align: right; font-size: 8px; }
-}
 
 /* ── Responsive ── */
 @media (max-width: 1280px) {
@@ -1031,7 +925,6 @@ input:focus, select:focus, textarea:focus {
     position: static;
     max-height: none;
   }
-  .previewPaper { max-width: 560px; margin-left: auto; margin-right: auto; }
 }
 
 @media (max-width: 940px) {
@@ -1072,38 +965,6 @@ input:focus, select:focus, textarea:focus {
   object-fit: contain;
   object-position: left center;
   flex-shrink: 0;
-}
-
-/* Quick-add pickers: responsive, readable, no horizontal cutoff */
-.quickPanel { min-width: 0; width: 100%; }
-.quickPickerInner {
-  max-height: 430px;
-  overflow-x: hidden;
-  overflow-y: auto;
-  min-width: 0;
-}
-.quickControls {
-  grid-template-columns: 1fr;
-  position: static;
-  min-width: 0;
-}
-.quickField,
-.quickField select,
-.quickField input { min-width: 0; width: 100%; }
-.chipGroup {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
-  gap: 7px;
-  min-width: 0;
-}
-.chip {
-  width: 100%;
-  min-width: 0;
-  border-radius: 8px;
-  padding: 7px 9px;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  text-align: center;
 }
 
 /* Live preview page planner */
@@ -1165,167 +1026,6 @@ input:focus, select:focus, textarea:focus {
   .brandLogo { width: 105px; height: 32px; }
   .chipGroup { grid-template-columns: 1fr; }
   .previewPageManager { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-
-/* Final printed document system */
-@media print {
-  @page { size: letter portrait; margin: 0.22in; }
-
-  .printPage {
-    position: relative;
-    width: 100%;
-    height: 10.56in;
-    min-height: 10.56in;
-    max-height: 10.56in;
-    overflow: hidden;
-    page-break-after: always;
-    break-after: page;
-    font-family: Arial, Helvetica, sans-serif;
-    color: #000;
-    background: #fff;
-    padding-bottom: 0.22in;
-  }
-  .printPage:last-child { page-break-after: auto; break-after: auto; }
-
-  .printBrandHeader { margin-bottom: 4px; }
-  .printBrandBar {
-    min-height: 0.48in;
-    display: grid;
-    grid-template-columns: 1.75in 1fr 0.8in;
-    align-items: center;
-    gap: 0.08in;
-    padding: 0.05in 0.08in;
-    background: #171719 !important;
-    color: #fff !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-  .printBrandBar img {
-    width: 1.62in;
-    max-height: 0.38in;
-    object-fit: contain;
-    object-position: left center;
-  }
-  .printBrandTitles { text-align: center; }
-  .printBrandTitles h1 {
-    margin: 0;
-    font-size: 14px;
-    line-height: 1.05;
-    letter-spacing: 0.25px;
-    text-transform: uppercase;
-  }
-  .printBrandTitles h2 {
-    margin: 2px 0 0;
-    font-size: 8px;
-    line-height: 1;
-    font-weight: 600;
-    color: #e5e5e5 !important;
-  }
-  .printPageNumber { text-align: right; font-size: 8px; font-weight: 700; white-space: nowrap; }
-  .printRedRule {
-    height: 3px;
-    background: #c1121f !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-
-  .mainJsaPage .printInfoTable th,
-  .mainJsaPage .printInfoTable td { font-size: 8.8px; padding: 2.8px 4px; line-height: 1.16; }
-  .printInfoTable th { background: #ededed !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-
-  .mainJsaPage .ackBlock { font-size: 7.6px; line-height: 1.16; padding: 3px 4px; }
-  .mainJsaPage .attachedSignInNotice { font-size: 8.8px; padding: 4px 5px; }
-  .mainJsaPage .signatureGrid { grid-template-columns: repeat(3, 1fr); }
-  .mainJsaPage .sigLine { min-height: 17px; padding: 2px 4px; font-size: 8.5px; }
-  .mainJsaPage .printSimpleTable th,
-  .mainJsaPage .printSimpleTable td { padding: 2.8px 4px; font-size: 8.8px; line-height: 1.16; }
-  .mainJsaPage .energyBox { padding: 3px 5px; }
-  .mainJsaPage .energyBox h3 { margin-bottom: 2px; font-size: 8.5px; color: #8b0f18; }
-  .mainJsaPage .energyGrid { gap: 2px 8px; }
-  .mainJsaPage .energyGrid p { font-size: 7.6px; line-height: 1.12; }
-
-  .printTaskTable {
-    width: 100%;
-    table-layout: fixed;
-    margin-top: 4px;
-    border-collapse: collapse;
-  }
-  .printTaskTable th:nth-child(1), .printTaskTable td:nth-child(1) { width: 31%; }
-  .printTaskTable th:nth-child(2), .printTaskTable td:nth-child(2) { width: 32%; }
-  .printTaskTable th:nth-child(3), .printTaskTable td:nth-child(3) { width: 37%; }
-  .printTaskTable th {
-    background: #dedede !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-    font-size: 9.2px;
-    padding: 3px 4px;
-  }
-  .printTaskTable td {
-    height: auto;
-    min-height: 25px;
-    padding: 3.5px 4.5px;
-    font-size: 9.8px;
-    line-height: 1.18;
-    vertical-align: top;
-    white-space: pre-line;
-    overflow-wrap: break-word;
-  }
-  .printTaskTable tr { break-inside: avoid; page-break-inside: avoid; }
-
-  .continuationInfoTable th,
-  .continuationInfoTable td,
-  .signInInfoTable th,
-  .signInInfoTable td { font-size: 8.6px; padding: 3px 4px; }
-  .continuationNotice {
-    border: 1px solid #000;
-    border-top: 0;
-    padding: 4px 5px;
-    font-size: 8px;
-    line-height: 1.15;
-    background: #f4f4f4 !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-  .continuationTaskTable { margin-top: 6px; }
-  .continuationTaskTable td { min-height: 35px; font-size: 9.8px; line-height: 1.2; }
-
-  .signInPage {
-    display: flex;
-    flex-direction: column;
-  }
-  .signInAck { font-size: 8.6px; line-height: 1.18; padding: 4px 5px; }
-  .attachedSignatureGrid {
-    flex: 1 1 auto;
-    min-height: 0;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-rows: repeat(var(--signature-rows), minmax(0, 1fr));
-    grid-auto-flow: row;
-    border-left: 1px solid #000;
-    border-top: 1px solid #000;
-    margin-top: 6px;
-  }
-  .attachedSigLine {
-    min-height: 0;
-    height: auto;
-    border-right: 1px solid #000;
-    border-bottom: 1px solid #000;
-    padding: 5px 7px;
-    font-size: 10px;
-  }
-
-  .printFooter {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    border-top: 1px solid #999;
-    padding-top: 3px;
-    text-align: center;
-    color: #555;
-    font-size: 7px;
-    letter-spacing: 0.2px;
-  }
 }
 
 /* ===== Safety App v6 pilot-ready JSA polish ===== */
@@ -1399,66 +1099,6 @@ input:focus, select:focus, textarea:focus {
   border-top: 1px solid var(--line);
   background: var(--surface-2);
 }
-
-/* Quick-add picker: no horizontal cutoff, favorites, included state */
-.quickPanel { overflow: clip; }
-.quickPickerInner { overflow-x: hidden; }
-.quickControls {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 9px;
-  position: static;
-}
-.chipGroup {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 8px;
-  width: 100%;
-  min-width: 0;
-}
-.quickChipWrap {
-  position: relative;
-  min-width: 0;
-  display: grid;
-}
-.quickChipWrap .chip {
-  min-height: 48px;
-  padding: 8px 34px 8px 9px;
-  display: grid;
-  place-content: center;
-  gap: 2px;
-  border-radius: 8px;
-  width: 100%;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-.quickChipWrap .chip small {
-  color: var(--success);
-  font-size: 9.5px;
-  font-weight: 800;
-  letter-spacing: .4px;
-  text-transform: uppercase;
-}
-.quickChipWrap.included .chip {
-  border-color: color-mix(in srgb, var(--success) 65%, var(--line) 35%);
-  background: color-mix(in srgb, var(--success) 11%, var(--surface) 89%);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--success) 24%, transparent);
-}
-.favoriteBtn {
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  width: 25px;
-  height: 25px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted);
-  font-size: 16px;
-  line-height: 1;
-  cursor: pointer;
-}
-.favoriteBtn:hover, .favoriteBtn.active { color: #d69b18; background: color-mix(in srgb, #d69b18 12%, transparent); }
 
 /* Review / export */
 .reviewSummaryCard {
@@ -1597,8 +1237,6 @@ input:focus, select:focus, textarea:focus {
 .documentPage .printInfoTable td { width: 20%; font-size: 8.8px; padding: 3px 4px; line-height: 1.16; }
 .documentPage .ackBlock { border: 1px solid #000; border-top: 0; padding: 3px 4px; font-size: 7.6px; text-transform: uppercase; line-height: 1.16; }
 .documentPage .attachedSignInNotice { border: 1px solid #000; border-top: 0; padding: 4px 5px; font-size: 8.8px; background: #f4f4f4; }
-.documentPage .signatureGrid { display: grid; grid-template-columns: repeat(3, 1fr); border-left: 1px solid #000; border-top: 1px solid #000; }
-.documentPage .sigLine { min-height: 16px; border-right: 1px solid #000; border-bottom: 1px solid #000; padding: 2px 4px; box-sizing: border-box; font-size: 8.3px; }
 .documentPage .printSimpleTable th { width: 28%; text-align: left; background: #ededed; font-weight: 700; padding: 3px 4px; font-size: 8.8px; line-height: 1.16; }
 .documentPage .printSimpleTable td { padding: 3px 4px; font-size: 8.8px; line-height: 1.16; white-space: pre-line; }
 .documentPage .energyBox { border: 1px solid #000; border-top: 0; padding: 3px 5px; }
@@ -1634,50 +1272,140 @@ input:focus, select:focus, textarea:focus {
   .suggestionActions .btn { flex: 1 1 100%; }
 }
 
-/* Print at Letter size with intentional default-style margins. */
+/* ── Print (single authoritative print system — one @page, one page-box
+   model, shared table/typography rules for Main JSA, continuation, and
+   sign-in pages). Consolidated from three previously conflicting blocks;
+   see reports/audits/2026-07-18_full-application-audit.md section C1/F. ── */
 @media print {
   @page { size: letter portrait; margin: 0.5in; }
-  html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
+  html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; color: #000 !important; }
   .appShell, .toast { display: none !important; }
   .printOnly { display: block !important; }
+  table { width: 100%; border-collapse: collapse; }
+
+  /* Page box: one physical geometry, shared by every page type */
   .printPage,
   .documentPage.printPage {
+    position: relative;
     width: 100%;
     height: 10in;
     min-height: 10in;
     max-height: 10in;
-    padding-bottom: 0.2in;
+    box-sizing: border-box;
     overflow: hidden;
+    padding-bottom: 0.2in;
     page-break-after: always;
     break-after: page;
-    box-sizing: border-box;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 9px;
+    color: #000;
     background: #fff !important;
   }
   .printPage:last-child { page-break-after: auto; break-after: auto; }
-  .documentPage .printBrandBar,
-  .printBrandBar { background: #171719 !important; color: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .documentPage .printRedRule,
-  .printRedRule { background: #c1121f !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .documentPage .printInfoTable th,
-  .documentPage .printSimpleTable th,
-  .documentPage .printTaskTable th,
-  .printInfoTable th,
-  .printSimpleTable th,
-  .printTaskTable th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  /* Brand header (same on every page type) */
+  .printBrandHeader { margin-bottom: 4px; }
+  .printBrandBar {
+    min-height: 0.48in;
+    display: grid;
+    grid-template-columns: 1.75in 1fr 0.8in;
+    align-items: center;
+    gap: 0.08in;
+    padding: 0.05in 0.08in;
+    background: #171719 !important;
+    color: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .printBrandBar img { width: 1.62in; max-height: 0.38in; object-fit: contain; object-position: left center; }
+  .printBrandTitles { text-align: center; }
+  .printBrandTitles h1 { margin: 0; font-size: 14px; line-height: 1.05; letter-spacing: 0.25px; text-transform: uppercase; }
+  .printBrandTitles h2 { margin: 2px 0 0; font-size: 8px; line-height: 1; font-weight: 600; color: #e5e5e5 !important; }
+  .printPageNumber { text-align: right; font-size: 8px; font-weight: 700; white-space: nowrap; }
+  .printRedRule { height: 3px; background: #c1121f !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  /* Info / simple tables (job info, meeting info) */
+  .printInfoTable th, .printInfoTable td,
+  .printSimpleTable th, .printSimpleTable td,
+  .printTaskTable th, .printTaskTable td { border: 1px solid #000; vertical-align: middle; }
+  .printInfoTable th { width: 13%; background: #ededed !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-weight: 700; text-align: left; font-size: 8.8px; padding: 2.8px 4px; line-height: 1.16; }
+  .printInfoTable td { width: 20%; font-size: 8.8px; padding: 2.8px 4px; line-height: 1.16; }
+  .continuationInfoTable th, .continuationInfoTable td,
+  .signInInfoTable th, .signInInfoTable td { font-size: 8.6px; padding: 3px 4px; }
+
+  .ackBlock { border: 1px solid #000; border-top: 0; padding: 3px 4px; font-size: 7.6px; text-transform: uppercase; line-height: 1.16; }
+  .signInAck { font-size: 8.6px; line-height: 1.18; padding: 4px 5px; }
+  .attachedSignInNotice { border: 1px solid #000; border-top: 0; padding: 4px 5px; font-size: 8.8px; background: #f4f4f4 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  .printSimpleTable th { width: 28%; text-align: left; background: #efefef; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-weight: 700; padding: 2.8px 4px; font-size: 8.8px; line-height: 1.16; }
+  .printSimpleTable td { padding: 2.8px 4px; font-size: 8.8px; line-height: 1.16; white-space: pre-line; }
+
+  .energyBox { border: 1px solid #000; border-top: 0; padding: 3px 5px; }
+  .energyBox h3 { margin: 0 0 2px; text-align: center; text-transform: uppercase; font-size: 8.5px; color: #8b0f18; }
+  .energyGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 8px; }
+  .energyGrid p { margin: 0; line-height: 1.12; font-size: 7.6px; }
+
+  /* Task table: identical rules for the main JSA and continuation sheets */
+  .printTaskTable { width: 100%; table-layout: fixed; margin-top: 4px; border-collapse: collapse; }
+  .printTaskTable th:nth-child(1), .printTaskTable td:nth-child(1) { width: 31%; }
+  .printTaskTable th:nth-child(2), .printTaskTable td:nth-child(2) { width: 32%; }
+  .printTaskTable th:nth-child(3), .printTaskTable td:nth-child(3) { width: 37%; }
+  .printTaskTable th { background: #dedede !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; text-transform: uppercase; font-size: 9.2px; padding: 3px 4px; }
+  .printTaskTable td { height: auto; min-height: 25px; padding: 3.5px 4.5px; font-size: 9.8px; line-height: 1.18; vertical-align: top; white-space: pre-line; overflow-wrap: break-word; }
+  .printTaskTable tr { break-inside: avoid; page-break-inside: avoid; }
+  .continuationTaskTable { margin-top: 6px; }
+  .continuationTaskTable td { min-height: 35px; font-size: 9.8px; line-height: 1.2; }
+
+  .continuationNotice {
+    border: 1px solid #000;
+    border-top: 0;
+    padding: 4px 5px;
+    font-size: 8px;
+    line-height: 1.15;
+    background: #f4f4f4 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Page-type layout: fill remaining page height with the table content */
   .mainJsaPage { display: flex; flex-direction: column; }
   .mainJsaPage .taskTableFill { flex: 1 1 auto; }
   .continuationPage,
   .signInPage { display: flex; flex-direction: column; }
   .continuationPage .continuationTaskTable { flex: 1 1 auto; height: 100%; }
-  .signInPage .attachedSignatureGrid {
+
+  /* Sign-in sheet */
+  .attachedSignatureGrid {
     flex: 1 1 auto;
     min-height: 0;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-rows: repeat(var(--signature-rows), minmax(0, 1fr));
+    border-left: 1px solid #000;
+    border-top: 1px solid #000;
     margin-top: 6px;
   }
-  .signInPage .attachedSigLine { min-height: 0; height: auto; padding: 5px 7px; }
+  .attachedSigLine {
+    min-height: 0;
+    height: auto;
+    border-right: 1px solid #000;
+    border-bottom: 1px solid #000;
+    padding: 5px 7px;
+    font-size: 10px;
+  }
+
+  .printFooter {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border-top: 1px solid #999;
+    padding-top: 3px;
+    text-align: center;
+    color: #555;
+    font-size: 7px;
+    letter-spacing: 0.2px;
+  }
 }
 
 :root {
