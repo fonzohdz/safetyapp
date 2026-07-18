@@ -87,6 +87,30 @@ function mergeUniqueEntries(existingValue, candidates) {
     skipped,
   };
 }
+/* ── Exact-entry helpers (toggleable suggestions) ──
+   Unlike isNearDuplicate (deliberately fuzzy, used to avoid near-duplicate
+   clutter when adding), these do exact normalized-line matching only. A
+   toggle needs to know precisely what it's adding/removing — fuzzy substring
+   matching here could delete an unrelated manually-written sentence that
+   merely contains the same word (e.g. removing "Housekeeping" must not
+   touch "General housekeeping duties around the yard"). */
+function hasExactEntry(existingValue, text) {
+  const target = normalizeEntry(text);
+  if (!target) return false;
+  return splitLines(existingValue).some(line => normalizeEntry(line) === target);
+}
+function addExactEntry(existingValue, text) {
+  const clean = String(text || '').trim();
+  if (!clean || hasExactEntry(existingValue, clean)) return { value: existingValue, added: false };
+  const lines = splitLines(existingValue);
+  lines.push(clean);
+  return { value: lines.join('\n'), added: true };
+}
+function removeExactEntry(existingValue, text) {
+  const target = normalizeEntry(text);
+  if (!target) return existingValue;
+  return splitLines(existingValue).filter(line => normalizeEntry(line) !== target).join('\n');
+}
 function dedupeList(items) {
   return mergeUniqueEntries('', items).added;
 }
@@ -259,6 +283,11 @@ function emptyJsa() {
     hazardsSummary: '',
     controlsSummary: '',
     taskRows: [],
+    // Lightweight interaction metadata only (not a second document copy): which
+    // task suggestion introduced which hazard/control entries, so a bundle can be
+    // safely reversed later. Additive field — older saved drafts/templates without
+    // it are handled by the existing `{ ...emptyJsa(), ...raw }` merge pattern.
+    suggestionBundles: [],
     signatureLineCount: 30,
     notes: '',
     lastSavedAt: '',
@@ -702,6 +731,92 @@ function ConfirmReplaceDialog({ templateName, onCancel, onContinue }) {
   );
 }
 
+/* ── Task suggestion bundle modals: adding a task with related hazards/
+   controls, and reversing that bundle later. Centered, dimmed, blocks the
+   Suggestions sheet behind it (which stays mounted so its search/scroll
+   state survives Cancel) instead of closing it. ── */
+function TaskSuggestionModal({ task, hazards, controls, onCancel, onTaskOnly, onAddSelected }) {
+  const [selectedHazards, setSelectedHazards] = useState(hazards);
+  const [selectedControls, setSelectedControls] = useState(controls);
+  const dialogRef = useFocusTrapDialog(onCancel);
+  function toggle(list, setter, item) {
+    setter(list.includes(item) ? list.filter(x => x !== item) : [...list, item]);
+  }
+  return (
+    <div className="dialogOverlay" onMouseDown={e => { if (e.target === e.currentTarget) onCancel(); }}>
+      <div className="dialogPanel suggestionModalPanel" role="dialog" aria-modal="true" aria-labelledby="taskSuggestionTitle" ref={dialogRef}>
+        <h3 id="taskSuggestionTitle">Add related suggestions?</h3>
+        <div className="suggestionModalTask">
+          <span>Task</span>
+          <strong>{task}</strong>
+        </div>
+        <div className="suggestionModalBody">
+          {hazards.length > 0 && (
+            <div className="suggestionModalGroup">
+              <strong>Suggested hazards</strong>
+              {hazards.map(item => (
+                <label className="suggestionCheck" key={item}>
+                  <input type="checkbox" checked={selectedHazards.includes(item)} onChange={() => toggle(selectedHazards, setSelectedHazards, item)} />
+                  <span>{item}</span>
+                </label>
+              ))}
+            </div>
+          )}
+          {controls.length > 0 && (
+            <div className="suggestionModalGroup">
+              <strong>Suggested controls</strong>
+              {controls.map(item => (
+                <label className="suggestionCheck" key={item}>
+                  <input type="checkbox" checked={selectedControls.includes(item)} onChange={() => toggle(selectedControls, setSelectedControls, item)} />
+                  <span>{item}</span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="dialogActions suggestionModalActions">
+          <button className="btn ghost" onClick={onCancel}>Cancel</button>
+          <button className="btn secondary" onClick={onTaskOnly}>Add Task Only</button>
+          <button className="btn primary" onClick={() => onAddSelected(selectedHazards, selectedControls)}>Add Selected Suggestions</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+function RemoveBundleModal({ task, hazards, controls, onCancel, onRemoveTaskOnly, onRemoveBundle }) {
+  const dialogRef = useFocusTrapDialog(onCancel);
+  return (
+    <div className="dialogOverlay" onMouseDown={e => { if (e.target === e.currentTarget) onCancel(); }}>
+      <div className="dialogPanel suggestionModalPanel" role="dialog" aria-modal="true" aria-labelledby="removeBundleTitle" ref={dialogRef}>
+        <h3 id="removeBundleTitle">Remove {task}?</h3>
+        <div className="suggestionModalBody">
+          <p>This task added:</p>
+          {hazards.length > 0 && (
+            <div className="suggestionModalGroup">
+              <strong>Hazards</strong>
+              <ul className="suggestionModalList">{hazards.map(h => <li key={h}>{h}</li>)}</ul>
+            </div>
+          )}
+          {controls.length > 0 && (
+            <div className="suggestionModalGroup">
+              <strong>Controls</strong>
+              <ul className="suggestionModalList">{controls.map(c => <li key={c}>{c}</li>)}</ul>
+            </div>
+          )}
+          {hazards.length === 0 && controls.length === 0 && (
+            <p className="helperText">Its suggested items were already present or have since been edited, so only the task will be removed either way.</p>
+          )}
+        </div>
+        <div className="dialogActions suggestionModalActions">
+          <button className="btn ghost" onClick={onCancel}>Cancel</button>
+          <button className="btn secondary" onClick={onRemoveTaskOnly}>Remove Task Only</button>
+          <button className="btn danger" onClick={onRemoveBundle}>Remove Task and Added Suggestions</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── App ── */
 function App() {
   const [settings, setSettings] = useState(() => ({ theme: 'dark', customQuick: { task: [], hazard: [], control: [] }, ...safeJson(localStorage.getItem(KEYS.settings), {}) }));
@@ -887,19 +1002,6 @@ function App() {
     upd({ taskRows: rows });
   }
   function removeRow(i) { upd({ taskRows: (jsa.taskRows || []).filter((_, x) => x !== i) }); }
-  function insertLines(field, values, label = 'item') {
-    const result = mergeUniqueEntries(jsa[field] || '', values);
-    if (result.added.length) upd({ [field]: result.value });
-    if (result.skipped.length && result.added.length) {
-      showToast(`Added ${result.added.length} ${label}${result.added.length === 1 ? '' : 's'}; skipped ${result.skipped.length} duplicate${result.skipped.length === 1 ? '' : 's'}.`);
-    } else if (result.skipped.length) {
-      showToast(`Already included: ${result.skipped[0].match}`);
-    }
-    return result;
-  }
-  function insertLine(field, text, label = 'item') {
-    return insertLines(field, [text], label);
-  }
   function addSummaryAsRow() {
     upd({ taskRows: [{ step: jsa.dailyTasks || '', hazards: jsa.hazardsSummary || '', controls: jsa.controlsSummary || '' }] });
     showToast('Created task row from summary fields.');
@@ -913,26 +1015,6 @@ function App() {
     }
     upd({ taskRows: [...rows, { step: tmpl.step, hazards: tmpl.hazards, controls: tmpl.controls }] });
     showToast(`Added task row: ${tmpl.label}`);
-  }
-  function upsertSuggestedTaskRow(task, hazards, controls) {
-    const rows = normalizeRows(jsa.taskRows);
-    const index = rows.findIndex(row => isNearDuplicate(row.step, task));
-    const hazardText = dedupeList(hazards).join('\n');
-    const controlText = dedupeList(controls).join('\n');
-    if (index >= 0) {
-      const row = rows[index];
-      rows[index] = {
-        ...row,
-        step: row.step || task,
-        hazards: mergeUniqueEntries(row.hazards || '', hazards).value,
-        controls: mergeUniqueEntries(row.controls || '', controls).value,
-      };
-      upd({ taskRows: rows });
-      showToast(`Updated paired hazards and controls for ${task}.`);
-      return;
-    }
-    upd({ taskRows: [...rows, { step: task, hazards: hazardText, controls: controlText }] });
-    showToast(`Added paired hazards and controls for ${task}.`);
   }
   function exportPdf() {
     const fit = calcFit(jsa);
@@ -1000,7 +1082,7 @@ function App() {
               goDocs={goDocs} goJsaStart={goJsaStart}
               allTemplates={allTemplates} templateId={templateId} setTemplateId={setTemplateId} selectedTemplate={selectedTemplate} loadTemplate={loadTemplate}
               saveName={saveName} setSaveName={setSaveName} saveTemplate={saveTemplate} updateTemplate={updateTemplate}
-              addRow={addRow} updRow={updRow} removeRow={removeRow} insertLine={insertLine} insertLines={insertLines} upsertSuggestedTaskRow={upsertSuggestedTaskRow} addSummaryAsRow={addSummaryAsRow} addRowTemplate={addRowTemplate}
+              addRow={addRow} updRow={updRow} removeRow={removeRow} addSummaryAsRow={addSummaryAsRow} addRowTemplate={addRowTemplate}
               clearDraft={clearDraft} saveDraft={saveDraft} markReady={markReady} exportPdf={exportPdf}
               savedDraft={savedDraft} settings={settings} saveStatus={saveStatus}
             />
@@ -1218,7 +1300,7 @@ function StickyActionBar({ idx, steps, prev, next, exportPdf, showPreview, setSh
 }
 
 /* ── JSA Workflow ── */
-function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTemplates, templateId, setTemplateId, selectedTemplate, loadTemplate, saveName, setSaveName, saveTemplate, updateTemplate, addRow, updRow, removeRow, insertLine, insertLines, upsertSuggestedTaskRow, addSummaryAsRow, addRowTemplate, clearDraft, saveDraft, markReady, exportPdf, savedDraft, settings, saveStatus }) {
+function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTemplates, templateId, setTemplateId, selectedTemplate, loadTemplate, saveName, setSaveName, saveTemplate, updateTemplate, addRow, updRow, removeRow, addSummaryAsRow, addRowTemplate, clearDraft, saveDraft, markReady, exportPdf, savedDraft, settings, saveStatus }) {
   const fit = calcFit(jsa);
   const sigCount = Math.max(1, Math.min(100, Number(jsa.signatureLineCount) || 1));
   const idx = STEPS.findIndex(s => s.id === jsaStep);
@@ -1294,7 +1376,7 @@ function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTem
         <div className="workflowLeft">
           {jsaStep === 'job' && <StepJob jsa={jsa} upd={upd} prev={prev} next={next} />}
           {jsaStep === 'meeting' && <StepMeeting jsa={jsa} upd={upd} prev={prev} next={next} />}
-          {jsaStep === 'work' && <StepWork jsa={jsa} upd={upd} insertLine={insertLine} insertLines={insertLines} upsertSuggestedTaskRow={upsertSuggestedTaskRow} addRow={addRow} updRow={updRow} removeRow={removeRow} addSummaryAsRow={addSummaryAsRow} addRowTemplate={addRowTemplate} customQuick={settings.customQuick || { task: [], hazard: [], control: [] }} prev={prev} next={next} />}
+          {jsaStep === 'work' && <StepWork jsa={jsa} upd={upd} addRow={addRow} updRow={updRow} removeRow={removeRow} addSummaryAsRow={addSummaryAsRow} addRowTemplate={addRowTemplate} customQuick={settings.customQuick || { task: [], hazard: [], control: [] }} prev={prev} next={next} />}
           {jsaStep === 'signatures' && <StepSignatures jsa={jsa} upd={upd} sigCount={sigCount} prev={prev} next={next} />}
           {jsaStep === 'review' && <StepReview jsa={jsa} upd={upd} fit={fit} saveName={saveName} setSaveName={setSaveName} saveTemplate={saveTemplate} updateTemplate={updateTemplate} saveDraft={saveDraft} markReady={markReady} exportPdf={exportPdf} clearDraft={clearDraft} prev={prev} next={next} />}
 
@@ -1398,13 +1480,13 @@ function SuggestionsSheet({ title, onClose, children }) {
     </div>
   );
 }
-function FieldWithSuggestions({ label, value, onChange, onBlur, rows, placeholder, quickPanelTitle, sheetTitle, groups, onPick, itemType, fieldKey, activeSuggestion, setActiveSuggestion }) {
+function FieldWithSuggestions({ label, value, onChange, onBlur, rows, placeholder, quickPanelTitle, sheetTitle, groups, onPick, onRemove, itemType, mode, fieldKey, activeSuggestion, setActiveSuggestion }) {
   const isTouchPrimary = useIsTouchPrimary();
   if (!isTouchPrimary) {
     return (
       <div className="fieldWithQuick">
         <TA label={label} value={value} onChange={onChange} onBlur={onBlur} rows={rows} placeholder={placeholder} />
-        <QuickPanel title={quickPanelTitle} groups={groups} onPick={onPick} existingValue={value} itemType={itemType} />
+        <QuickPanel title={quickPanelTitle} groups={groups} onPick={onPick} onRemove={onRemove} existingValue={value} itemType={itemType} mode={mode} />
       </div>
     );
   }
@@ -1417,7 +1499,7 @@ function FieldWithSuggestions({ label, value, onChange, onBlur, rows, placeholde
       </button>
       {isOpen && (
         <SuggestionsSheet title={sheetTitle} onClose={() => setActiveSuggestion(null)}>
-          <QuickPanel forceOpen title={quickPanelTitle} groups={groups} onPick={onPick} existingValue={value} itemType={itemType} />
+          <QuickPanel forceOpen title={quickPanelTitle} groups={groups} onPick={onPick} onRemove={onRemove} existingValue={value} itemType={itemType} mode={mode} />
         </SuggestionsSheet>
       )}
     </div>
@@ -1439,19 +1521,22 @@ function StepMeeting({ jsa, upd, prev, next }) {
             <FieldWithSuggestions
               label="Tailgate Safety Topic" value={jsa.tailgateTopic} onChange={v => upd({ tailgateTopic: v })} rows={4}
               placeholder="Topic discussed at today's tailgate meeting."
-              quickPanelTitle="Quick Topics" sheetTitle="Topic Suggestions" groups={TAILGATE_GROUPS} onPick={item => upd({ tailgateTopic: item })}
+              quickPanelTitle="Quick Topics" sheetTitle="Topic Suggestions" groups={TAILGATE_GROUPS} mode="single"
+              onPick={item => upd({ tailgateTopic: item })} onRemove={() => upd({ tailgateTopic: '' })}
               fieldKey="topic" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
             />
             <FieldWithSuggestions
               label="Previous Day Injury / Near Miss" value={jsa.previousDaySafety} onChange={v => upd({ previousDaySafety: v })} rows={4}
               placeholder="Enter previous day safety status."
-              quickPanelTitle="Quick Previous Day" sheetTitle="Previous Day Suggestions" groups={PREV_DAY_GROUPS} onPick={item => upd({ previousDaySafety: item })}
+              quickPanelTitle="Quick Previous Day" sheetTitle="Previous Day Suggestions" groups={PREV_DAY_GROUPS} mode="single"
+              onPick={item => upd({ previousDaySafety: item })} onRemove={() => upd({ previousDaySafety: '' })}
               fieldKey="previousDay" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
             />
             <FieldWithSuggestions
               label="Overall Work Task or Activity" value={jsa.overallWorkTask} onChange={v => upd({ overallWorkTask: v })} rows={4}
               placeholder="Describe the overall scope of work today."
-              quickPanelTitle="Quick Overall Tasks" sheetTitle="Overall Task Suggestions" groups={OVERALL_TASK_GROUPS} onPick={item => upd({ overallWorkTask: item })}
+              quickPanelTitle="Quick Overall Tasks" sheetTitle="Overall Task Suggestions" groups={OVERALL_TASK_GROUPS} mode="single"
+              onPick={item => upd({ overallWorkTask: item })} onRemove={() => upd({ overallWorkTask: '' })}
               fieldKey="overallTask" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
             />
           </div>
@@ -1463,11 +1548,10 @@ function StepMeeting({ jsa, upd, prev, next }) {
 }
 
 /* ── Step: Tasks / Hazards ── */
-function StepWork({ jsa, upd, insertLine, insertLines, upsertSuggestedTaskRow, addRow, updRow, removeRow, addSummaryAsRow, addRowTemplate, customQuick, prev, next }) {
-  const [suggestionReview, setSuggestionReview] = useState(null);
-  const [selectedHazards, setSelectedHazards] = useState([]);
-  const [selectedControls, setSelectedControls] = useState([]);
+function StepWork({ jsa, upd, addRow, updRow, removeRow, addSummaryAsRow, addRowTemplate, customQuick, prev, next }) {
   const [activeSuggestion, setActiveSuggestion] = useState(null);
+  const [taskSuggestionModal, setTaskSuggestionModal] = useState(null); // { task, hazards, controls }
+  const [removeBundleModal, setRemoveBundleModal] = useState(null); // { task, hazards, controls }
 
   const taskGroups = useMemo(() => customQuick?.task?.length
     ? [{ title: 'My Custom Tasks', items: customQuick.task }, ...DAILY_TASK_GROUPS]
@@ -1479,26 +1563,138 @@ function StepWork({ jsa, upd, insertLine, insertLines, upsertSuggestedTaskRow, a
     ? [{ title: 'My Custom Controls', items: customQuick.control }, ...CONTROL_GROUPS]
     : CONTROL_GROUPS, [customQuick]);
 
-  function chooseTask(item) {
+  // Suggestion bundles: lightweight interaction metadata recording which task
+  // introduced which hazard/control entries, so a bundle can be reversed later
+  // without guessing. The visible fields stay the sole source of truth — see
+  // removeTaskAndBundle for how pre-existing/shared/edited entries are protected.
+  const bundles = jsa.suggestionBundles || [];
+  function findBundleForTask(taskText) {
+    return bundles.find(b => normalizeEntry(b.taskText) === normalizeEntry(taskText));
+  }
+
+  function addTaskOnly(taskText) {
+    upd({ dailyTasks: addExactEntry(jsa.dailyTasks, taskText).value });
+  }
+
+  function addTaskWithSuggestions(taskText, hazardsSelected, controlsSelected) {
+    const taskResult = addExactEntry(jsa.dailyTasks, taskText);
+    let hazardsValue = jsa.hazardsSummary;
+    const introducedHazards = [];
+    hazardsSelected.forEach(h => {
+      const res = addExactEntry(hazardsValue, h);
+      hazardsValue = res.value;
+      if (res.added) introducedHazards.push(h); // not added => was pre-existing (or shared with another bundle) at add time
+    });
+    let controlsValue = jsa.controlsSummary;
+    const introducedControls = [];
+    controlsSelected.forEach(c => {
+      const res = addExactEntry(controlsValue, c);
+      controlsValue = res.value;
+      if (res.added) introducedControls.push(c);
+    });
+    const bundle = {
+      id: crypto.randomUUID?.() || String(Date.now()),
+      taskText,
+      // Full set this bundle currently wants present — lets a DIFFERENT bundle's
+      // later removal check "does this other bundle still want it" regardless of
+      // which bundle happened to insert it first (see removeTaskAndBundle).
+      selectedHazards: hazardsSelected.slice(),
+      selectedControls: controlsSelected.slice(),
+      // Only the subset THIS bundle actually introduced — the only items this
+      // bundle is ever allowed to consider removing (rule: never touch anything
+      // that pre-existed before this bundle touched it).
+      hazards: introducedHazards,
+      controls: introducedControls,
+    };
+    upd({
+      dailyTasks: taskResult.value,
+      hazardsSummary: hazardsValue,
+      controlsSummary: controlsValue,
+      suggestionBundles: [...bundles, bundle],
+    });
+  }
+
+  function removeTaskOnly(taskText) {
+    upd({
+      dailyTasks: removeExactEntry(jsa.dailyTasks, taskText),
+      suggestionBundles: bundles.filter(b => normalizeEntry(b.taskText) !== normalizeEntry(taskText)),
+    });
+  }
+
+  function removeTaskAndBundle(taskText) {
+    const bundle = findBundleForTask(taskText);
+    let hazardsValue = jsa.hazardsSummary;
+    let controlsValue = jsa.controlsSummary;
+    let otherBundles = bundles.filter(b => b.id !== bundle?.id);
+    if (bundle) {
+      // Only ever consider items THIS bundle actually introduced (bundle.hazards/
+      // controls) — never something that pre-existed before it. If another active
+      // bundle still wants the item present, don't delete the text — instead
+      // transfer introduced-ownership to that bundle, so if IT is later removed
+      // (and nothing else wants the item by then), cleanup can still finish
+      // correctly instead of leaving the item permanently un-owned.
+      bundle.hazards.forEach(h => {
+        const owner = otherBundles.find(b => (b.selectedHazards || []).some(x => normalizeEntry(x) === normalizeEntry(h)));
+        if (owner) {
+          otherBundles = otherBundles.map(b => (b.id === owner.id && !b.hazards.some(x => normalizeEntry(x) === normalizeEntry(h)))
+            ? { ...b, hazards: [...b.hazards, h] }
+            : b);
+        } else {
+          hazardsValue = removeExactEntry(hazardsValue, h);
+        }
+      });
+      bundle.controls.forEach(c => {
+        const owner = otherBundles.find(b => (b.selectedControls || []).some(x => normalizeEntry(x) === normalizeEntry(c)));
+        if (owner) {
+          otherBundles = otherBundles.map(b => (b.id === owner.id && !b.controls.some(x => normalizeEntry(x) === normalizeEntry(c)))
+            ? { ...b, controls: [...b.controls, c] }
+            : b);
+        } else {
+          controlsValue = removeExactEntry(controlsValue, c);
+        }
+      });
+    }
+    upd({
+      dailyTasks: removeExactEntry(jsa.dailyTasks, taskText),
+      hazardsSummary: hazardsValue,
+      controlsSummary: controlsValue,
+      suggestionBundles: otherBundles,
+    });
+  }
+
+  function handleTaskPick(item) {
     const task = typeof item === 'string' ? item : item.label;
-    insertLine('dailyTasks', task, 'task');
     const suggestion = findTaskSuggestion(task);
-    if (!suggestion || (!suggestion.hazards.length && !suggestion.controls.length)) return;
-    setSuggestionReview(suggestion);
-    setSelectedHazards(suggestion.hazards);
-    setSelectedControls(suggestion.controls);
+    if (!suggestion || (!suggestion.hazards.length && !suggestion.controls.length)) {
+      addTaskOnly(task);
+      return;
+    }
+    setTaskSuggestionModal({ task, hazards: suggestion.hazards, controls: suggestion.controls });
   }
-
-  function toggleSelected(list, setter, item) {
-    setter(list.includes(item) ? list.filter(value => value !== item) : [...list, item]);
+  function handleTaskRemove(item) {
+    const task = typeof item === 'string' ? item : item.label;
+    const bundle = findBundleForTask(task);
+    if (!bundle || (bundle.hazards.length === 0 && bundle.controls.length === 0)) {
+      removeTaskOnly(task);
+      return;
+    }
+    setRemoveBundleModal({ task, hazards: bundle.hazards, controls: bundle.controls });
   }
-
-  function applySuggestions(mode = 'selected') {
-    if (!suggestionReview) return;
-    const hazards = mode === 'all' ? suggestionReview.hazards : selectedHazards;
-    const controls = mode === 'all' ? suggestionReview.controls : selectedControls;
-    upsertSuggestedTaskRow(suggestionReview.task, hazards, controls);
-    setSuggestionReview(null);
+  function handleHazardPick(item) {
+    const label = typeof item === 'string' ? item : item.label;
+    upd({ hazardsSummary: addExactEntry(jsa.hazardsSummary, label).value });
+  }
+  function handleHazardRemove(item) {
+    const label = typeof item === 'string' ? item : item.label;
+    upd({ hazardsSummary: removeExactEntry(jsa.hazardsSummary, label) });
+  }
+  function handleControlPick(item) {
+    const label = typeof item === 'string' ? item : item.label;
+    upd({ controlsSummary: addExactEntry(jsa.controlsSummary, label).value });
+  }
+  function handleControlRemove(item) {
+    const label = typeof item === 'string' ? item : item.label;
+    upd({ controlsSummary: removeExactEntry(jsa.controlsSummary, label) });
   }
 
   return (
@@ -1514,65 +1710,50 @@ function StepWork({ jsa, upd, insertLine, insertLines, upsertSuggestedTaskRow, a
               label="Tasks for Today" value={jsa.dailyTasks} onChange={v => upd({ dailyTasks: v })}
               onBlur={() => upd({ dailyTasks: dedupeList(splitLines(jsa.dailyTasks)).join('\n') })} rows={6}
               placeholder="Enter each work activity on its own line."
-              quickPanelTitle="Quick Daily Tasks" sheetTitle="Daily Task Suggestions" groups={taskGroups} onPick={chooseTask}
+              quickPanelTitle="Quick Daily Tasks" sheetTitle="Daily Task Suggestions" groups={taskGroups}
+              onPick={handleTaskPick} onRemove={handleTaskRemove}
               fieldKey="dailyTasks" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
             />
-
-            {suggestionReview && (
-              <div className="taskSuggestionCard">
-                <div className="taskSuggestionHead">
-                  <div>
-                    <span className="suggestionEyebrow">Task-based suggestions</span>
-                    <h4>{suggestionReview.task}</h4>
-                    <p>Review these common items for today’s actual conditions. Approved items stay paired with this task in the printed table.</p>
-                  </div>
-                  <button className="miniDanger" onClick={() => setSuggestionReview(null)}>Close</button>
-                </div>
-                <div className="suggestionColumns">
-                  <div className="suggestionColumn">
-                    <strong>Suggested Hazards</strong>
-                    {suggestionReview.hazards.map(item => (
-                      <label className="suggestionCheck" key={item}>
-                        <input type="checkbox" checked={selectedHazards.includes(item)} onChange={() => toggleSelected(selectedHazards, setSelectedHazards, item)} />
-                        <span>{item}</span>
-                      </label>
-                    ))}
-                  </div>
-                  <div className="suggestionColumn">
-                    <strong>Suggested Controls</strong>
-                    {suggestionReview.controls.map(item => (
-                      <label className="suggestionCheck" key={item}>
-                        <input type="checkbox" checked={selectedControls.includes(item)} onChange={() => toggleSelected(selectedControls, setSelectedControls, item)} />
-                        <span>{item}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                <div className="suggestionActions">
-                  <button className="btn ghost sm" onClick={() => setSuggestionReview(null)}>Task Only</button>
-                  <button className="btn secondary sm" onClick={() => applySuggestions('selected')}>Add Selected</button>
-                  <button className="btn primary sm" onClick={() => applySuggestions('all')}>Add All Suggestions</button>
-                </div>
-              </div>
-            )}
-
             <FieldWithSuggestions
               label="Hazards in Work Area" value={jsa.hazardsSummary} onChange={v => upd({ hazardsSummary: v })}
               onBlur={() => upd({ hazardsSummary: dedupeList(splitLines(jsa.hazardsSummary)).join('\n') })} rows={6}
               placeholder="Enter each exposure or hazardous condition on its own line."
-              quickPanelTitle="Quick Hazards" sheetTitle="Hazard Suggestions" groups={hazardGroups} onPick={item => insertLine('hazardsSummary', item, 'hazard')}
+              quickPanelTitle="Quick Hazards" sheetTitle="Hazard Suggestions" groups={hazardGroups}
+              onPick={handleHazardPick} onRemove={handleHazardRemove}
               fieldKey="hazards" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
             />
             <FieldWithSuggestions
               label="Controls and Mitigations" value={jsa.controlsSummary} onChange={v => upd({ controlsSummary: v })}
               onBlur={() => upd({ controlsSummary: dedupeList(splitLines(jsa.controlsSummary)).join('\n') })} rows={6}
               placeholder="Enter each preventive action or requirement on its own line."
-              quickPanelTitle="Quick Controls" sheetTitle="Control Suggestions" groups={controlGroups} onPick={item => insertLine('controlsSummary', item, 'control')}
+              quickPanelTitle="Quick Controls" sheetTitle="Control Suggestions" groups={controlGroups}
+              onPick={handleControlPick} onRemove={handleControlRemove}
               fieldKey="controls" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
             />
           </div>
         </div>
       </div>
+
+      {taskSuggestionModal && (
+        <TaskSuggestionModal
+          task={taskSuggestionModal.task}
+          hazards={taskSuggestionModal.hazards}
+          controls={taskSuggestionModal.controls}
+          onCancel={() => setTaskSuggestionModal(null)}
+          onTaskOnly={() => { addTaskOnly(taskSuggestionModal.task); setTaskSuggestionModal(null); }}
+          onAddSelected={(hazards, controls) => { addTaskWithSuggestions(taskSuggestionModal.task, hazards, controls); setTaskSuggestionModal(null); }}
+        />
+      )}
+      {removeBundleModal && (
+        <RemoveBundleModal
+          task={removeBundleModal.task}
+          hazards={removeBundleModal.hazards}
+          controls={removeBundleModal.controls}
+          onCancel={() => setRemoveBundleModal(null)}
+          onRemoveTaskOnly={() => { removeTaskOnly(removeBundleModal.task); setRemoveBundleModal(null); }}
+          onRemoveBundle={() => { removeTaskAndBundle(removeBundleModal.task); setRemoveBundleModal(null); }}
+        />
+      )}
 
       <details className="detailedRowsDisclosure" open={(jsa.taskRows || []).length > 0}>
         <summary>
@@ -1981,7 +2162,7 @@ function JsaPreview({ jsa }) {
 }
 
 /* ── Quick panel (details/summary) ── */
-function QuickPanel({ title, groups, onPick, existingValue = '', itemType = 'item', forceOpen = false }) {
+function QuickPanel({ title, groups, onPick, onRemove, existingValue = '', itemType = 'item', forceOpen = false, mode = 'list' }) {
   const isTouchPrimary = useIsTouchPrimary();
   const keyBase = title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
   const recentKey = `sdc.quick.recent.${keyBase}`;
@@ -2013,9 +2194,18 @@ function QuickPanel({ title, groups, onPick, existingValue = '', itemType = 'ite
     return key.includes(normalizeEntry(search));
   });
   const existing = splitLines(existingValue);
+  function isItemIncluded(label) {
+    return mode === 'single'
+      ? normalizeEntry(existingValue) === normalizeEntry(label)
+      : existing.some(value => normalizeEntry(value) === normalizeEntry(label));
+  }
 
   function pick(item) {
     const label = typeof item === 'string' ? item : item.label;
+    if (isItemIncluded(label) && onRemove) {
+      onRemove(item);
+      return;
+    }
     const next = [label, ...recent.filter(value => normalizeEntry(value) !== normalizeEntry(label))].slice(0, 10);
     setRecent(next);
     localStorage.setItem(recentKey, JSON.stringify(next));
@@ -2054,12 +2244,17 @@ function QuickPanel({ title, groups, onPick, existingValue = '', itemType = 'ite
           {filtered.length ? filtered.map(item => {
             const label = typeof item === 'string' ? item : item.label;
             const isFavorite = favorites.some(value => normalizeEntry(value) === normalizeEntry(label));
-            const isIncluded = existing.some(value => isNearDuplicate(value, label));
+            const isIncluded = isItemIncluded(label);
             return (
               <div className={`quickChipWrap${isIncluded ? ' included' : ''}`} key={label}>
-                <button className="chip" onClick={() => pick(item)} title={isIncluded ? 'Already included; click to review task suggestions' : `Add ${label}`}>
+                <button
+                  className="chip"
+                  onClick={() => pick(item)}
+                  aria-pressed={isIncluded}
+                  title={isIncluded ? `Included; tap to remove ${label}` : `Add ${label}`}
+                >
                   <span>{label}</span>
-                  {isIncluded && <small>Included</small>}
+                  {isIncluded && <small>✓ Included</small>}
                 </button>
                 <button className={`favoriteBtn${isFavorite ? ' active' : ''}`} onClick={event => toggleFavorite(event, item)} aria-label={isFavorite ? `Remove ${label} from favorites` : `Add ${label} to favorites`} title={isFavorite ? 'Remove favorite' : 'Favorite'}>★</button>
               </div>

@@ -1356,38 +1356,6 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 }
 .detailedRowsBody { padding: 20px; display: grid; gap: 14px; }
 
-.taskSuggestionCard {
-  border: 1px solid color-mix(in srgb, var(--accent) 48%, var(--line) 52%);
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--accent) 6%, var(--surface) 94%);
-  overflow: hidden;
-}
-.taskSuggestionHead {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--line);
-  background: var(--surface-2);
-}
-.taskSuggestionHead h4 { margin: 2px 0 4px; font-size: 18px; }
-.taskSuggestionHead p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
-.suggestionEyebrow {
-  color: var(--accent);
-  font-size: 10.5px;
-  font-weight: 800;
-  letter-spacing: .7px;
-  text-transform: uppercase;
-}
-.suggestionColumns {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0;
-}
-.suggestionColumn { padding: 14px 16px; display: grid; align-content: start; gap: 8px; }
-.suggestionColumn + .suggestionColumn { border-left: 1px solid var(--line); }
-.suggestionColumn > strong { font-size: 13px; margin-bottom: 2px; }
 .suggestionCheck {
   display: grid;
   grid-template-columns: 18px 1fr;
@@ -1398,18 +1366,32 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   border-radius: 7px;
   background: var(--surface);
   cursor: pointer;
+  min-height: 44px;
 }
-.suggestionCheck input { margin: 2px 0 0; accent-color: var(--accent); }
+.suggestionCheck input { margin: 2px 0 0; accent-color: var(--accent); width: 18px; height: 18px; }
 .suggestionCheck span { font-size: 12.5px; line-height: 1.35; }
-.suggestionActions {
+
+/* Task suggestion bundle modals (Phase 3.5): centered, dimmed, reuse
+   .dialogOverlay/.dialogPanel/.dialogActions from ConfirmReplaceDialog. */
+.suggestionModalPanel { max-width: 480px; max-height: 88vh; display: flex; flex-direction: column; padding-bottom: env(safe-area-inset-bottom, 0px); }
+.suggestionModalTask {
   display: flex;
-  justify-content: flex-end;
-  flex-wrap: wrap;
+  align-items: baseline;
   gap: 8px;
-  padding: 12px 16px;
-  border-top: 1px solid var(--line);
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
   background: var(--surface-2);
 }
+.suggestionModalTask span { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+.suggestionModalTask strong { font-size: 14px; }
+.suggestionModalBody { display: grid; gap: 14px; overflow-y: auto; min-height: 0; }
+.suggestionModalGroup { display: grid; gap: 8px; }
+.suggestionModalGroup > strong { font-size: 13px; }
+.suggestionModalList { list-style: none; display: grid; gap: 6px; }
+.suggestionModalList li { padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface-2); font-size: 12.5px; line-height: 1.35; }
+.suggestionModalActions { flex-wrap: wrap; }
+.suggestionModalActions .btn { min-height: 44px; }
 
 /* Review / export */
 .reviewSummaryCard {
@@ -1568,8 +1550,6 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 .printPage .printFooter { position: absolute; left: 0; right: 0; bottom: 0; border-top: 1px solid #999; padding-top: 3px; text-align: center; color: #555; font-size: 7px; letter-spacing: .2px; }
 
 @media (max-width: 840px) {
-  .suggestionColumns { grid-template-columns: 1fr; }
-  .suggestionColumn + .suggestionColumn { border-left: 0; border-top: 1px solid var(--line); }
   .quickControls { grid-template-columns: 1fr; }
   .reviewChecklist { grid-template-columns: 1fr; }
   .customQuickBuilder { grid-template-columns: 1fr; align-items: stretch; }
@@ -1578,9 +1558,8 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 @media (max-width: 600px) {
   .chipGroup { grid-template-columns: 1fr; }
   .exportPlanGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .taskSuggestionHead { flex-direction: column; }
-  .suggestionActions { justify-content: stretch; }
-  .suggestionActions .btn { flex: 1 1 100%; }
+  .suggestionModalActions { justify-content: stretch; }
+  .suggestionModalActions .btn { flex: 1 1 100%; }
 }
 
 /* ── Print (single authoritative print system — one @page, one page-box
