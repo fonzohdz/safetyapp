@@ -13,6 +13,10 @@ const APP_NAME = 'Safety Documentation Center';
 const APP_SUB = 'Field Safety App';
 const SHACKELFORD_LOGO = `${import.meta.env.BASE_URL}icons/shackelford-logo.webp`;
 const APP_VERSION = '1.0.4-safe-upgrade';
+// Fixed at build time by vite.config.js (`define`) — never the visitor's clock.
+// Distinct from the draft "last saved" timestamp, which is user-data and browser-time.
+const BUILD_TIME = typeof __BUILD_TIME__ !== 'undefined' ? __BUILD_TIME__ : '';
+const BUILD_COMMIT = typeof __BUILD_COMMIT__ !== 'undefined' ? __BUILD_COMMIT__ : '';
 
 /* ── Helpers ── */
 function todayISO() {
@@ -21,6 +25,13 @@ function todayISO() {
 function nowNice(d = new Date()) {
   const v = d instanceof Date ? d : new Date(d);
   return v.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+function buildStamp(iso, commit) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const datePart = d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+  const timePart = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return `Updated ${datePart} · ${timePart}${commit ? ` · ${commit}` : ''}`;
 }
 function safeJson(str, fallback) {
   try { return str ? JSON.parse(str) : fallback; } catch { return fallback; }
@@ -523,6 +534,113 @@ function getReviewChecks(jsa) {
 
 function IconLock(props) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}><rect x="5" y="10.5" width="14" height="9" rx="1.5" /><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" /></svg>; }
 
+/* ── Layout capability helpers ──
+   Touch-primary detection uses (any-pointer: coarse), a real hardware-capability
+   media feature, not a viewport-width guess — this stays correct even if Safari
+   reports a desktop-class viewport width for an iPad. Container width is measured
+   on the actual rendered element via ResizeObserver, not window.innerWidth. */
+function useIsTouchPrimary() {
+  const readMatch = () => (typeof window !== 'undefined' && window.matchMedia)
+    ? window.matchMedia('(any-pointer: coarse)').matches
+    : false;
+  const [touch, setTouch] = useState(readMatch);
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return undefined;
+    const mq = window.matchMedia('(any-pointer: coarse)');
+    const handler = () => setTouch(mq.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  return touch;
+}
+function useElementWidth(ref) {
+  const [width, setWidth] = useState(0);
+  useLayoutEffect(() => {
+    const node = ref.current;
+    if (!node) return undefined;
+    const update = () => setWidth(node.clientWidth);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [ref]);
+  return width;
+}
+function useDebugLayoutFlag() {
+  return useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    try { return new URLSearchParams(window.location.search).get('debug') === 'layout'; }
+    catch { return false; }
+  }, []);
+}
+
+/* ── Compact stepper (touch devices): status strip + tap targets, never wraps ── */
+function CompactStepper({ steps, jsa, jsaStep, setJsaStep }) {
+  const idx = Math.max(0, steps.findIndex(s => s.id === jsaStep));
+  const current = steps[idx];
+  const status = stepStatus(jsa, jsaStep);
+  return (
+    <div className="compactStepper">
+      <div className="compactStepperHead">
+        <span className="compactStepperCount">Step {idx + 1} of {steps.length}</span>
+        <span className="compactStepperTitle">{current.label}</span>
+        <span className={`stepChip ${status}`}>{stepStatusLabel(status)}</span>
+      </div>
+      <div className="compactStepperTrack" style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }}>
+        {steps.map(s => {
+          const st = stepStatus(jsa, s.id);
+          return (
+            <button
+              key={s.id}
+              className={`compactStepperDot ${st}${s.id === jsaStep ? ' active' : ''}`}
+              onClick={() => setJsaStep(s.id)}
+              aria-current={s.id === jsaStep ? 'step' : undefined}
+              aria-label={`${s.label}: ${stepStatusLabel(st)}`}
+              title={s.label}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ── Layout diagnostics overlay, only mounted behind ?debug=layout ── */
+function LayoutDebugPanel({ containerRef, layoutMode }) {
+  const [, forceTick] = useState(0);
+  useEffect(() => {
+    const onChange = () => forceTick(t => t + 1);
+    window.addEventListener('resize', onChange);
+    window.addEventListener('orientationchange', onChange);
+    window.visualViewport?.addEventListener('resize', onChange);
+    return () => {
+      window.removeEventListener('resize', onChange);
+      window.removeEventListener('orientationchange', onChange);
+      window.visualViewport?.removeEventListener('resize', onChange);
+    };
+  }, []);
+  const vv = window.visualViewport;
+  const coarse = window.matchMedia ? window.matchMedia('(any-pointer: coarse)').matches : false;
+  const orientation = screen.orientation?.type || (window.innerWidth >= window.innerHeight ? 'landscape' : 'portrait');
+  const containerWidth = containerRef?.current?.clientWidth;
+  return (
+    <div className="layoutDebugPanel">
+      <strong>Layout Debug (?debug=layout)</strong>
+      <dl>
+        <div><dt>innerWidth × innerHeight</dt><dd>{window.innerWidth} × {window.innerHeight}</dd></div>
+        <div><dt>visualViewport</dt><dd>{vv ? `${Math.round(vv.width)} × ${Math.round(vv.height)}` : 'n/a'}</dd></div>
+        <div><dt>screen</dt><dd>{screen.width} × {screen.height}</dd></div>
+        <div><dt>devicePixelRatio</dt><dd>{window.devicePixelRatio}</dd></div>
+        <div><dt>maxTouchPoints</dt><dd>{navigator.maxTouchPoints}</dd></div>
+        <div><dt>any-pointer: coarse</dt><dd>{String(coarse)}</dd></div>
+        <div><dt>orientation</dt><dd>{orientation}</dd></div>
+        <div><dt>workspace width</dt><dd>{containerWidth != null ? `${containerWidth}px` : 'n/a'}</dd></div>
+        <div><dt>layout mode</dt><dd>{layoutMode}</dd></div>
+      </dl>
+    </div>
+  );
+}
+
 /* ── App ── */
 function App() {
   const [settings, setSettings] = useState(() => ({ theme: 'dark', customQuick: { task: [], hazard: [], control: [] }, ...safeJson(localStorage.getItem(KEYS.settings), {}) }));
@@ -751,6 +869,7 @@ function App() {
           <div className="brandText">
             <h1>{APP_NAME}</h1>
             <p>{APP_SUB} · v{APP_VERSION}</p>
+            {BUILD_TIME && <p className="buildStamp">{buildStamp(BUILD_TIME, BUILD_COMMIT)}</p>}
           </div>
           <div className="topActions">
             <span className="saveStatus">{jsa.lastSavedAt ? `Draft saved ${nowNice(new Date(jsa.lastSavedAt))}` : 'No active saved draft'}</span>
@@ -968,9 +1087,30 @@ function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTem
   const fit = calcFit(jsa);
   const sigCount = Math.max(1, Math.min(100, Number(jsa.signatureLineCount) || 1));
   const idx = STEPS.findIndex(s => s.id === jsaStep);
+  const shellRef = useRef(null);
+  const shellWidth = useElementWidth(shellRef);
+  const isTouchPrimary = useIsTouchPrimary();
+  const canSideBySide = !isTouchPrimary && shellWidth >= 1000;
+  const [showPreview, setShowPreview] = useState(false);
+  const debugLayout = useDebugLayoutFlag();
+  const layoutMode = canSideBySide ? 'desktop-side-by-side' : (isTouchPrimary ? 'touch-stacked' : 'desktop-stacked-narrow');
+  const previewOpen = jsaStep === 'review' || showPreview;
 
   function prev() { if (idx > 0) setJsaStep(STEPS[idx - 1].id); }
   function next() { if (idx < STEPS.length - 1) setJsaStep(STEPS[idx + 1].id); }
+
+  const previewPanel = (
+    <div className="card previewPanel">
+      <div className="previewPanelHeader">
+        <div>
+          <strong>Live Preview</strong>
+          <span>Live page plan and layout check</span>
+        </div>
+        <button className="btn sm outline" onClick={exportPdf}>Print / Save PDF</button>
+      </div>
+      <JsaPreview jsa={jsa} />
+    </div>
+  );
 
   return (
     <>
@@ -985,49 +1125,55 @@ function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTem
           <div className="docHeaderMeta">
             <span className={`fitBadge ${fit.status}`}>{fit.label}</span>
             <span className={`badge ${jsa.status}`}>{jsa.status === 'ready' ? 'Ready to Export' : 'Draft'}</span>
+            {!canSideBySide && jsaStep !== 'review' && (
+              <button className="btn sm outline" onClick={() => setShowPreview(v => !v)}>
+                {showPreview ? 'Hide Preview' : 'Preview JSA'}
+              </button>
+            )}
           </div>
         </div>
         <div style={{ padding: '0 16px 14px', overflowX: 'auto' }}>
-          <div className="progressStrip">
-            {STEPS.map((s, i) => {
-              const st = stepStatus(jsa, s.id);
-              return (
-                <button key={s.id} className={`progressStep${jsaStep === s.id ? ' active' : ''}`} onClick={() => setJsaStep(s.id)}>
-                  <span className="stepNum">{i + 1}</span>
-                  <span className="stepInfo">
-                    <strong>{s.label}</strong>
-                    <small>{s.helper}</small>
-                  </span>
-                  <span className={`stepChip ${st}`}>{stepStatusLabel(st)}</span>
-                </button>
-              );
-            })}
-          </div>
+          {isTouchPrimary ? (
+            <CompactStepper steps={STEPS} jsa={jsa} jsaStep={jsaStep} setJsaStep={setJsaStep} />
+          ) : (
+            <div className="progressStrip">
+              {STEPS.map((s, i) => {
+                const st = stepStatus(jsa, s.id);
+                return (
+                  <button key={s.id} className={`progressStep${jsaStep === s.id ? ' active' : ''}`} onClick={() => setJsaStep(s.id)}>
+                    <span className="stepNum">{i + 1}</span>
+                    <span className="stepInfo">
+                      <strong>{s.label}</strong>
+                      <small>{s.helper}</small>
+                    </span>
+                    <span className={`stepChip ${st}`}>{stepStatusLabel(st)}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="workflowShell">
+      <div className={`workflowShell${canSideBySide ? '' : ' stacked'}`} ref={shellRef}>
         <div className="workflowLeft">
           {jsaStep === 'job' && <StepJob jsa={jsa} upd={upd} prev={prev} next={next} />}
           {jsaStep === 'meeting' && <StepMeeting jsa={jsa} upd={upd} prev={prev} next={next} />}
           {jsaStep === 'work' && <StepWork jsa={jsa} upd={upd} insertLine={insertLine} insertLines={insertLines} upsertSuggestedTaskRow={upsertSuggestedTaskRow} addRow={addRow} updRow={updRow} removeRow={removeRow} addSummaryAsRow={addSummaryAsRow} addRowTemplate={addRowTemplate} customQuick={settings.customQuick || { task: [], hazard: [], control: [] }} prev={prev} next={next} />}
           {jsaStep === 'signatures' && <StepSignatures jsa={jsa} upd={upd} sigCount={sigCount} prev={prev} next={next} />}
           {jsaStep === 'review' && <StepReview jsa={jsa} upd={upd} fit={fit} saveName={saveName} setSaveName={setSaveName} saveTemplate={saveTemplate} updateTemplate={updateTemplate} saveDraft={saveDraft} markReady={markReady} exportPdf={exportPdf} clearDraft={clearDraft} prev={prev} next={next} />}
+
+          {!canSideBySide && previewOpen && previewPanel}
         </div>
 
-        <div className="workflowRight">
-          <div className="card previewPanel">
-            <div className="previewPanelHeader">
-              <div>
-                <strong>Live Preview</strong>
-                <span>Live page plan and layout check</span>
-              </div>
-              <button className="btn sm outline" onClick={exportPdf}>Print / Save PDF</button>
-            </div>
-            <JsaPreview jsa={jsa} />
+        {canSideBySide && (
+          <div className="workflowRight">
+            {previewPanel}
           </div>
-        </div>
+        )}
       </div>
+
+      {debugLayout && <LayoutDebugPanel containerRef={shellRef} layoutMode={layoutMode} />}
     </>
   );
 }
@@ -1042,11 +1188,15 @@ function StepJob({ jsa, upd, prev, next }) {
           <div className="formGrid">
             <F label="Location / City" value={jsa.location} onChange={v => upd({ location: v })} />
             <F label="Job Site" value={jsa.jobSite} onChange={v => upd({ jobSite: v })} />
-            <div className="formGrid2">
+            <div className="formPairRow">
               <F label="Date" type="date" value={jsa.date} onChange={v => upd({ date: v })} />
               <F label="Job #" value={jsa.jobNumber} onChange={v => upd({ jobNumber: v })} />
+            </div>
+            <div className="formPairRow">
               <F label="Client" value={jsa.client} onChange={v => upd({ client: v })} />
               <F label="Muster Point" value={jsa.musterPoint} onChange={v => upd({ musterPoint: v })} />
+            </div>
+            <div className="formPairRow">
               <F label="Time Issued" type="time" value={jsa.timeIssued} onChange={v => upd({ timeIssued: v })} />
               <F label="Time Expired" type="time" value={jsa.timeExpired} onChange={v => upd({ timeExpired: v })} />
             </div>
