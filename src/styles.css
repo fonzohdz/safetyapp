@@ -440,6 +440,25 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 .layoutDebugPanel dt { color: #8fefb0; }
 .layoutDebugPanel dd { color: #fff; text-align: right; }
 
+/* Screen-only pagination diagnostics (?debug=print), rendered inline above
+   the Live Preview — see PrintDebugPanel in main.jsx. Never printed. */
+.printDebugPanel {
+  margin: 10px 14px 0;
+  padding: 8px 10px;
+  border: 1px solid rgba(255,255,255,.15);
+  border-radius: 8px;
+  background: rgba(10, 10, 12, 0.92);
+  color: #d7f9d0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.4;
+}
+.printDebugPanel strong { display: block; color: #fff; font-size: 10.5px; margin-bottom: 4px; text-transform: uppercase; letter-spacing: .5px; }
+.printDebugPanel dl { display: grid; gap: 2px; }
+.printDebugPanel dl > div { display: flex; justify-content: space-between; gap: 8px; }
+.printDebugPanel dt { color: #8fefb0; }
+.printDebugPanel dd { color: #fff; text-align: right; }
+
 /* ── Accessible confirm dialog (Start Blank / load template over meaningful work) ── */
 .dialogOverlay {
   position: fixed;
@@ -1542,8 +1561,14 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 .documentPage .printTaskTable th:nth-child(2), .documentPage .printTaskTable td:nth-child(2) { width: 32%; }
 .documentPage .printTaskTable th:nth-child(3), .documentPage .printTaskTable td:nth-child(3) { width: 37%; }
 .documentPage .printTaskTable th { background: #dedede; font-size: 9.2px; text-transform: uppercase; padding: 3px 4px; }
-.documentPage .printTaskTable tbody { height: 100%; }
-.documentPage .printTaskTable tbody tr { height: calc(100% / var(--task-row-count)); }
+/* Rows are NOT forced to an equal 1/N share of the table's height (that
+   previously squeezed lower rows to unreadable thin strips whenever upper
+   rows or upper page sections needed more room than average). Each row's
+   height is now purely content-driven — a table row can never render
+   shorter than its tallest cell needs, so it naturally grows for wrapped
+   text and never compresses. The JS pagination planner (paginateTaskContent
+   / mainRowCapacity in main.jsx) is now solely responsible for deciding how
+   many rows are safe to place on this page in the first place. */
 .documentPage .printTaskTable td { min-height: 24px; padding: 4px; font-size: 9.8px; line-height: 1.18; vertical-align: top; white-space: pre-line; overflow-wrap: break-word; }
 .documentPage .continuationFlag { flex: 0 0 auto; margin-top: 3px; border: 1px solid #9b111e; padding: 3px 5px; text-align: center; font-size: 7px; font-weight: 700; color: #7f1d1d; background: #fff1f2; }
 .documentPage .printFooter,
@@ -1569,11 +1594,23 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 @media print {
   @page { size: letter portrait; margin: 0.5in; }
   html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; color: #000 !important; }
-  .appShell, .toast, .layoutDebugPanel, .dialogOverlay, .suggestionsOverlay, .stickyActionBar { display: none !important; }
+  .appShell, .toast, .layoutDebugPanel, .dialogOverlay, .suggestionsOverlay, .stickyActionBar, .printDebugPanel { display: none !important; }
   .printOnly { display: block !important; }
   table { width: 100%; border-collapse: collapse; }
 
-  /* Page box: one physical geometry, shared by every page type */
+  /* Page box: one physical geometry, shared by every page type. Target size
+     is 10in (Letter 11in minus the 0.5in @page margin top+bottom).
+     overflowstays hidden on purpose: visible overflow from a fixed-height
+     box is exactly what let WebKit's print fragmentation silently open a
+     second physical page per logical page (the original doubled-page bug).
+     A physical page boundary must never depend on overflow to preserve
+     content — the JS pagination planner (main.jsx: mainRowCapacity /
+     continuationRowCapacity / paginateTaskContent) is solely responsible
+     for guaranteeing content fits within this box, conservatively, before
+     it is ever handed to a page. Overflow here is fail-safe clipping for a
+     planner bug, not a delivery mechanism — see the dev-time overflow
+     diagnostic in main.jsx (checkPrintOverflow) which warns loudly instead
+     of relying on this clip to "still work". */
   .printPage,
   .documentPage.printPage {
     position: relative;

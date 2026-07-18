@@ -144,16 +144,63 @@ function estimateTextLines(value, charsPerLine) {
   if (!text.trim()) return 1;
   return text.split('\n').reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / charsPerLine)), 0);
 }
+/* Chars-per-line derived from the printed task table's actual column widths
+   (see .documentPage .printTaskTable th:nth-child(1/2/3) in styles.css:
+   31% / 32% / 37% of the 7.5in usable page width, minus ~4.5px cell padding
+   each side, at the table's 9.8px Arial print font). Average glyph width for
+   Arial body text is roughly 0.55x the font size, so: usable column width /
+   (0.55 * 9.8px), rounded down for a safety margin against Safari rendering
+   slightly wider than Chromium/desktop font metrics (unverified on physical
+   hardware — see reports/audits). Previous constants (44/58/66) were not
+   derived from column width at all — they overestimated capacity for every
+   column, and had hazards (32% wide) more generous than step (31% wide)
+   despite being barely any wider, which is why long entries under-counted
+   their true wrapped-line count and could overflow the fixed page box. */
 function estimateRowUnits(row) {
   return Math.max(
-    estimateTextLines(row.step, 44),
-    estimateTextLines(row.hazards, 58),
-    estimateTextLines(row.controls, 66),
+    estimateTextLines(row.step, 38),
+    estimateTextLines(row.hazards, 40),
+    estimateTextLines(row.controls, 46),
     1,
   );
 }
-function mainRowCapacity() { return 22; }
-function continuationRowCapacity() { return 32; }
+/* Job Info / Meeting Info fields printed above the task table (see
+   MainJsaDocumentPage's .printSimpleTable) are free text and can grow well
+   past one line. Every wrapped line they add directly shrinks the physical
+   space left for the task table on the Main JSA page (it's a flex:1 child
+   filling whatever remains in a fixed-height column) — mainRowCapacity below
+   accounts for this instead of assuming a fixed budget regardless of content
+   length above it. 60 chars/line approximates that table's ~5.7in usable
+   label+value row width at 8.8px. */
+function estimateUpperSectionLines(jsa) {
+  return estimateTextLines(jsa.assignedMentorSse, 60)
+    + estimateTextLines(jsa.tailgateTopic, 60)
+    + estimateTextLines(jsa.previousDaySafety, 60)
+    + estimateTextLines(jsa.overallWorkTask, 60);
+}
+/* Baseline capacity (short upper-section text) with a safety margin: rough
+   physical geometry (10in page - 0.5in margins/pad = 9.8in content box;
+   ~3.1in of that is fixed-height header/info/ack/energy sections; ~6.7in
+   left for the task table before accounting for row overhead) supports
+   roughly 30-35 "units" (1 unit = 1 wrapped line) of single-line-dominant
+   task content before the page is physically full. A deliberate ~35%
+   safety margin below that mathematical ceiling — for Safari font-metric
+   uncertainty this repo cannot verify without physical hardware — lands the
+   short-text baseline at 20, trimmed from the previous unverified 22.
+   BASELINE_UPPER_LINES is what that budget already assumes for the 4 upper
+   rows (~1 line each); every additional wrapped line beyond that comes
+   straight out of the task-table budget one-for-one. */
+function mainRowCapacity(jsa) {
+  const BASELINE = 20;
+  const BASELINE_UPPER_LINES = 4;
+  const MIN_CAPACITY = 8;
+  const extraUpperLines = Math.max(0, estimateUpperSectionLines(jsa) - BASELINE_UPPER_LINES);
+  return Math.max(MIN_CAPACITY, BASELINE - extraUpperLines);
+}
+// Continuation pages have a small, near-fixed header (no long free-text
+// fields above the table), so capacity doesn't need to shrink dynamically —
+// only the same class of safety margin applied to the main page (32 -> 28).
+function continuationRowCapacity() { return 28; }
 function paginateRowsByUnits(rows, capacity) {
   const pages = [];
   let current = [];
@@ -196,7 +243,11 @@ function paginateTaskContent(jsa) {
   const remaining = rows.slice(cutAt);
   const paged = paginateRowsByUnits(remaining, continuationRowCapacity());
   oversized = oversized || paged.oversized;
-  const mainMinRows = Math.max(16, Math.min(22, mainRows.length + 4));
+  // Pad with blank rows for a visually filled page, but never past this JSA's
+  // own actual capacity — padding used to reference a hardcoded 22 regardless
+  // of the dynamic capacity above, which could over-fill a page whose capacity
+  // had shrunk for long upper-section content.
+  const mainMinRows = Math.max(Math.min(16, mainCapacity), Math.min(mainCapacity, mainRows.length + 4));
   return {
     contentRows: rows,
     mainContentRows: mainRows,
@@ -2119,9 +2170,38 @@ function SettingsView({ settings, setSettings }) {
 }
 
 /* ── JSA Preview ── */
+function usePrintDebugFlag() {
+  return useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    try { return new URLSearchParams(window.location.search).get('debug') === 'print'; }
+    catch { return false; }
+  }, []);
+}
+/* Screen-only pagination diagnostics, only mounted behind ?debug=print —
+   for verifying the JS page planner's assumptions against what actually
+   prints, without needing a real device to inspect internal numbers. */
+function PrintDebugPanel({ jsa, plan }) {
+  return (
+    <div className="printDebugPanel">
+      <strong>Print Debug (?debug=print)</strong>
+      <dl>
+        <div><dt>logical pages</dt><dd>{plan.totalPages} (1 main + {plan.continuationPages.length} continuation + {plan.signInPages.length} sign-in)</dd></div>
+        <div><dt>main capacity / used</dt><dd>{plan.mainCapacity} / {plan.mainUsed} units</dd></div>
+        <div><dt>main content rows</dt><dd>{plan.mainContentRows.length} (padded to {plan.mainRows.length})</dd></div>
+        <div><dt>continuation capacity</dt><dd>{continuationRowCapacity()} units/page</dd></div>
+        <div><dt>continuation pages</dt><dd>{plan.continuationPages.length}</dd></div>
+        <div><dt>sign-in pages</dt><dd>{plan.signInPages.length}</dd></div>
+        <div><dt>oversized row detected</dt><dd>{String(plan.oversized)}</dd></div>
+        <div><dt>upper-section wrapped lines</dt><dd>{estimateUpperSectionLines(jsa)}</dd></div>
+      </dl>
+    </div>
+  );
+}
+
 function JsaPreview({ jsa }) {
   const plan = getPagePlan(jsa);
   const fit = calcFit(jsa);
+  const printDebug = usePrintDebugFlag();
   const viewportRef = useRef(null);
   const [scale, setScale] = useState(0.55);
 
@@ -2140,6 +2220,7 @@ function JsaPreview({ jsa }) {
 
   return (
     <>
+      {printDebug && <PrintDebugPanel jsa={jsa} plan={plan} />}
       <div className="previewPageManager">
         <span><strong>Main JSA</strong> 1</span>
         <span><strong>Continuation</strong> {plan.continuationPages.length}</span>
@@ -2377,7 +2458,7 @@ function MainJsaDocumentPage({ jsa, plan, className = '' }) {
           <p><strong>Sound/Radiation/Biological:</strong> Noise; vibration; solar rays; insects; animals; contaminated water.</p>
         </div>
       </section>
-      <div className="taskTableFill" style={{ '--task-row-count': Math.max(1, plan.mainRows.length) }}>
+      <div className="taskTableFill">
         <PrintTaskTable rows={plan.mainRows} />
       </div>
       {plan.continuationPages.length > 0 && <div className="continuationFlag">Additional task rows continue on the attached JSA continuation sheet.</div>}
@@ -2386,11 +2467,44 @@ function MainJsaDocumentPage({ jsa, plan, className = '' }) {
   );
 }
 
+// The JS pagination planner is responsible for guaranteeing every .printPage
+// fits its fixed physical box; overflow here means the planner under-counted
+// something. Rather than let CSS overflow silently clip (or, worse, let it
+// stay visible and risk WebKit opening an extra physical page — the original
+// doubled-page bug), this checks the real rendered boxes at the moment the
+// browser is about to print and warns loudly so a planner regression is
+// caught instead of silently mis-printing in the field.
+function checkPrintOverflow(root) {
+  if (!root) return [];
+  const pages = root.querySelectorAll('.printPage');
+  const overflowing = [];
+  pages.forEach((el, idx) => {
+    const overflowPx = el.scrollHeight - el.clientHeight;
+    if (overflowPx > 0) overflowing.push({ index: idx, overflowPx });
+  });
+  return overflowing;
+}
+
 function PrintableJsa({ jsa }) {
   const plan = getPagePlan(jsa);
+  const rootRef = useRef(null);
+
+  useEffect(() => {
+    const handler = () => {
+      const overflowing = checkPrintOverflow(rootRef.current);
+      if (overflowing.length) {
+        console.warn(
+          `[print] ${overflowing.length} page(s) exceeded the physical page box — pagination planner under-counted content`,
+          overflowing,
+        );
+      }
+    };
+    window.addEventListener('beforeprint', handler);
+    return () => window.removeEventListener('beforeprint', handler);
+  }, []);
 
   return (
-    <div className="printOnly">
+    <div className="printOnly" ref={rootRef}>
       <MainJsaDocumentPage jsa={jsa} plan={plan} className="printPage" />
 
       {plan.continuationPages.map((rows, idx) => (
