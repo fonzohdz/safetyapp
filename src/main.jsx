@@ -142,38 +142,54 @@ function getContentRows(jsa) {
 /* Physical print geometry constants — single source of truth shared by the
    pagination math below and the ?debug=print panel. Must stay in sync with
    the .printPage / .documentPage.printPage rule in styles.css's @media
-   print block, which declares the exact same numbers. See that rule's
-   comment for why PRINT_PAGE_WIDTH_IN/PRINT_PAGE_HEIGHT_IN are deliberately
-   smaller than the CSS-theoretical printable area rather than equal to it. */
+   print block, which declares the exact same numbers.
+   Single-sheet model (corrective round 2): @page has NO margin of its own —
+   .printPage IS the full physical sheet, and safe margins are implemented
+   as internal padding, not a second/competing margin system. The resulting
+   content box (7.1in x 9.4in) is unchanged from the previous round's
+   deliberately-smaller-than-theoretical-max reasoning; only the mechanism
+   that produces it changed (padding instead of @page margin + a separately
+   sized box). PRINT_WIDTH_SAFETY_IN / PRINT_HEIGHT_SAFETY_IN below now
+   directly mean "how much of the full sheet is intentionally left unused as
+   a buffer against hardware non-printable margins / iOS print quirks this
+   repo cannot measure without physical hardware" — the padding itself. */
 const PRINT_PAPER_WIDTH_IN = 8.5;
 const PRINT_PAPER_HEIGHT_IN = 11;
-const PRINT_PAGE_MARGIN_IN = 0.5;
-const PRINT_THEORETICAL_WIDTH_IN = PRINT_PAPER_WIDTH_IN - 2 * PRINT_PAGE_MARGIN_IN; // 7.5in
-const PRINT_THEORETICAL_HEIGHT_IN = PRINT_PAPER_HEIGHT_IN - 2 * PRINT_PAGE_MARGIN_IN; // 10in
-const PRINT_PAGE_WIDTH_IN = 7.1; // deliberately < PRINT_THEORETICAL_WIDTH_IN
-const PRINT_PAGE_HEIGHT_IN = 9.4; // deliberately < PRINT_THEORETICAL_HEIGHT_IN
-const PRINT_PAGE_PADDING_BOTTOM_IN = 0.2;
-const PRINT_WIDTH_SAFETY_IN = PRINT_THEORETICAL_WIDTH_IN - PRINT_PAGE_WIDTH_IN;
-const PRINT_HEIGHT_SAFETY_IN = PRINT_THEORETICAL_HEIGHT_IN - PRINT_PAGE_HEIGHT_IN;
-const PRINT_CONTENT_HEIGHT_IN = PRINT_PAGE_HEIGHT_IN - PRINT_PAGE_PADDING_BOTTOM_IN; // 9.2in
+const PRINT_PAGE_WIDTH_IN = PRINT_PAPER_WIDTH_IN; // .printPage IS the sheet
+const PRINT_PAGE_HEIGHT_IN = PRINT_PAPER_HEIGHT_IN;
+const PRINT_PAGE_PADDING_X_IN = 0.7; // left/right, each side
+const PRINT_PAGE_PADDING_Y_IN = 0.8; // top/bottom, each side
+const PRINT_CONTENT_WIDTH_IN = PRINT_PAGE_WIDTH_IN - 2 * PRINT_PAGE_PADDING_X_IN; // 7.1in
+const PRINT_CONTENT_HEIGHT_IN = PRINT_PAGE_HEIGHT_IN - 2 * PRINT_PAGE_PADDING_Y_IN; // 9.4in
+const PRINT_WIDTH_SAFETY_IN = 2 * PRINT_PAGE_PADDING_X_IN;
+const PRINT_HEIGHT_SAFETY_IN = 2 * PRINT_PAGE_PADDING_Y_IN;
+const PRINT_PX_PER_IN_GEOMETRY = 96; // CSS reference pixel — absolute units resolve
+// identically on screen and in print, which is what makes the hidden
+// PaginationMeasureRig's screen-mode measurements print-accurate.
+const PRINT_CONTENT_HEIGHT_PX = PRINT_CONTENT_HEIGHT_IN * PRINT_PX_PER_IN_GEOMETRY;
+// Distance from a .printPage's own top edge (border-box, includes top
+// padding) down to the bottom edge of its usable content area — i.e. the
+// page's own bottom padding is excluded, top padding is not (because
+// measurements below are always taken relative to the page's top edge, so
+// top padding is already baked into them by construction).
+const PRINT_CONTENT_BOTTOM_PX = (PRINT_PAGE_HEIGHT_IN - PRINT_PAGE_PADDING_Y_IN) * PRINT_PX_PER_IN_GEOMETRY;
 
 function estimateTextLines(value, charsPerLine) {
   const text = String(value || '');
   if (!text.trim()) return 1;
   return text.split('\n').reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / charsPerLine)), 0);
 }
-/* Chars-per-line derived from the printed task table's actual column widths
+/* FALLBACK ONLY — see PaginationMeasureRig below. These are character-count
+   estimates, used only before real measurements are available (first
+   render, or if a jsa's measurement hasn't caught up yet); resolvePagePlan()
+   prefers a measured plan whenever one exists and only falls back to this.
+   Chars-per-line derived from the printed task table's actual column widths
    (see .documentPage .printTaskTable th:nth-child(1/2/3) in styles.css:
-   31% / 32% / 37% of PRINT_PAGE_WIDTH_IN, minus ~4.5px cell padding each
+   31% / 32% / 37% of PRINT_CONTENT_WIDTH_IN, minus ~4.5px cell padding each
    side, at the table's 9.8px Arial print font). Average glyph width for
    Arial body text is roughly 0.55x the font size, so: usable column width /
    (0.55 * 9.8px), rounded down for a safety margin against Safari rendering
-   slightly wider than Chromium/desktop font metrics (unverified on physical
-   hardware — see reports/audits). These three numbers (36/37/43) are the
-   previous corrected constants (38/40/46) scaled down by
-   PRINT_PAGE_WIDTH_IN's reduction from the old 7.5in width (ratio
-   7.1/7.5 ≈ 0.947, rounded down) now that the page itself is narrower — see
-   the .printPage geometry comment in styles.css for why. */
+   slightly wider than Chromium/desktop font metrics. */
 function estimateRowUnits(row) {
   return Math.max(
     estimateTextLines(row.step, 36),
@@ -182,35 +198,22 @@ function estimateRowUnits(row) {
     1,
   );
 }
-/* Job Info / Meeting Info fields printed above the task table (see
-   MainJsaDocumentPage's .printSimpleTable) are free text and can grow well
-   past one line. Every wrapped line they add directly shrinks the physical
-   space left for the task table on the Main JSA page (it's a flex child
-   filling whatever remains in the fixed-height column) — mainRowCapacity
-   below accounts for this instead of assuming a fixed budget regardless of
-   content length above it. 56 chars/line approximates that table's usable
-   label+value row width at 8.8px, scaled down the same 7.1/7.5 ratio as
-   estimateRowUnits above (was 60 at the old 7.5in page width). */
+/* FALLBACK ONLY (see note above estimateRowUnits). Job Info / Meeting Info
+   fields printed above the task table are free text and can grow well past
+   one line — every wrapped line directly shrinks the space left for the
+   task table on the Main JSA page. 56 chars/line approximates that table's
+   usable label+value row width at 8.8px. */
 function estimateUpperSectionLines(jsa) {
   return estimateTextLines(jsa.assignedMentorSse, 56)
     + estimateTextLines(jsa.tailgateTopic, 56)
     + estimateTextLines(jsa.previousDaySafety, 56)
     + estimateTextLines(jsa.overallWorkTask, 56);
 }
-/* Baseline capacity (short upper-section text) with a safety margin.
-   PRINT_CONTENT_HEIGHT_IN (9.2in) is the corrected available content height
-   for the whole flex column (down from the previous uncorrected 9.8in, a
-   ratio of ~0.939) — the fixed-height header/info/ack/energy sections above
-   the task table are unaffected by the page-geometry correction (their
-   content doesn't depend on PRINT_PAGE_HEIGHT_IN), so the entire 0.6in
-   reduction comes directly out of the task table's share. Rather than
-   re-deriving the raw physical ceiling from scratch, these constants are the
-   previous physically-derived, safety-margined numbers (20 / 8 / 28) scaled
-   down by that same 0.939 content-height ratio and rounded down for
-   conservatism — the safety margin they already encoded is preserved, not
-   diluted. BASELINE_UPPER_LINES is what that budget already assumes for the
-   4 upper rows (~1 line each); every additional wrapped line beyond that
-   comes straight out of the task-table budget one-for-one. */
+/* FALLBACK ONLY (see note above estimateRowUnits) — a conservative estimate
+   used only until PaginationMeasureRig's real measurements are available.
+   BASELINE_UPPER_LINES is what this budget already assumes for the 4 upper
+   rows (~1 line each); every additional wrapped line beyond that comes
+   straight out of the task-table budget one-for-one. */
 function mainRowCapacity(jsa) {
   const BASELINE = 18;
   const BASELINE_UPPER_LINES = 4;
@@ -218,9 +221,8 @@ function mainRowCapacity(jsa) {
   const extraUpperLines = Math.max(0, estimateUpperSectionLines(jsa) - BASELINE_UPPER_LINES);
   return Math.max(MIN_CAPACITY, BASELINE - extraUpperLines);
 }
-// Continuation pages have a small, near-fixed header (no long free-text
-// fields above the table), so capacity doesn't need to shrink dynamically —
-// same 0.939 content-height scaling applied to the previous 28, rounded down.
+// FALLBACK ONLY (see note above estimateRowUnits). Continuation pages have a
+// small, near-fixed header, so capacity doesn't need to shrink dynamically.
 function continuationRowCapacity() { return 26; }
 function paginateRowsByUnits(rows, capacity) {
   const pages = [];
@@ -293,6 +295,11 @@ function getSignaturePages(signatureLineCount) {
   }
   return pages;
 }
+// Heuristic-only plan (character-count estimates). This is the fallback
+// used before real measurements are available (see PaginationMeasureRig
+// below) — kept as a standalone, pure function so anything that genuinely
+// only needs a quick estimate (or runs before the rig has mounted) still
+// works exactly as before.
 function getPagePlan(jsa) {
   const taskPlan = paginateTaskContent(jsa);
   const signInPages = getSignaturePages(jsa.signatureLineCount);
@@ -302,8 +309,124 @@ function getPagePlan(jsa) {
     totalPages: 1 + taskPlan.continuationPages.length + signInPages.length,
   };
 }
-function calcFit(jsa) {
-  const plan = getPagePlan(jsa);
+// A fingerprint of everything that could affect pagination height: row
+// content and every fixed-section field. Used to detect whether a
+// PaginationMeasureRig measurement still corresponds to the jsa's current
+// content, or is stale from before the latest edit (in which case
+// buildMeasuredPlan falls back to the heuristic until the rig catches up).
+function fingerprintPaginationInput(jsa) {
+  const rows = getContentRows(jsa);
+  return JSON.stringify([
+    rows.map(r => [r.step, r.hazards, r.controls]),
+    jsa.assignedMentorSse, jsa.tailgateTopic, jsa.previousDaySafety, jsa.overallWorkTask,
+    jsa.location, jsa.jobSite, jsa.timeIssued, jsa.timeExpired, jsa.date, jsa.jobNumber,
+    jsa.superintendentForeman, jsa.emergencyPhone, jsa.client, jsa.nearestMedicalFacility,
+    jsa.siteContactPhone, jsa.musterPoint, jsa.acknowledgement, jsa.signatureLineCount,
+  ]);
+}
+/* Real rendered-height pagination — the packing algorithm is the same
+   greedy "add while it still fits" shape as paginateTaskContent above, but
+   walks REAL measured pixel heights (from PaginationMeasureRig) instead of
+   estimated text-wrap "units". Blank filler rows are intentionally not part
+   of this at all — they're appended afterward (fillRows), exactly as
+   before, so they can never count toward capacity or trigger a
+   continuation page. Returns null (caller falls back to the heuristic
+   getPagePlan) whenever measurements don't exist yet or are stale for this
+   exact jsa content — see fingerprintPaginationInput. */
+function buildMeasuredPlan(jsa, measurements) {
+  const rows = getContentRows(jsa);
+  if (!rows.length) return null; // trivial case; heuristic already handles this identically
+  if (!measurements) return null;
+  if (measurements.fingerprint !== fingerprintPaginationInput(jsa)) return null;
+  if (!measurements.rowHeightsPx || measurements.rowHeightsPx.length !== rows.length) return null;
+  if (!measurements.continuationRowHeightsPx || measurements.continuationRowHeightsPx.length !== rows.length) return null;
+  if (measurements.mainFirstRowOffsetPx == null || measurements.continuationFirstRowOffsetPx == null) return null;
+
+  const mainAvailablePx = PRINT_CONTENT_BOTTOM_PX
+    - measurements.mainFirstRowOffsetPx
+    - measurements.mainFooterHeightPx
+    - measurements.continuationFlagHeightPx; // always reserved — see PaginationMeasureRig comment
+  const continuationAvailablePx = PRINT_CONTENT_BOTTOM_PX
+    - measurements.continuationFirstRowOffsetPx
+    - measurements.continuationFooterHeightPx;
+
+  // Main-page packing uses rowHeightsPx (rows measured at the main table's
+  // own 24px floor); continuation packing below uses continuationRowHeightsPx
+  // instead (rows measured at the continuation table's taller 35px floor) —
+  // these are NOT interchangeable, see the PaginationMeasureRig comment.
+  let mainRows = [];
+  let mainUsed = 0;
+  let cutAt = rows.length;
+  let oversized = false;
+  for (let i = 0; i < rows.length; i += 1) {
+    const h = measurements.rowHeightsPx[i];
+    if (measurements.continuationRowHeightsPx[i] > continuationAvailablePx) oversized = true;
+    if (mainRows.length && mainUsed + h > mainAvailablePx) { cutAt = i; break; }
+    if (!mainRows.length && h > mainAvailablePx) { cutAt = 0; break; }
+    mainRows.push(rows[i]);
+    mainUsed += h;
+  }
+
+  const remaining = rows.slice(cutAt);
+  const remainingHeights = measurements.continuationRowHeightsPx.slice(cutAt);
+  const continuationPagesRaw = [];
+  let curPage = [];
+  let curUsed = 0;
+  remaining.forEach((row, idx) => {
+    const h = remainingHeights[idx];
+    if (curPage.length && curUsed + h > continuationAvailablePx) {
+      continuationPagesRaw.push({ rows: curPage, usedPx: curUsed });
+      curPage = [];
+      curUsed = 0;
+    }
+    curPage.push(row);
+    curUsed += h;
+  });
+  if (curPage.length) continuationPagesRaw.push({ rows: curPage, usedPx: curUsed });
+
+  // Filler/blank rows are real <tr> elements too -- they physically consume
+  // space on the page even though they never influence *which* rows are
+  // real content vs. overflow (that decision is already final above). A
+  // fixed count here (previously "+4 up to 16") was confirmed by direct
+  // measurement to overflow the page when a nearly-full main page had only
+  // a couple px of headroom left: adding 4 more 24px rows regardless added
+  // ~90px of real content the capacity check never saw. Filler height uses
+  // the same per-table floor as real rows (24px main / 35px continuation —
+  // must match .printTaskTable td / .continuationTaskTable td in
+  // styles.css) so the cap is exact, not a guess.
+  const MAIN_ROW_FLOOR_PX = 24;
+  const CONTINUATION_ROW_FLOOR_PX = 35;
+  const mainFillerCap = Math.floor(Math.max(0, mainAvailablePx - mainUsed) / MAIN_ROW_FLOOR_PX);
+  const mainMinRows = mainRows.length + Math.max(0, Math.min(4, mainFillerCap));
+  return {
+    contentRows: rows,
+    mainContentRows: mainRows,
+    mainRows: fillRows(mainRows, mainMinRows),
+    continuationPages: continuationPagesRaw.map(({ rows: page, usedPx }) => {
+      const fillerCap = Math.floor(Math.max(0, continuationAvailablePx - usedPx) / CONTINUATION_ROW_FLOOR_PX);
+      return fillRows(page, page.length + Math.max(0, Math.min(10, fillerCap)));
+    }),
+    oversized,
+    mainCapacity: Math.round(mainAvailablePx),
+    mainUsed: Math.round(mainUsed),
+    measured: true,
+  };
+}
+// The single entry point every consumer should use: prefers a real measured
+// plan, falls back to the character-count heuristic only when measurements
+// aren't available yet (first render) or are momentarily stale (rig hasn't
+// caught up to the latest edit) — per the requirement that estimates remain
+// only an initial fallback, never the final pagination authority.
+function resolvePagePlan(jsa, measurements) {
+  const taskPlan = buildMeasuredPlan(jsa, measurements) || paginateTaskContent(jsa);
+  const signInPages = getSignaturePages(jsa.signatureLineCount);
+  return {
+    ...taskPlan,
+    signInPages,
+    totalPages: 1 + taskPlan.continuationPages.length + signInPages.length,
+  };
+}
+function calcFitFromPlan(plan) {
   if (plan.oversized) {
     return {
       status: 'bad',
@@ -322,6 +445,9 @@ function calcFit(jsa) {
     return { status: 'warn', label: 'Close to full', message: 'The main JSA fits on one page but is close to its clean layout limit.' };
   }
   return { status: 'good', label: 'Fits on main JSA', message: 'The main JSA fits cleanly on one standard letter page.' };
+}
+function calcFit(jsa, measurements) {
+  return calcFitFromPlan(resolvePagePlan(jsa, measurements));
 }
 function buildExportName(jsa) {
   const raw = [jsa.jobSite || jsa.location || 'Shackelford', 'JSA', jsa.date || todayISO()].join('_');
@@ -622,9 +748,9 @@ function stepStatusLabel(s) {
   if (s === 'ready') return 'Ready';
   return 'Needs Info';
 }
-function getReviewChecks(jsa) {
-  const plan = getPagePlan(jsa);
-  const fit = calcFit(jsa);
+function getReviewChecks(jsa, measurements) {
+  const plan = resolvePagePlan(jsa, measurements);
+  const fit = calcFitFromPlan(plan);
   return [
     { label: 'Job site, location, and supervisor', ok: hasText(jsa.jobSite) && hasText(jsa.location) && hasText(jsa.superintendentForeman) },
     { label: 'Date and emergency information', ok: hasText(jsa.date) && hasText(jsa.emergencyPhone) && hasText(jsa.musterPoint) },
@@ -1089,13 +1215,14 @@ function App() {
     showToast(`Added task row: ${tmpl.label}`);
   }
   function exportPdf() {
-    const fit = calcFit(jsa);
+    const measurements = getLatestPageMeasurements();
+    const fit = calcFit(jsa, measurements);
     if (fit.status === 'bad') {
       showToast('One task row is too large to print cleanly. Divide or shorten it before exporting.');
       setJsaStep('review');
       return;
     }
-    const missing = getReviewChecks(jsa).filter(check => !check.ok);
+    const missing = getReviewChecks(jsa, measurements).filter(check => !check.ok);
     if (missing.length) {
       const proceed = confirm(`The JSA still has ${missing.length} review item${missing.length === 1 ? '' : 's'}:\n\n${missing.map(item => `• ${item.label}`).join('\n')}\n\nPrint anyway?`);
       if (!proceed) {
@@ -1173,6 +1300,7 @@ function App() {
         />
       )}
 
+      <PaginationMeasureRig jsa={jsa} />
       <PrintableJsa jsa={jsa} />
       {toast && <div className="toast">{toast}</div>}
     </>
@@ -1373,7 +1501,8 @@ function StickyActionBar({ idx, steps, prev, next, exportPdf, showPreview, setSh
 
 /* ── JSA Workflow ── */
 function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTemplates, templateId, setTemplateId, selectedTemplate, loadTemplate, saveName, setSaveName, saveTemplate, updateTemplate, addRow, updRow, removeRow, addSummaryAsRow, addRowTemplate, clearDraft, saveDraft, markReady, exportPdf, savedDraft, settings, saveStatus }) {
-  const fit = calcFit(jsa);
+  const plan = useJsaPagePlan(jsa);
+  const fit = calcFitFromPlan(plan);
   const sigCount = Math.max(1, Math.min(100, Number(jsa.signatureLineCount) || 1));
   const idx = STEPS.findIndex(s => s.id === jsaStep);
   const shellRef = useRef(null);
@@ -1909,9 +2038,10 @@ function StepSignatures({ jsa, upd, sigCount, prev, next }) {
 
 /* ── Step: Review / Export ── */
 function StepReview({ jsa, upd, fit, saveName, setSaveName, saveTemplate, updateTemplate, saveDraft, markReady, exportPdf, clearDraft, prev, next }) {
-  const checks = getReviewChecks(jsa);
+  const measurements = usePageMeasurements();
+  const plan = useMemo(() => resolvePagePlan(jsa, measurements), [jsa, measurements]);
+  const checks = useMemo(() => getReviewChecks(jsa, measurements), [jsa, measurements]);
   const completeCount = checks.filter(check => check.ok).length;
-  const plan = getPagePlan(jsa);
   return (
     <div className="stepStack">
       <div className="card">
@@ -2213,22 +2343,27 @@ function PrintDebugPanel({ jsa, plan }) {
       <strong>Print Debug (?debug=print)</strong>
       <dl>
         <div><dt>logical pages</dt><dd>{plan.totalPages} (1 main + {plan.continuationPages.length} continuation + {plan.signInPages.length} sign-in)</dd></div>
-        <div><dt>main capacity / used</dt><dd>{plan.mainCapacity} / {plan.mainUsed} units</dd></div>
+        <div><dt>main capacity / used</dt><dd>{plan.mainCapacity} / {plan.mainUsed} {plan.measured ? 'px' : 'units (heuristic)'}</dd></div>
         <div><dt>main content rows</dt><dd>{plan.mainContentRows.length} (padded to {plan.mainRows.length})</dd></div>
-        <div><dt>continuation capacity</dt><dd>{continuationRowCapacity()} units/page</dd></div>
+        <div><dt>continuation capacity</dt><dd>{plan.measured ? 'see row-height measurement below' : `${continuationRowCapacity()} units/page (heuristic)`}</dd></div>
         <div><dt>continuation pages</dt><dd>{plan.continuationPages.length}</dd></div>
         <div><dt>sign-in pages</dt><dd>{plan.signInPages.length}</dd></div>
         <div><dt>oversized row detected</dt><dd>{String(plan.oversized)}</dd></div>
         <div><dt>upper-section wrapped lines</dt><dd>{estimateUpperSectionLines(jsa)}</dd></div>
       </dl>
-      <strong style={{ marginTop: 8 }}>Declared print geometry</strong>
+      <strong style={{ marginTop: 8 }}>Declared print geometry (single-sheet model)</strong>
       <dl>
-        <div><dt>paper</dt><dd>{PRINT_PAPER_WIDTH_IN}in x {PRINT_PAPER_HEIGHT_IN}in (Letter)</dd></div>
-        <div><dt>@page margin</dt><dd>{PRINT_PAGE_MARGIN_IN}in each side</dd></div>
-        <div><dt>theoretical printable area</dt><dd>{PRINT_THEORETICAL_WIDTH_IN}in x {PRINT_THEORETICAL_HEIGHT_IN}in</dd></div>
-        <div><dt>logical page (.printPage)</dt><dd>{PRINT_PAGE_WIDTH_IN}in x {PRINT_PAGE_HEIGHT_IN}in</dd></div>
+        <div><dt>paper / .printPage</dt><dd>{PRINT_PAPER_WIDTH_IN}in x {PRINT_PAPER_HEIGHT_IN}in (Letter — .printPage IS the sheet)</dd></div>
+        <div><dt>@page margin</dt><dd>0in (safety margin is internal padding, not @page margin)</dd></div>
+        <div><dt>internal padding (x / y)</dt><dd>{PRINT_PAGE_PADDING_X_IN}in / {PRINT_PAGE_PADDING_Y_IN}in each side</dd></div>
+        <div><dt>content box</dt><dd>{PRINT_CONTENT_WIDTH_IN}in x {Math.round(PRINT_CONTENT_HEIGHT_IN * 100) / 100}in</dd></div>
         <div><dt>width / height safety allowance</dt><dd>{Math.round(PRINT_WIDTH_SAFETY_IN * 100) / 100}in / {Math.round(PRINT_HEIGHT_SAFETY_IN * 100) / 100}in</dd></div>
-        <div><dt>content height (minus padding)</dt><dd>{Math.round(PRINT_CONTENT_HEIGHT_IN * 100) / 100}in</dd></div>
+      </dl>
+      <strong style={{ marginTop: 8 }}>Row-height measurement (PaginationMeasureRig)</strong>
+      <dl>
+        <div><dt>plan source</dt><dd>{plan.measured ? 'real measurement' : 'heuristic fallback (not yet measured)'}</dd></div>
+        <div><dt>main available height</dt><dd>{plan.measured ? `${plan.mainCapacity}px (${Math.round((plan.mainCapacity / 96) * 100) / 100}in)` : 'n/a — using char-count units'}</dd></div>
+        <div><dt>main used height</dt><dd>{plan.measured ? `${plan.mainUsed}px` : 'n/a'}</dd></div>
       </dl>
       <strong style={{ marginTop: 8 }}>
         Physical measurements {diagnostics ? `(captured ${diagnostics.capturedAt})` : '(not yet captured)'}
@@ -2262,8 +2397,8 @@ function PrintDebugPanel({ jsa, plan }) {
 }
 
 function JsaPreview({ jsa }) {
-  const plan = getPagePlan(jsa);
-  const fit = calcFit(jsa);
+  const plan = useJsaPagePlan(jsa);
+  const fit = calcFitFromPlan(plan);
   const printDebug = usePrintDebugFlag();
   const viewportRef = useRef(null);
   const [scale, setScale] = useState(0.55);
@@ -2608,8 +2743,141 @@ function usePrintDiagnostics() {
   return data;
 }
 
+// Shared module-level store for real rendered-height pagination
+// measurements — same subscribe pattern as the print-diagnostics store
+// above. Unlike that store, this one is populated continuously (every time
+// PaginationMeasureRig's hidden DOM settles after a jsa change), not only
+// on an actual print action, since pagination decisions have to be correct
+// *before* the user ever opens Print.
+let lastPageMeasurements = null;
+const pageMeasurementsListeners = new Set();
+function setPageMeasurements(data) {
+  lastPageMeasurements = data;
+  pageMeasurementsListeners.forEach(fn => fn(data));
+}
+function getLatestPageMeasurements() { return lastPageMeasurements; }
+function usePageMeasurements() {
+  const [data, setData] = useState(lastPageMeasurements);
+  useEffect(() => {
+    pageMeasurementsListeners.add(setData);
+    return () => pageMeasurementsListeners.delete(setData);
+  }, []);
+  return data;
+}
+// The one hook everything interactive should use for a page plan: prefers
+// real measurements, falls back to the heuristic automatically (via
+// resolvePagePlan) whenever they aren't available yet.
+function useJsaPagePlan(jsa) {
+  const measurements = usePageMeasurements();
+  return useMemo(() => resolvePagePlan(jsa, measurements), [jsa, measurements]);
+}
+
+/* Hidden, permanently-mounted rig that measures real rendered heights for
+   pagination — see buildMeasuredPlan above. Renders the exact same
+   MainJsaDocumentPage / TaskContinuationPage components used for real
+   printing (guaranteeing 1:1 fidelity with what will actually print), with
+   ALL content rows unpaginated in one table, inside a hidden-but-laid-out
+   (not display:none) container sized with the same absolute units
+   (.printMeasureRoot in styles.css) that print itself uses — CSS absolute
+   units resolve identically whether the browser is currently rendering for
+   screen or print, so this is a real measurement, not a simulation.
+   Limitation: this can only ever be as accurate as Chromium's box model:
+   it cannot account for anything genuinely Safari/AirPrint-specific (font
+   metrics, hardware margins) that this repo cannot verify without physical
+   hardware — the same limitation as every other diagnostic in this file. */
+function PaginationMeasureRig({ jsa }) {
+  const rows = useMemo(() => getContentRows(jsa), [jsa]);
+  const mainRef = useRef(null);
+  const continuationRef = useRef(null);
+
+  useLayoutEffect(() => {
+    if (!rows.length) return; // trivial case; buildMeasuredPlan skips measurement for it anyway
+    // .printMeasureRoot is display:none under real @media print (it must
+    // never appear as printed content). If this effect ever re-runs while
+    // print media is active (e.g. jsa's reference changes for any reason —
+    // autosave, a suggestion update — at the exact moment a real print
+    // action or print preview is open), every getBoundingClientRect() call
+    // below would return an all-zero rect (display:none has no layout box
+    // at all), publishing garbage measurements that would silently corrupt
+    // the plan being used for the print already in progress. Confirmed by
+    // direct testing: this is a real, reachable failure mode, not
+    // theoretical. Skip entirely rather than publish bad data — whatever
+    // was already measured (from the last time print media was NOT active)
+    // stays in place and keeps being used.
+    if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('print').matches) return;
+    const mainRoot = mainRef.current;
+    const continuationRoot = continuationRef.current;
+    if (!mainRoot || !continuationRoot) return;
+
+    const firstRowOffset = (root) => {
+      const pageEl = root.querySelector('.printPage');
+      const firstTr = pageEl && pageEl.querySelector('.printTaskTable tbody tr');
+      if (!pageEl || !firstTr) return null;
+      return firstTr.getBoundingClientRect().top - pageEl.getBoundingClientRect().top;
+    };
+    const footerHeight = (root) => {
+      const footer = root.querySelector('.printFooter');
+      return footer ? footer.getBoundingClientRect().height : 0;
+    };
+
+    const mainFirstRowOffsetPx = firstRowOffset(mainRoot);
+    const mainFooterHeightPx = footerHeight(mainRoot);
+    const continuationFirstRowOffsetPx = firstRowOffset(continuationRoot);
+    const continuationFooterHeightPx = footerHeight(continuationRoot);
+    // Measured in its real context (rendered inside the main page's own flex
+    // column, at the real 7.1in content width) rather than standalone --
+    // confirmed by direct measurement that an isolated/unconstrained-width
+    // copy of this banner could wrap its text differently than it does in
+    // place, under- or over-counting its real height.
+    const flagEl = mainRoot.querySelector('.continuationFlag');
+    const continuationFlagHeightPx = flagEl ? flagEl.getBoundingClientRect().height + parseFloat(window.getComputedStyle(flagEl).marginTop || '0') : 0;
+    // Measured separately per table, NOT reused between them: continuation
+    // rows have a taller floor (35px, .continuationTaskTable td) than main
+    // rows (24px, .printTaskTable td) -- confirmed by direct measurement
+    // that reusing one set of heights for both caused real, growing
+    // overflow on continuation pages as row counts increased (the taller
+    // real continuation rows needed more room than the shorter
+    // main-table-measured heights had budgeted for).
+    const rowHeightsPx = Array.from(mainRoot.querySelectorAll('.printTaskTable tbody tr')).map(tr => tr.getBoundingClientRect().height);
+    const continuationRowHeightsPx = Array.from(continuationRoot.querySelectorAll('.printTaskTable tbody tr')).map(tr => tr.getBoundingClientRect().height);
+
+    if (mainFirstRowOffsetPx == null || continuationFirstRowOffsetPx == null) return;
+
+    setPageMeasurements({
+      fingerprint: fingerprintPaginationInput(jsa),
+      mainFirstRowOffsetPx,
+      mainFooterHeightPx,
+      continuationFirstRowOffsetPx,
+      continuationFooterHeightPx,
+      continuationFlagHeightPx,
+      rowHeightsPx,
+      continuationRowHeightsPx,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jsa, rows]);
+
+  if (!rows.length) return null;
+
+  // continuationPages is a non-empty placeholder (not the real plan) purely
+  // so MainJsaDocumentPage renders its continuation-notice banner here too
+  // -- its real height (in its real position/width) is reserved out of
+  // mainAvailablePx below, defensively, on every measurement regardless of
+  // whether the final plan actually ends up needing a continuation page.
+  const measurePlan = { totalPages: 1, mainRows: rows, continuationPages: [{}] };
+  return (
+    <div className="printMeasureRoot" aria-hidden="true">
+      <div ref={mainRef}>
+        <MainJsaDocumentPage jsa={jsa} plan={measurePlan} className="printPage" />
+      </div>
+      <div ref={continuationRef}>
+        <TaskContinuationPage jsa={jsa} rows={rows} pageNumber={2} totalPages={2} continuationNumber={1} continuationTotal={1} />
+      </div>
+    </div>
+  );
+}
+
 function PrintableJsa({ jsa }) {
-  const plan = getPagePlan(jsa);
+  const plan = useJsaPagePlan(jsa);
   const rootRef = useRef(null);
 
   useEffect(() => {

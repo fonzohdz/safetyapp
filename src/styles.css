@@ -1597,8 +1597,18 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
    actually takes effect as the intended floor. */
 .documentPage .printTaskTable td { height: 24px; padding: 4px; font-size: 9.8px; line-height: 1.18; vertical-align: top; white-space: pre-line; overflow-wrap: break-word; }
 .documentPage .continuationFlag { flex: 0 0 auto; margin-top: 3px; border: 1px solid #9b111e; padding: 3px 5px; text-align: center; font-size: 7px; font-weight: 700; color: #7f1d1d; background: #fff1f2; }
+/* Normal flow, not position:absolute -- confirmed on physical iPad Safari
+   AirPrint as the source of every logical page fragmenting into two physical
+   pages ("blank pages with small footer markings"). Absolutely-positioned
+   descendants anchored to bottom:0 of a page whose end is controlled by a
+   forced break-after are not reliably kept within that page's own fragment
+   by WebKit's paged-media engine -- they can be pushed onto a following,
+   otherwise-empty fragment. .mainJsaPage/.continuationPage/.signInPage are
+   already flex columns, so the footer as an ordinary last flex child (never
+   grows/shrinks: flex:0 0 auto) sits at the bottom of whatever precedes it
+   without needing absolute positioning at all. */
 .documentPage .printFooter,
-.printPage .printFooter { position: absolute; left: 0; right: 0; bottom: 0; border-top: 1px solid #999; padding-top: 3px; text-align: center; color: #555; font-size: 7px; letter-spacing: .2px; }
+.printPage .printFooter { flex: 0 0 auto; border-top: 1px solid #999; padding-top: 3px; text-align: center; color: #555; font-size: 7px; letter-spacing: .2px; }
 
 @media (max-width: 840px) {
   .quickControls { grid-template-columns: 1fr; }
@@ -1618,48 +1628,49 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
    sign-in pages). Consolidated from three previously conflicting blocks;
    see reports/audits/2026-07-18_full-application-audit.md section C1/F. ── */
 @media print {
-  @page { size: letter portrait; margin: 0.5in; }
+  /* Single authoritative sheet model: @page has NO outer margin of its own
+     -- there is exactly one place page geometry is decided (.printPage
+     below), not two competing systems (a CSS @page margin plus a separately
+     sized/centered box). @page margin combined with paginated fragmentation
+     is a known source of cross-engine inconsistency; removing it here
+     eliminates that variable entirely rather than trying to tune it. */
+  @page { size: letter portrait; margin: 0; }
   html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; color: #000 !important; }
-  .appShell, .toast, .layoutDebugPanel, .dialogOverlay, .suggestionsOverlay, .stickyActionBar, .printDebugPanel { display: none !important; }
+  .appShell, .toast, .layoutDebugPanel, .dialogOverlay, .suggestionsOverlay, .stickyActionBar, .printDebugPanel, .printMeasureRoot { display: none !important; }
   .printOnly { display: block !important; }
   table { width: 100%; border-collapse: collapse; }
 
-  /* Page box: one physical geometry, shared by every page type.
-     Declared paper: Letter, 8.5in x 11in. @page margin: 0.5in each side, so
-     the CSS-theoretical printable area is 7.5in x 10in. The box below is
-     deliberately SMALLER than that theoretical maximum (7.1in x 9.4in --
-     0.4in width / 0.6in height of intentional safety allowance), centered
-     with margin:0 auto. Physical iPad Safari/AirPrint testing showed the
-     previous exact-fit 10in box (equal to the theoretical max, zero margin)
-     still produced doubled pages at 100% scaling and needed ~85% to fit --
-     Chromium's print-to-pdf uses its own internal page-box math and can't
-     reproduce Safari's real usable printable height (hardware non-printable
-     margins, iOS's own default print-margin handling, etc.), so this margin
-     exists specifically to absorb a discrepancy this repo cannot measure
-     without physical hardware. These numbers (PRINT_PAGE_WIDTH_IN /
-     PRINT_PAGE_HEIGHT_IN in main.jsx) are the single source of truth the JS
-     pagination planner sizes its capacity against -- keep the two in sync.
+  /* Page box: one physical geometry, shared by every page type. .printPage
+     IS the full 8.5in x 11in sheet -- safe margins are internal padding
+     (0.8in top/bottom, 0.7in left/right), giving the same 7.1in x 9.4in
+     content box this repo already validated as a deliberate, reasoned
+     safety allowance below the previous @page-margin-derived 7.5in x 10in
+     theoretical maximum. PRINT_PAGE_WIDTH_IN / PRINT_PAGE_HEIGHT_IN /
+     PRINT_PAGE_PADDING_X_IN / PRINT_PAGE_PADDING_Y_IN in main.jsx are the
+     single source of truth these numbers must stay in sync with.
      overflow stays hidden on purpose: visible overflow from a fixed-height
      box is what let WebKit's print fragmentation silently open a second
-     physical page per logical page (the original doubled-page bug). A
-     physical page boundary must never depend on overflow to preserve
-     content — the JS planner is solely responsible for guaranteeing content
-     fits within this box, conservatively, before it is ever handed to a
-     page. Overflow here is fail-safe clipping for a planner bug, not a
-     delivery mechanism — see the dev-time diagnostic in main.jsx
-     (checkPrintOverflow / beforeprint) which reports it loudly instead of
-     relying on this clip to "still work". */
+     physical page per logical page. A physical page boundary must never
+     depend on overflow to preserve content — the JS planner (now backed by
+     real rendered-height measurement via PaginationMeasureRig, not just
+     character-count estimates) is solely responsible for guaranteeing
+     content fits within this box before it is ever handed to a page.
+     Overflow here is fail-safe clipping for a planner bug, not a delivery
+     mechanism — see the dev-time diagnostic in main.jsx (measurePrintPages
+     / beforeprint) which reports it loudly instead of relying on this clip
+     to "still work". */
   .printPage,
   .documentPage.printPage {
     position: relative;
-    width: 7.1in;
-    height: 9.4in;
-    min-height: 9.4in;
-    max-height: 9.4in;
-    margin: 0 auto;
+    width: 8.5in;
+    height: 11in;
+    min-height: 11in;
+    max-height: 11in;
     box-sizing: border-box;
     overflow: hidden;
-    padding-bottom: 0.2in;
+    padding: 0.8in 0.7in;
+    display: flex;
+    flex-direction: column;
     page-break-after: always;
     break-after: page;
     font-family: Arial, Helvetica, sans-serif;
@@ -1694,8 +1705,19 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   .printInfoTable th, .printInfoTable td,
   .printSimpleTable th, .printSimpleTable td,
   .printTaskTable th, .printTaskTable td { border: 1px solid #000; vertical-align: middle; }
-  .printInfoTable th { width: 13%; background: #ededed !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-weight: 700; text-align: left; font-size: 8.8px; padding: 2.8px 4px; line-height: 1.16; }
-  .printInfoTable td { width: 20%; font-size: 8.8px; padding: 2.8px 4px; line-height: 1.16; }
+  /* padding is !important here (and at every other point in this block
+     where it differs from the screen-preview .documentPage-scoped value):
+     confirmed by direct measurement that the Main JSA page's real printed
+     padding was silently using the .documentPage-scoped screen value
+     instead of this one (equal-or-lower specificity there, since Main JSA
+     carries both .documentPage and .printPage classes) — continuation/
+     sign-in pages (no .documentPage class) were unaffected and already used
+     these values correctly. That mismatch was a real, measured contributor
+     to physical overflow once pagination started relying on exact
+     measured heights (PaginationMeasureRig) instead of a heuristic with a
+     large built-in safety margin. */
+  .printInfoTable th { width: 13%; background: #ededed !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-weight: 700; text-align: left; font-size: 8.8px; padding: 2.8px 4px !important; line-height: 1.16; }
+  .printInfoTable td { width: 20%; font-size: 8.8px; padding: 2.8px 4px !important; line-height: 1.16; }
   .continuationInfoTable th, .continuationInfoTable td,
   .signInInfoTable th, .signInInfoTable td { font-size: 8.6px; padding: 3px 4px; }
 
@@ -1703,8 +1725,8 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   .signInAck { font-size: 8.6px; line-height: 1.18; padding: 4px 5px; }
   .attachedSignInNotice { border: 1px solid #000; border-top: 0; padding: 4px 5px; font-size: 8.8px; background: #f4f4f4 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
-  .printSimpleTable th { width: 28%; text-align: left; background: #efefef; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-weight: 700; padding: 2.8px 4px; font-size: 8.8px; line-height: 1.16; }
-  .printSimpleTable td { padding: 2.8px 4px; font-size: 8.8px; line-height: 1.16; white-space: pre-line; }
+  .printSimpleTable th { width: 28%; text-align: left; background: #efefef; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-weight: 700; padding: 2.8px 4px !important; font-size: 8.8px; line-height: 1.16; }
+  .printSimpleTable td { padding: 2.8px 4px !important; font-size: 8.8px; line-height: 1.16; white-space: pre-line; }
 
   .energyBox { border: 1px solid #000; border-top: 0; padding: 3px 5px; }
   .energyBox h3 { margin: 0 0 2px; text-align: center; text-transform: uppercase; font-size: 8.5px; color: #8b0f18; }
@@ -1720,10 +1742,13 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   /* height, not min-height -- see the matching comment on the unconditional
      .documentPage .printTaskTable td rule above; min-height on a <td> does
      not take effect in the table row-sizing algorithm, height (as a floor
-     input to that algorithm, not a forced size) does. This declaration only
-     actually governs the continuation table's cells in practice (the
-     unconditional main-page rule has higher specificity and wins there). */
-  .printTaskTable td { height: 24px; padding: 3.5px 4.5px; font-size: 9.8px; line-height: 1.18; vertical-align: top; white-space: pre-line; overflow-wrap: break-word; }
+     input to that algorithm, not a forced size) does. padding is
+     !important so it applies consistently to every page type, including
+     the Main JSA page (which would otherwise silently use the
+     .documentPage-scoped screen padding of 4px instead of this 3.5/4.5px —
+     see the comment on the info-table padding above for why that matters
+     now that pagination measures real heights). */
+  .printTaskTable td { height: 24px; padding: 3.5px 4.5px !important; font-size: 9.8px; line-height: 1.18; vertical-align: top; white-space: pre-line; overflow-wrap: break-word; }
   .printTaskTable tr { break-inside: avoid; page-break-inside: avoid; }
   .continuationTaskTable { margin-top: 6px; }
   .continuationTaskTable td { height: 35px; font-size: 9.8px; line-height: 1.2; }
@@ -1740,16 +1765,16 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   }
 
   /* Page-type layout: fill remaining page height with the table content.
-     flex-shrink is 0 on both (not the previous "1 1 auto" + height:100%):
-     same reasoning as .documentPage .taskTableFill above -- shrinkable +
-     overflow:hidden loses the content-based minimum-size floor and silently
-     compresses rows, and this print-media rule has equal CSS specificity to
-     (and comes after, so would otherwise win over) that unconditional rule,
-     so it has to carry the same fix or it undoes it specifically for print. */
-  .mainJsaPage { display: flex; flex-direction: column; }
+     (display:flex;flex-direction:column now comes from the unconditional
+     .printPage rule above, which every page type has -- no need to repeat
+     it per type here.) flex-shrink is 0 on both (not the previous
+     "1 1 auto" + height:100%): same reasoning as .documentPage .taskTableFill
+     above -- shrinkable + overflow:hidden loses the content-based
+     minimum-size floor and silently compresses rows, and this print-media
+     rule has equal CSS specificity to (and comes after, so would otherwise
+     win over) that unconditional rule, so it has to carry the same fix or
+     it undoes it specifically for print. */
   .mainJsaPage .taskTableFill { flex: 1 0 auto; }
-  .continuationPage,
-  .signInPage { display: flex; flex-direction: column; }
   .continuationPage .continuationTaskTable { flex: 1 0 auto; }
 
   /* Sign-in sheet */
@@ -1772,19 +1797,82 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
     font-size: 10px;
   }
 
-  .printFooter {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    border-top: 1px solid #999;
-    padding-top: 3px;
-    text-align: center;
-    color: #555;
-    font-size: 7px;
-    letter-spacing: 0.2px;
-  }
+  /* .printFooter itself: no rule needed here -- the unconditional
+     .documentPage .printFooter, .printPage .printFooter rule (higher
+     specificity than a bare .printFooter would be here) already covers
+     every page type identically for both screen and print. */
 }
+
+/* Hidden pagination-measurement rig (see PaginationMeasureRig in main.jsx).
+   Real print geometry only exists inside @media print, which cannot be
+   triggered from running JS outside an actual print action — so this is a
+   deliberately narrow, SEPARATE unconditional ruleset (not a merge with the
+   @media print rules above, to avoid disturbing their existing, already
+   cascade-sensitive specificity/order relationship with the unconditional
+   .documentPage screen-preview rules elsewhere in this file) that
+   reproduces only what affects MEASURED HEIGHT: page box dimensions,
+   fonts/line-heights/padding that affect text wrapping, table column
+   widths, and row-height floors. Colors and decorative-only properties are
+   intentionally not duplicated here since they don't affect layout height.
+   Laid out normally (never display:none) so real rendered heights can be
+   measured before an actual print action, but positioned off-screen and
+   never visible or interactive. Excluded from print output itself (see
+   .printMeasureRoot in the @media print hide-list above) since it exists
+   purely to measure — it must never appear as printed content. */
+.printMeasureRoot {
+  position: fixed;
+  top: 0;
+  left: -20000px;
+  visibility: hidden;
+  pointer-events: none;
+}
+.printMeasureRoot .printPage {
+  position: relative;
+  width: 8.5in;
+  height: auto;
+  box-sizing: border-box;
+  padding: 0.8in 0.7in;
+  display: flex;
+  flex-direction: column;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 9px;
+}
+.printMeasureRoot table { width: 100%; border-collapse: collapse; }
+.printMeasureRoot .printBrandBar { min-height: 0.48in; display: grid; grid-template-columns: 1.75in 1fr 0.8in; align-items: center; gap: 0.08in; padding: 0.05in 0.08in; }
+.printMeasureRoot .printBrandTitles h1 { margin: 0; font-size: 14px; line-height: 1.05; }
+.printMeasureRoot .printBrandTitles h2 { margin: 2px 0 0; font-size: 8px; line-height: 1; }
+.printMeasureRoot .printBrandHeader { margin-bottom: 4px; }
+.printMeasureRoot .printRedRule { height: 3px; }
+/* border is included on every element below that has one in the real print
+   CSS -- omitting it was a real bug found by testing: a missing 1-2px
+   border per row/section, multiplied across dozens of rows, compounded into
+   genuine physical overflow the measurement was supposed to prevent. */
+.printMeasureRoot .printInfoTable th, .printMeasureRoot .printInfoTable td,
+.printMeasureRoot .printSimpleTable th, .printMeasureRoot .printSimpleTable td,
+.printMeasureRoot .printTaskTable th, .printMeasureRoot .printTaskTable td { border: 1px solid #000; vertical-align: middle; }
+.printMeasureRoot .printInfoTable th { width: 13%; font-size: 8.8px; padding: 2.8px 4px; line-height: 1.16; }
+.printMeasureRoot .printInfoTable td { width: 20%; font-size: 8.8px; padding: 2.8px 4px; line-height: 1.16; }
+.printMeasureRoot .ackBlock { border: 1px solid #000; border-top: 0; padding: 3px 4px; font-size: 7.6px; line-height: 1.16; }
+.printMeasureRoot .attachedSignInNotice { border: 1px solid #000; border-top: 0; padding: 4px 5px; font-size: 8.8px; }
+.printMeasureRoot .printSimpleTable th { width: 28%; padding: 2.8px 4px; font-size: 8.8px; line-height: 1.16; }
+.printMeasureRoot .printSimpleTable td { padding: 2.8px 4px; font-size: 8.8px; line-height: 1.16; }
+.printMeasureRoot .energyBox { border: 1px solid #000; border-top: 0; padding: 3px 5px; }
+.printMeasureRoot .energyBox h3 { margin: 0 0 2px; font-size: 8.5px; }
+.printMeasureRoot .energyGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 8px; }
+.printMeasureRoot .energyGrid p { margin: 0; line-height: 1.12; font-size: 7.6px; }
+.printMeasureRoot .taskTableFill { margin-top: 4px; }
+.printMeasureRoot .printTaskTable { width: 100%; table-layout: fixed; margin-top: 4px; border-collapse: collapse; }
+.printMeasureRoot .printTaskTable th:nth-child(1), .printMeasureRoot .printTaskTable td:nth-child(1) { width: 31%; }
+.printMeasureRoot .printTaskTable th:nth-child(2), .printMeasureRoot .printTaskTable td:nth-child(2) { width: 32%; }
+.printMeasureRoot .printTaskTable th:nth-child(3), .printMeasureRoot .printTaskTable td:nth-child(3) { width: 37%; }
+.printMeasureRoot .printTaskTable th { font-size: 9.2px; padding: 3px 4px; }
+.printMeasureRoot .printTaskTable td { height: 24px; padding: 3.5px 4.5px; font-size: 9.8px; line-height: 1.18; vertical-align: top; white-space: pre-line; overflow-wrap: break-word; }
+.printMeasureRoot .continuationTaskTable td { height: 35px; font-size: 9.8px; line-height: 1.2; }
+.printMeasureRoot .continuationInfoTable th, .printMeasureRoot .continuationInfoTable td,
+.printMeasureRoot .signInInfoTable th, .printMeasureRoot .signInInfoTable td { font-size: 8.6px; padding: 3px 4px; }
+.printMeasureRoot .continuationNotice { border: 1px solid #000; border-top: 0; padding: 4px 5px; font-size: 8px; line-height: 1.15; }
+.printMeasureRoot .continuationFlag { border: 1px solid #9b111e; margin-top: 3px; padding: 3px 5px; font-size: 7px; }
+.printMeasureRoot .printFooter { border-top: 1px solid #999; padding-top: 3px; font-size: 7px; }
 
 :root {
   --success: var(--good);
