@@ -759,6 +759,15 @@ function nextStepHint(jsa) {
   }
   return 'Review / Export';
 }
+// Lightweight completion count for the Home screen's progress indicator —
+// deliberately coarser than getReviewChecks (which needs live pagination
+// measurements tied to the active jsa, not appropriate for a passive
+// dashboard read of a possibly-unopened saved draft).
+function draftStepProgress(jsa) {
+  const relevant = STEPS.filter(s => s.id !== 'review');
+  const done = relevant.filter(s => stepStatus(jsa, s.id) === 'complete').length;
+  return { done, total: relevant.length };
+}
 function getReviewChecks(jsa, measurements) {
   const plan = resolvePagePlan(jsa, measurements);
   const fit = calcFitFromPlan(plan);
@@ -820,32 +829,38 @@ function useDebugLayoutFlag() {
    number, title, and a non-color status glyph. Layout is an explicit
    3+2 grid that switches to a single row of 5 via container query at
    wider actual widths — never an accidental auto-wrap. ── */
-function CompactStepper({ steps, jsa, jsaStep, setJsaStep }) {
+/* ── Workflow stepper ── one component for every viewport (touch and mouse
+   alike); CSS alone adapts label density to the available width. Each
+   segment carries exactly one status signal — a glyph (number, or a check
+   once complete) that is never color-only — plus the "active" emphasis for
+   the current step, so status and position never fight for attention. */
+function WorkflowStepper({ steps, jsa, jsaStep, setJsaStep }) {
   const idx = Math.max(0, steps.findIndex(s => s.id === jsaStep));
   const current = steps[idx];
   return (
-    <div className="compactStepper">
-      <div className="compactStepperHead">
-        <span className="compactStepperCount">Step {idx + 1} of {steps.length}</span>
-        <span className="compactStepperTitle">{current.label}</span>
+    <div className="stepperWrap">
+      <div className="stepperHead">
+        <span className="stepperCount">Step {idx + 1} of {steps.length}</span>
+        <span className="stepperTitle">{current.label}</span>
       </div>
-      <div className="compactStepperTrack">
+      <div className="stepperRail" role="tablist" aria-label="JSA workflow steps">
         {steps.map((s, i) => {
           const st = stepStatus(jsa, s.id);
-          const glyph = stepStatusLabel(st) === 'Needs Info' ? '!' : '✓';
+          const isActive = s.id === jsaStep;
+          const isDone = st === 'complete' || st === 'ready';
           return (
             <button
               key={s.id}
-              className={`compactStepperSeg ${st}${s.id === jsaStep ? ' active' : ''}`}
-              onClick={() => setJsaStep(s.id)}
-              aria-current={s.id === jsaStep ? 'step' : undefined}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              aria-current={isActive ? 'step' : undefined}
               aria-label={`${s.label}: ${stepStatusLabel(st)}`}
+              className={`stepperSeg${isActive ? ' active' : ''}${isDone ? ' done' : ''}`}
+              onClick={() => setJsaStep(s.id)}
             >
-              <span className="compactStepperSegTop">
-                <span className="compactStepperSegNum">{i + 1}</span>
-                <span className="compactStepperSegGlyph" aria-hidden="true">{glyph}</span>
-              </span>
-              <span className="compactStepperSegLabel">{s.label}</span>
+              <span className="stepperSegDot" aria-hidden="true">{isDone ? '✓' : i + 1}</span>
+              <span className="stepperSegLabel">{s.label}</span>
             </button>
           );
         })}
@@ -934,6 +949,64 @@ function ConfirmReplaceDialog({ templateName, onCancel, onContinue }) {
         <div className="dialogActions">
           <button className="btn ghost" onClick={onCancel}>Cancel</button>
           <button className="btn primary" onClick={onContinue}>Continue</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Document Options sheet ── infrequent Review-step actions (save-now,
+   mark ready, save/update template, legacy print, clear draft) consolidated
+   into one drawer instead of a stack of always-visible buttons — reuses the
+   same overlay/sheet visual language as the Suggestions sheet (bottom sheet
+   on touch, centered dialog on desktop; see .actionSheetOverlay in
+   styles.css) and the same focus-trap as every other modal in the app. */
+function DocumentOptionsSheet({ onClose, saveDraft, markReady, saveName, setSaveName, saveTemplate, updateTemplate, clearDraft, legacyBrowserPrint, isGenerating }) {
+  const dialogRef = useFocusTrapDialog(onClose);
+  return (
+    <div className="actionSheetOverlay" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="actionSheetPanel" role="dialog" aria-modal="true" aria-labelledby="docOptionsTitle" ref={dialogRef}>
+        <div className="actionSheetGrabber" aria-hidden="true" />
+        <div className="actionSheetHead">
+          <strong id="docOptionsTitle">Document Options</strong>
+          <button type="button" className="actionSheetCloseBtn" onClick={onClose} aria-label="Close">✕</button>
+        </div>
+        <div className="actionSheetBody">
+          <div className="actionSheetGroup">
+            <button type="button" className="actionSheetAction" onClick={() => { saveDraft(); onClose(); }} disabled={isGenerating}>
+              <strong>Save Now</strong>
+              <span>Drafts already autosave automatically — this is optional.</span>
+            </button>
+            <button type="button" className="actionSheetAction" onClick={() => { markReady(); onClose(); }} disabled={isGenerating}>
+              <strong>Mark Ready</strong>
+              <span>Flags this JSA as ready to export.</span>
+            </button>
+          </div>
+
+          <div className="actionSheetGroup">
+            <span className="actionSheetGroupLabel">Save as Template</span>
+            <label className="field">
+              <span>Template name</span>
+              <input value={saveName} onChange={e => setSaveName(e.target.value)} placeholder="Example: Entergy JSA" />
+            </label>
+            <div className="actionSheetInlineActions">
+              <button type="button" className="btn primary sm" onClick={saveTemplate}>Save Template</button>
+              <button type="button" className="btn ghost sm" onClick={updateTemplate}>Update Loaded</button>
+            </div>
+            <p className="helperText">Loading a template starts a fresh JSA for today and never carries over signatures or daily work details.</p>
+          </div>
+
+          <div className="actionSheetGroup">
+            <button type="button" className="actionSheetAction" onClick={() => { legacyBrowserPrint(); onClose(); }} disabled={isGenerating}>
+              <strong>Legacy Browser Print</strong>
+              <span>Fallback only — can produce incorrect pagination on some devices. Prefer Print / Save PDF.</span>
+            </button>
+          </div>
+
+          <div className="actionSheetDestructive">
+            <button type="button" className="btn danger sm" onClick={() => { clearDraft(); onClose(); }} disabled={isGenerating}>Clear Draft</button>
+            <p className="helperText">Permanently deletes this draft from this device. This cannot be undone.</p>
+          </div>
         </div>
       </div>
     </div>
@@ -1377,7 +1450,7 @@ function App() {
         </nav>
 
         <main className="page">
-          {tab === 'home' && <HomeView savedDraft={savedDraft} customTemplates={customTemplates} goJsaStart={goJsaStart} setTab={setTab} loadSavedDraft={loadSavedDraft} />}
+          {tab === 'home' && <HomeView savedDraft={savedDraft} customTemplates={customTemplates} goJsaStart={goJsaStart} startBlank={requestStartBlank} setTab={setTab} loadSavedDraft={loadSavedDraft} />}
           {tab === 'documents' && !activeDoc && <DocCenterView goJsaStart={goJsaStart} />}
           {tab === 'documents' && activeDoc === 'jsa-start' && (
             <JsaStartView allTemplates={allTemplates} selectedTemplate={selectedTemplate} templateId={templateId} setTemplateId={setTemplateId} loadTemplate={requestLoadTemplate} loadSavedDraft={loadSavedDraft} startBlank={requestStartBlank} savedDraft={savedDraft} />
@@ -1417,54 +1490,59 @@ function App() {
   );
 }
 
-/* ── Home view ── */
-function HomeView({ savedDraft, customTemplates, goJsaStart, setTab, loadSavedDraft }) {
+/* ── Home view ──
+   A focused launch point rather than a feature catalog: one dominant "Today's
+   JSA" workspace (or a single Start-a-JSA hero when nothing is in progress),
+   a quiet row of secondary actions, and future document types tucked behind
+   one small text disclosure. */
+function HomeView({ savedDraft, customTemplates, goJsaStart, startBlank, setTab, loadSavedDraft }) {
   const hasDraft = Boolean(savedDraft);
-  const draftLabel = savedDraft?.lastSavedAt ? `Last saved ${nowNice(new Date(savedDraft.lastSavedAt))}` : 'Saved on this device';
   const draftTitle = savedDraft?.jobSite || savedDraft?.templateName || 'Untitled JSA Draft';
+  const savedLabel = savedDraft?.lastSavedAt ? nowNice(new Date(savedDraft.lastSavedAt)) : 'on this device';
   const nextStep = hasDraft ? nextStepHint(savedDraft) : null;
+  const progress = hasDraft ? draftStepProgress(savedDraft) : null;
+  const progressPct = progress ? Math.round((progress.done / progress.total) * 100) : 0;
+
   return (
     <div className="homeLayout">
-      <section className={`homeWorkspace${hasDraft ? '' : ' single'}`}>
-        {hasDraft && (
-          <div className="workspacePanel workspacePanelMain">
-            <span className="workspaceEyebrow">Continue Working</span>
-            <h2>{draftTitle}</h2>
-            <p>Next: {nextStep} &middot; {draftLabel}</p>
-            <button className="btn primary lg" onClick={loadSavedDraft}>Open Current Draft</button>
+      {hasDraft ? (
+        <section className="todayHero">
+          <span className="todayHeroEyebrow">Today's JSA</span>
+          <h1 className="todayHeroTitle">{draftTitle}</h1>
+          <p className="todayHeroMeta">
+            {savedDraft.location && <>{savedDraft.location} &middot; </>}
+            Next: {nextStep} &middot; Saved {savedLabel}
+          </p>
+          <div className="todayHeroProgress">
+            <div className="todayHeroProgressTrack"><div className="todayHeroProgressFill" style={{ width: `${progressPct}%` }} /></div>
+            <span>{progress.done} of {progress.total} steps complete</span>
           </div>
-        )}
-        <div className={`workspacePanel${hasDraft ? ' workspacePanelQuiet' : ' workspacePanelMain'}`}>
-          <span className="workspaceEyebrow">{hasDraft ? 'New Document' : 'Get Started'}</span>
-          <h2>{hasDraft ? 'Start New' : 'Create New Document'}</h2>
-          <p>Choose a document type and starting method.</p>
-          <button className={`btn ${hasDraft ? 'outline' : 'primary lg'}`} onClick={goJsaStart}>Start New Document</button>
-        </div>
-      </section>
+          <button className="btn primary lg" onClick={loadSavedDraft}>Continue JSA</button>
+        </section>
+      ) : (
+        <section className="todayHero">
+          <span className="todayHeroEyebrow">Get Started</span>
+          <h1 className="todayHeroTitle">Start a JSA</h1>
+          <p className="todayHeroMeta">Build today's Job Safety Analysis in a few short steps.</p>
+          <button className="btn primary lg" onClick={goJsaStart}>Start a JSA</button>
+        </section>
+      )}
 
       <div className="homeSecondaryActions">
-        <button className="secondaryLink" onClick={() => setTab('drafts')}>
-          <span>Open Drafts</span>
-          <small>{hasDraft ? '1 saved draft' : 'No saved drafts'}</small>
+        {hasDraft ? (
+          <button className="quietAction" onClick={goJsaStart}>Start New JSA</button>
+        ) : (
+          <button className="quietAction" onClick={startBlank}>Start Blank</button>
+        )}
+        <button className="quietAction" onClick={() => setTab('templates')}>
+          Browse Templates{customTemplates.length > 0 ? ` (${customTemplates.length})` : ''}
         </button>
-        <button className="secondaryLink" onClick={() => setTab('templates')}>
-          <span>Manage Templates</span>
-          <small>{customTemplates.length} custom template{customTemplates.length !== 1 ? 's' : ''}</small>
-        </button>
+        <button className="quietAction" onClick={() => setTab('documents')}>Documents</button>
       </div>
 
-      <details className="detailedRowsDisclosure">
-        <summary>
-          <div className="detailedRowsSummaryText">
-            <div className="detailedRowsSummaryTitle">
-              <strong>More document types</strong>
-              <span className="badge soon">Coming Later</span>
-            </div>
-            <p>Incident Reports, Field Observations, Unplanned Event Reports, Sign-In Sheets, and Weekly Inspections are planned for future phases.</p>
-          </div>
-          <span className="detailedRowsSummaryAction">Show</span>
-        </summary>
-        <div className="detailedRowsBody">
+      <details className="quietDisclosure">
+        <summary>More document types coming later</summary>
+        <div className="quietDisclosureBody">
           <div className="moduleGrid">
             <div className="moduleTile locked">
               <div className="moduleTileHead">
@@ -1517,30 +1595,20 @@ function DocCenterView({ goJsaStart }) {
         <h2>Start a Document</h2>
         <p>Select a document type. Only the JSA creator is active in this version; the rest will be added in later phases.</p>
       </div>
-      <div className="card">
-        <div className="cardBody">
-          <div className="docGrid docGridSingle">
-            <button className="docTile active" onClick={goJsaStart}>
-              <strong>Job Safety Analysis</strong>
-              <span className="badge avail">Available</span>
-              <p>Start blank, load a saved template, or continue a draft.</p>
-            </button>
-          </div>
+      <div className="listItem">
+        <div className="itemInfo">
+          <strong>Job Safety Analysis</strong>
+          <p>Start blank, load a saved template, or continue a draft.</p>
+        </div>
+        <div className="itemActions">
+          <span className="badge avail">Available</span>
+          <button className="btn secondary sm" onClick={goJsaStart}>Start</button>
         </div>
       </div>
 
-      <details className="detailedRowsDisclosure">
-        <summary>
-          <div className="detailedRowsSummaryText">
-            <div className="detailedRowsSummaryTitle">
-              <strong>More document types</strong>
-              <span className="badge soon">Coming Later</span>
-            </div>
-            <p>Incident Reports, Field Observations, Unplanned Event Reports, Sign-In Sheets, and Weekly Inspections are planned for future phases.</p>
-          </div>
-          <span className="detailedRowsSummaryAction">Show</span>
-        </summary>
-        <div className="detailedRowsBody">
+      <details className="quietDisclosure">
+        <summary>More document types coming later</summary>
+        <div className="quietDisclosureBody">
           <div className="docGrid">
             <div className="docTile disabled"><strong>Incident Report</strong><p>Structured incident and near miss documentation.</p></div>
             <div className="docTile disabled"><strong>Field Observation</strong><p>Safety observations and corrective actions.</p></div>
@@ -1707,15 +1775,10 @@ function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTem
 
   return (
     <>
-      <div className="card" style={{ marginBottom: 14 }}>
-        <div className="docHeader">
-          <div>
-            <button className="backBtn" onClick={goJsaStart}>Back to Start Options</button>
-            <div className="eyebrow">Job Safety Analysis</div>
-            <h2>JSA Builder</h2>
-            <p>Fill in each section. Use Preview to check the layout before exporting. Save the final PDF outside the app.</p>
-          </div>
-          <div className="docHeaderMeta">
+      <div className="builderHeader">
+        <div className="builderHeaderTop">
+          <button className="backBtn" onClick={goJsaStart}>&larr; Start Options</button>
+          <div className="builderHeaderBadges">
             <span className={`fitBadge ${fit.status}`}>{fit.label}</span>
             <span className={`badge ${jsa.status}`}>{jsa.status === 'ready' ? 'Ready to Export' : 'Draft'}</span>
             {!canSideBySide && !isTouchPrimary && jsaStep !== 'review' && (
@@ -1725,27 +1788,7 @@ function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTem
             )}
           </div>
         </div>
-        <div style={{ padding: '0 16px 14px', overflowX: 'auto' }}>
-          {isTouchPrimary ? (
-            <CompactStepper steps={STEPS} jsa={jsa} jsaStep={jsaStep} setJsaStep={setJsaStep} />
-          ) : (
-            <div className="progressStrip">
-              {STEPS.map((s, i) => {
-                const st = stepStatus(jsa, s.id);
-                return (
-                  <button key={s.id} className={`progressStep${jsaStep === s.id ? ' active' : ''}`} onClick={() => setJsaStep(s.id)}>
-                    <span className="stepNum">{i + 1}</span>
-                    <span className="stepInfo">
-                      <strong>{s.label}</strong>
-                      <small>{s.helper}</small>
-                    </span>
-                    <span className={`stepChip ${st}`}>{stepStatusLabel(st)}</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        <WorkflowStepper steps={STEPS} jsa={jsa} jsaStep={jsaStep} setJsaStep={setJsaStep} />
       </div>
 
       <div className={`workflowShell${canSideBySide ? '' : ' stacked'}`} ref={shellRef}>
@@ -1788,7 +1831,7 @@ function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTem
           containerRef={shellRef}
           layoutMode={layoutMode}
           previewMode={layoutMode}
-          stepperMode={isTouchPrimary ? 'compact (3+2 / 5 via container query)' : 'expanded cards'}
+          stepperMode="unified segmented rail (label density adapts via container query)"
           jobPairMode={isTouchPrimary ? 'forced-stack (date/time); container-query (client/muster)' : 'container-query (all pairs)'}
           quickPanelMode={isTouchPrimary ? 'stacked full-width, collapsed by default' : 'side-by-side column'}
         />
@@ -1825,30 +1868,28 @@ function StepJob({ jsa, upd, prev, next }) {
   const datePairClass = `formPairRow${isTouchPrimary ? ' forcedStack' : ''}`;
   return (
     <div className="stepStack">
-      <div className="card">
-        <div className="cardHeader"><h3>Job Information</h3></div>
-        <div className="cardBody">
-          <div className="formGrid">
-            <F label="Location / City" value={jsa.location} onChange={v => upd({ location: v })} />
-            <F label="Job Site" value={jsa.jobSite} onChange={v => upd({ jobSite: v })} />
-            <div className={datePairClass}>
-              <F label="Date" type="date" value={jsa.date} onChange={v => upd({ date: v })} />
-              <F label="Job #" value={jsa.jobNumber} onChange={v => upd({ jobNumber: v })} />
-            </div>
-            <div className="formPairRow">
-              <F label="Client" value={jsa.client} onChange={v => upd({ client: v })} />
-              <F label="Muster Point" value={jsa.musterPoint} onChange={v => upd({ musterPoint: v })} />
-            </div>
-            <div className={datePairClass}>
-              <F label="Time Issued" type="time" value={jsa.timeIssued} onChange={v => upd({ timeIssued: v })} />
-              <F label="Time Expired" type="time" value={jsa.timeExpired} onChange={v => upd({ timeExpired: v })} />
-            </div>
-            <F label="Superintendent / Foreman" value={jsa.superintendentForeman} onChange={v => upd({ superintendentForeman: v })} />
-            <F label="Emergency / Rescue Phone #" value={jsa.emergencyPhone} onChange={v => upd({ emergencyPhone: v })} />
-            <F label="Site Contact Phone #" value={jsa.siteContactPhone} onChange={v => upd({ siteContactPhone: v })} />
-            <F label="Nearest Medical Facility" value={jsa.nearestMedicalFacility} onChange={v => upd({ nearestMedicalFacility: v })} />
-            <F label="Assigned Mentor / SSE Number" value={jsa.assignedMentorSse} onChange={v => upd({ assignedMentorSse: v })} />
+      <div className="stepPanel">
+        <div className="stepPanelHeader"><h3>Job Information</h3></div>
+        <div className="formGrid">
+          <F label="Location / City" value={jsa.location} onChange={v => upd({ location: v })} />
+          <F label="Job Site" value={jsa.jobSite} onChange={v => upd({ jobSite: v })} />
+          <div className={datePairClass}>
+            <F label="Date" type="date" value={jsa.date} onChange={v => upd({ date: v })} />
+            <F label="Job #" value={jsa.jobNumber} onChange={v => upd({ jobNumber: v })} />
           </div>
+          <div className="formPairRow">
+            <F label="Client" value={jsa.client} onChange={v => upd({ client: v })} />
+            <F label="Muster Point" value={jsa.musterPoint} onChange={v => upd({ musterPoint: v })} />
+          </div>
+          <div className={datePairClass}>
+            <F label="Time Issued" type="time" value={jsa.timeIssued} onChange={v => upd({ timeIssued: v })} />
+            <F label="Time Expired" type="time" value={jsa.timeExpired} onChange={v => upd({ timeExpired: v })} />
+          </div>
+          <F label="Superintendent / Foreman" value={jsa.superintendentForeman} onChange={v => upd({ superintendentForeman: v })} />
+          <F label="Emergency / Rescue Phone #" value={jsa.emergencyPhone} onChange={v => upd({ emergencyPhone: v })} />
+          <F label="Site Contact Phone #" value={jsa.siteContactPhone} onChange={v => upd({ siteContactPhone: v })} />
+          <F label="Nearest Medical Facility" value={jsa.nearestMedicalFacility} onChange={v => upd({ nearestMedicalFacility: v })} />
+          <F label="Assigned Mentor / SSE Number" value={jsa.assignedMentorSse} onChange={v => upd({ assignedMentorSse: v })} />
         </div>
       </div>
       <StepFooter prev={prev} next={next} hasPrev={false} hasNext />
@@ -1907,35 +1948,33 @@ function StepMeeting({ jsa, upd, prev, next }) {
   const [activeSuggestion, setActiveSuggestion] = useState(null);
   return (
     <div className="stepStack">
-      <div className="card">
-        <div className="cardHeader">
+      <div className="stepPanel">
+        <div className="stepPanelHeader">
           <h3>Daily Safety Meeting</h3>
           <p>Use quick inserts as shortcuts, then adjust wording as needed.</p>
         </div>
-        <div className="cardBody">
-          <div className="formGrid">
-            <FieldWithSuggestions
-              label="Tailgate Safety Topic" value={jsa.tailgateTopic} onChange={v => upd({ tailgateTopic: v })} rows={4}
-              placeholder="Topic discussed at today's tailgate meeting."
-              quickPanelTitle="Quick Topics" sheetTitle="Topic Suggestions" groups={TAILGATE_GROUPS} mode="single"
-              onPick={item => upd({ tailgateTopic: item })} onRemove={() => upd({ tailgateTopic: '' })}
-              fieldKey="topic" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
-            />
-            <FieldWithSuggestions
-              label="Previous Day Injury / Near Miss" value={jsa.previousDaySafety} onChange={v => upd({ previousDaySafety: v })} rows={4}
-              placeholder="Enter previous day safety status."
-              quickPanelTitle="Quick Previous Day" sheetTitle="Previous Day Suggestions" groups={PREV_DAY_GROUPS} mode="single"
-              onPick={item => upd({ previousDaySafety: item })} onRemove={() => upd({ previousDaySafety: '' })}
-              fieldKey="previousDay" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
-            />
-            <FieldWithSuggestions
-              label="Overall Work Task or Activity" value={jsa.overallWorkTask} onChange={v => upd({ overallWorkTask: v })} rows={4}
-              placeholder="Describe the overall scope of work today."
-              quickPanelTitle="Quick Overall Tasks" sheetTitle="Overall Task Suggestions" groups={OVERALL_TASK_GROUPS} mode="single"
-              onPick={item => upd({ overallWorkTask: item })} onRemove={() => upd({ overallWorkTask: '' })}
-              fieldKey="overallTask" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
-            />
-          </div>
+        <div className="formGrid">
+          <FieldWithSuggestions
+            label="Tailgate Safety Topic" value={jsa.tailgateTopic} onChange={v => upd({ tailgateTopic: v })} rows={4}
+            placeholder="Topic discussed at today's tailgate meeting."
+            quickPanelTitle="Quick Topics" sheetTitle="Topic Suggestions" groups={TAILGATE_GROUPS} mode="single"
+            onPick={item => upd({ tailgateTopic: item })} onRemove={() => upd({ tailgateTopic: '' })}
+            fieldKey="topic" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
+          />
+          <FieldWithSuggestions
+            label="Previous Day Injury / Near Miss" value={jsa.previousDaySafety} onChange={v => upd({ previousDaySafety: v })} rows={4}
+            placeholder="Enter previous day safety status."
+            quickPanelTitle="Quick Previous Day" sheetTitle="Previous Day Suggestions" groups={PREV_DAY_GROUPS} mode="single"
+            onPick={item => upd({ previousDaySafety: item })} onRemove={() => upd({ previousDaySafety: '' })}
+            fieldKey="previousDay" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
+          />
+          <FieldWithSuggestions
+            label="Overall Work Task or Activity" value={jsa.overallWorkTask} onChange={v => upd({ overallWorkTask: v })} rows={4}
+            placeholder="Describe the overall scope of work today."
+            quickPanelTitle="Quick Overall Tasks" sheetTitle="Overall Task Suggestions" groups={OVERALL_TASK_GROUPS} mode="single"
+            onPick={item => upd({ overallWorkTask: item })} onRemove={() => upd({ overallWorkTask: '' })}
+            fieldKey="overallTask" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
+          />
         </div>
       </div>
       <StepFooter prev={prev} next={next} hasPrev hasNext />
@@ -2095,38 +2134,36 @@ function StepWork({ jsa, upd, addRow, updRow, removeRow, addSummaryAsRow, addRow
 
   return (
     <div className="stepStack">
-      <div className="card">
-        <div className="cardHeader">
+      <div className="stepPanel">
+        <div className="stepPanelHeader">
           <h3>Tasks, Hazards, and Controls</h3>
           <p>Tasks describe the work. Hazards describe what could cause harm. Controls describe how the risk will be reduced.</p>
         </div>
-        <div className="cardBody">
-          <div className="formGrid">
-            <FieldWithSuggestions
-              label="Tasks for Today" value={jsa.dailyTasks} onChange={v => upd({ dailyTasks: v })}
-              onBlur={() => upd({ dailyTasks: dedupeList(splitLines(jsa.dailyTasks)).join('\n') })} rows={6}
-              placeholder="Enter each work activity on its own line."
-              quickPanelTitle="Quick Daily Tasks" sheetTitle="Daily Task Suggestions" groups={taskGroups}
-              onPick={handleTaskPick} onRemove={handleTaskRemove}
-              fieldKey="dailyTasks" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
-            />
-            <FieldWithSuggestions
-              label="Hazards in Work Area" value={jsa.hazardsSummary} onChange={v => upd({ hazardsSummary: v })}
-              onBlur={() => upd({ hazardsSummary: dedupeList(splitLines(jsa.hazardsSummary)).join('\n') })} rows={6}
-              placeholder="Enter each exposure or hazardous condition on its own line."
-              quickPanelTitle="Quick Hazards" sheetTitle="Hazard Suggestions" groups={hazardGroups}
-              onPick={handleHazardPick} onRemove={handleHazardRemove}
-              fieldKey="hazards" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
-            />
-            <FieldWithSuggestions
-              label="Controls and Mitigations" value={jsa.controlsSummary} onChange={v => upd({ controlsSummary: v })}
-              onBlur={() => upd({ controlsSummary: dedupeList(splitLines(jsa.controlsSummary)).join('\n') })} rows={6}
-              placeholder="Enter each preventive action or requirement on its own line."
-              quickPanelTitle="Quick Controls" sheetTitle="Control Suggestions" groups={controlGroups}
-              onPick={handleControlPick} onRemove={handleControlRemove}
-              fieldKey="controls" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
-            />
-          </div>
+        <div className="formGrid">
+          <FieldWithSuggestions
+            label="Tasks for Today" value={jsa.dailyTasks} onChange={v => upd({ dailyTasks: v })}
+            onBlur={() => upd({ dailyTasks: dedupeList(splitLines(jsa.dailyTasks)).join('\n') })} rows={6}
+            placeholder="Enter each work activity on its own line."
+            quickPanelTitle="Quick Daily Tasks" sheetTitle="Daily Task Suggestions" groups={taskGroups}
+            onPick={handleTaskPick} onRemove={handleTaskRemove}
+            fieldKey="dailyTasks" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
+          />
+          <FieldWithSuggestions
+            label="Hazards in Work Area" value={jsa.hazardsSummary} onChange={v => upd({ hazardsSummary: v })}
+            onBlur={() => upd({ hazardsSummary: dedupeList(splitLines(jsa.hazardsSummary)).join('\n') })} rows={6}
+            placeholder="Enter each exposure or hazardous condition on its own line."
+            quickPanelTitle="Quick Hazards" sheetTitle="Hazard Suggestions" groups={hazardGroups}
+            onPick={handleHazardPick} onRemove={handleHazardRemove}
+            fieldKey="hazards" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
+          />
+          <FieldWithSuggestions
+            label="Controls and Mitigations" value={jsa.controlsSummary} onChange={v => upd({ controlsSummary: v })}
+            onBlur={() => upd({ controlsSummary: dedupeList(splitLines(jsa.controlsSummary)).join('\n') })} rows={6}
+            placeholder="Enter each preventive action or requirement on its own line."
+            quickPanelTitle="Quick Controls" sheetTitle="Control Suggestions" groups={controlGroups}
+            onPick={handleControlPick} onRemove={handleControlRemove}
+            fieldKey="controls" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
+          />
         </div>
       </div>
 
@@ -2207,21 +2244,19 @@ function StepWork({ jsa, upd, addRow, updRow, removeRow, addSummaryAsRow, addRow
 function StepSignatures({ jsa, upd, sigCount, prev, next }) {
   return (
     <div className="stepStack">
-      <div className="card">
-        <div className="cardHeader"><h3>Signatures and Acknowledgement</h3></div>
-        <div className="cardBody">
-          <div className="formGrid">
-            <TA label="Acknowledgement Text" value={jsa.acknowledgement} onChange={v => upd({ acknowledgement: v })} rows={6} />
-            <div className="sigSetup">
-              <label className="field">
-                <span>Number of Signature Lines</span>
-                <input type="number" min="1" max="100" value={sigCount} onChange={e => upd({ signatureLineCount: Math.max(1, Math.min(100, Number(e.target.value) || 1)) })} />
-                <small>Signatures always print on a separate attached sign-in sheet, up to 40 lines per sheet.</small>
-              </label>
-              <div className="sigRuleBox">
-                <strong>Attached sign-in sheet will be generated.</strong>
-                <p>The main JSA will note an attached sign-in sheet. Requested lines: {sigCount}.</p>
-              </div>
+      <div className="stepPanel">
+        <div className="stepPanelHeader"><h3>Signatures and Acknowledgement</h3></div>
+        <div className="formGrid">
+          <TA label="Acknowledgement Text" value={jsa.acknowledgement} onChange={v => upd({ acknowledgement: v })} rows={6} />
+          <div className="sigSetup">
+            <label className="field">
+              <span>Number of Signature Lines</span>
+              <input type="number" min="1" max="100" value={sigCount} onChange={e => upd({ signatureLineCount: Math.max(1, Math.min(100, Number(e.target.value) || 1)) })} />
+              <small>Signatures always print on a separate attached sign-in sheet, up to 40 lines per sheet.</small>
+            </label>
+            <div className="sigRuleBox">
+              <strong>Attached sign-in sheet will be generated.</strong>
+              <p>The main JSA will note an attached sign-in sheet. Requested lines: {sigCount}.</p>
             </div>
           </div>
         </div>
@@ -2237,129 +2272,101 @@ function StepReview({ jsa, upd, fit, saveName, setSaveName, saveTemplate, update
   const plan = useMemo(() => resolvePagePlan(jsa, measurements), [jsa, measurements]);
   const checks = useMemo(() => getReviewChecks(jsa, measurements), [jsa, measurements]);
   const completeCount = checks.filter(check => check.ok).length;
-  const [showMoreOptions, setShowMoreOptions] = useState(false);
+  const [showDocOptions, setShowDocOptions] = useState(false);
   const isGenerating = pdfExportState?.phase === 'generating';
   const isReady = pdfExportState?.phase === 'ready';
   const exportLabel = pdfExportStatusLabel(pdfExportState);
   return (
     <div className="stepStack">
-      <div className="card">
-        <div className="cardHeader">
+      <div className="stepPanel">
+        <div className="stepPanelHeader">
           <h3>Review and Export</h3>
           <p>Use this final check before generating the PDF.</p>
         </div>
-        <div className="cardBody">
-          <div className="formGrid">
-            <TA label="Internal Notes / Special Instructions" value={jsa.notes} onChange={v => upd({ notes: v })} rows={4} placeholder="Optional notes visible in the draft only, not on the printed JSA." />
+        <div className="formGrid">
+          <TA label="Internal Notes / Special Instructions" value={jsa.notes} onChange={v => upd({ notes: v })} rows={4} placeholder="Optional notes visible in the draft only, not on the printed JSA." />
 
-            <div className={`reviewSummaryCard ${fit.status}`}>
-              <div className="reviewSummaryHead">
-                <div>
-                  <span className="suggestionEyebrow">Export readiness</span>
-                  <h4>{completeCount} of {checks.length} checks complete</h4>
+          <div className={`reviewSummaryCard ${fit.status}`}>
+            <div className="reviewSummaryHead">
+              <div>
+                <span className="suggestionEyebrow">Export readiness</span>
+                <h4>{completeCount} of {checks.length} checks complete</h4>
+              </div>
+              <span className={`reviewScore${completeCount === checks.length ? ' complete' : ''}`}>{Math.round((completeCount / checks.length) * 100)}%</span>
+            </div>
+            <p className="reviewFitMessage">{fit.message}</p>
+            <div className="reviewChecklist">
+              {checks.map(check => (
+                <div className={`reviewCheck${check.ok ? ' ok' : ' missing'}`} key={check.label}>
+                  <span>{check.ok ? '✓' : '!'}</span>
+                  <p>{check.label}</p>
                 </div>
-                <span className={`reviewScore${completeCount === checks.length ? ' complete' : ''}`}>{Math.round((completeCount / checks.length) * 100)}%</span>
-              </div>
-              <p className="reviewFitMessage">{fit.message}</p>
-              <div className="reviewChecklist">
-                {checks.map(check => (
-                  <div className={`reviewCheck${check.ok ? ' ok' : ' missing'}`} key={check.label}>
-                    <span>{check.ok ? '✓' : '!'}</span>
-                    <p>{check.label}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="exportPlanGrid">
-                <div><strong>Main JSA</strong><span>1 page</span></div>
-                <div><strong>Continuation</strong><span>{plan.continuationPages.length}</span></div>
-                <div><strong>Sign-In</strong><span>{plan.signInPages.length}</span></div>
-                <div><strong>Total</strong><span>{plan.totalPages}</span></div>
-              </div>
+              ))}
             </div>
-
-            <div className="exportNamePreview">
-              <strong>Suggested PDF filename</strong>
-              <code>{buildExportName(jsa)}.pdf</code>
+            <div className="exportPlanGrid">
+              <div><strong>Main JSA</strong><span>1 page</span></div>
+              <div><strong>Continuation</strong><span>{plan.continuationPages.length}</span></div>
+              <div><strong>Sign-In</strong><span>{plan.signInPages.length}</span></div>
+              <div><strong>Total</strong><span>{plan.totalPages}</span></div>
             </div>
+          </div>
 
-            {!isReady && (
-              <div className="reviewPrimaryAction">
-                <button className="btn primary lg" onClick={exportPdf} disabled={isGenerating} aria-busy={isGenerating}>{exportLabel || 'Print / Save PDF'}</button>
-              </div>
-            )}
+          <div className="exportNamePreview">
+            <strong>Suggested PDF filename</strong>
+            <code>{buildExportName(jsa)}.pdf</code>
+          </div>
 
-            {!isReady && <p className="helperText">Generates a real multi-page PDF, then opens the share sheet (Print, Save to Files, AirDrop, or email) on supported devices, or offers a direct download. The app does not store final PDFs.</p>}
-
-            {isReady && isPdfStale && (
-              <div className="pdfStaleWarning">
-                <strong>Document changed — regenerate PDF before sharing.</strong>
-                <p>The draft was edited after this PDF was generated, so it no longer reflects the current content.</p>
-                <button className="btn primary sm" onClick={exportPdf} disabled={isGenerating} aria-busy={isGenerating}>{exportLabel || 'Regenerate PDF'}</button>
-              </div>
-            )}
-
-            {isReady && !isPdfStale && (
-              <div className="pdfReadyPanel">
-                <span className="pdfReadyEyebrow">PDF Ready</span>
-                <strong className="pdfReadyHeadline">{pdfExportState.pageCount} page{pdfExportState.pageCount === 1 ? '' : 's'}</strong>
-                <p className="pdfReadyFilename">{pdfExportState.filename}</p>
-                <p className="helperText">Opens Print, Save to Files, AirDrop, or email on supported devices. The app does not store final PDFs.</p>
-                <div className="pdfReadyActions">
-                  <button className="btn primary lg" onClick={shareGeneratedPdfClick}>Share / Print PDF</button>
-                  <button className="btn secondary" onClick={downloadGeneratedPdfClick}>Download PDF</button>
-                </div>
-                <button className="btn ghost sm pdfReadyRegenerate" onClick={exportPdf} disabled={isGenerating} aria-busy={isGenerating}>Regenerate PDF</button>
-                {pdfExportState.shareMessage && <p className="pdfShareMessage">{pdfExportState.shareMessage}</p>}
-              </div>
-            )}
-
-            <div className="reviewSecondaryActions">
-              <button className="btn ghost sm" onClick={() => saveDraft()} disabled={isGenerating}>Save Draft</button>
-              <button className="btn ghost sm" onClick={markReady} disabled={isGenerating}>Mark Ready</button>
-              <span className="reviewAutosaveNote">Drafts autosave automatically — Save Draft is optional.</span>
+          {!isReady && (
+            <div className="reviewPrimaryAction">
+              <button className="btn primary lg" onClick={exportPdf} disabled={isGenerating} aria-busy={isGenerating}>{exportLabel || 'Print / Save PDF'}</button>
             </div>
+          )}
 
-            <div className="moreOptions">
-              <button type="button" className="btn ghost sm" onClick={() => setShowMoreOptions(v => !v)} disabled={isGenerating}>
-                {showMoreOptions ? 'Hide More Options' : 'More Options'}
-              </button>
-              {showMoreOptions && (
-                <div className="moreOptionsPanel">
-                  <button className="btn ghost sm" onClick={legacyBrowserPrint} disabled={isGenerating}>Legacy Browser Print</button>
-                  <p className="helperText">Opens the browser's native print dialog instead of generating a PDF file. Kept as a fallback only — on some devices this can produce incorrect pagination. Prefer Print / Save PDF above.</p>
-                  <div className="moreOptionsDestructive">
-                    <button className="btn danger sm" onClick={clearDraft} disabled={isGenerating}>Clear Draft</button>
-                    <p className="helperText">Permanently deletes this draft from this device. This cannot be undone.</p>
-                  </div>
-                </div>
-              )}
+          {!isReady && <p className="helperText">Generates a real multi-page PDF, then opens the share sheet (Print, Save to Files, AirDrop, or email) on supported devices, or offers a direct download. The app does not store final PDFs.</p>}
+
+          {isReady && isPdfStale && (
+            <div className="pdfStaleWarning">
+              <strong>Document changed — regenerate PDF before sharing.</strong>
+              <p>The draft was edited after this PDF was generated, so it no longer reflects the current content.</p>
+              <button className="btn primary sm" onClick={exportPdf} disabled={isGenerating} aria-busy={isGenerating}>{exportLabel || 'Regenerate PDF'}</button>
             </div>
+          )}
+
+          {isReady && !isPdfStale && (
+            <div className="pdfReadyPanel">
+              <span className="pdfReadyEyebrow">PDF Ready</span>
+              <strong className="pdfReadyHeadline">{pdfExportState.pageCount} page{pdfExportState.pageCount === 1 ? '' : 's'}</strong>
+              <p className="pdfReadyFilename">{pdfExportState.filename}</p>
+              <p className="helperText">Opens Print, Save to Files, AirDrop, or email on supported devices. The app does not store final PDFs.</p>
+              <div className="pdfReadyActions">
+                <button className="btn primary lg" onClick={shareGeneratedPdfClick}>Share / Print PDF</button>
+                <button className="btn secondary" onClick={downloadGeneratedPdfClick}>Download PDF</button>
+              </div>
+              <button className="btn ghost sm pdfReadyRegenerate" onClick={exportPdf} disabled={isGenerating} aria-busy={isGenerating}>Regenerate PDF</button>
+              {pdfExportState.shareMessage && <p className="pdfShareMessage">{pdfExportState.shareMessage}</p>}
+            </div>
+          )}
+
+          <div className="reviewSecondaryActions">
+            <button type="button" className="btn ghost sm" onClick={() => setShowDocOptions(true)} disabled={isGenerating}>Document Options</button>
+            <span className="reviewAutosaveNote">Drafts autosave automatically.</span>
           </div>
         </div>
       </div>
-      <details className="detailedRowsDisclosure">
-        <summary>
-          <div className="detailedRowsSummaryText">
-            <div className="detailedRowsSummaryTitle">
-              <strong>Save as Template</strong>
-              <span className="badge draft">Optional</span>
-            </div>
-            <p>Save recurring project information, common hazards, and common controls for reuse on future JSAs.</p>
-          </div>
-          <span className="detailedRowsSummaryAction">Show</span>
-        </summary>
-        <div className="detailedRowsBody">
-          <div className="templateActions">
-            <label className="field">
-              <span>Save current setup as custom template</span>
-              <input value={saveName} onChange={e => setSaveName(e.target.value)} placeholder="Example: Entergy JSA" />
-            </label>
-            <button className="btn primary" onClick={saveTemplate}>Save Template</button>
-            <button className="btn ghost" onClick={updateTemplate}>Update Loaded</button>
-          </div>
-          <p className="helperText">Loading a template starts a fresh JSA for today and never carries over signatures or daily work details. Date, times, tailgate topic, previous-day status, daily tasks, detailed rows, and notes reset when the template is loaded.</p>
-        </div>
-      </details>
+      {showDocOptions && (
+        <DocumentOptionsSheet
+          onClose={() => setShowDocOptions(false)}
+          saveDraft={saveDraft}
+          markReady={markReady}
+          saveName={saveName}
+          setSaveName={setSaveName}
+          saveTemplate={saveTemplate}
+          updateTemplate={updateTemplate}
+          clearDraft={clearDraft}
+          legacyBrowserPrint={legacyBrowserPrint}
+          isGenerating={isGenerating}
+        />
+      )}
       <StepFooter prev={prev} next={next} hasPrev hasNext={false} />
     </div>
   );
@@ -2392,28 +2399,23 @@ function DraftsView({ savedDraft, loadSavedDraft, goJsaStart, clearDraft }) {
         <h2>Saved Drafts</h2>
         <p>Drafts are editable JSAs saved on this device. Export final PDFs outside the app.</p>
       </div>
-      <div className="card">
-        <div className="cardHeader"><h3>JSA Drafts</h3></div>
-        <div className="cardBody">
-          {savedDraft ? (
-            <div className="listItem">
-              <div className="itemInfo">
-                <strong>{savedDraft.jobSite || savedDraft.templateName || 'JSA Draft'}</strong>
-                <p>{savedDraft.lastSavedAt ? `Last saved ${nowNice(new Date(savedDraft.lastSavedAt))}` : 'Saved on this device'}</p>
-              </div>
-              <div className="itemActions">
-                <button className="btn secondary sm" onClick={loadSavedDraft}>Open Draft</button>
-                <button className="btn ghost sm" onClick={clearDraft}>Delete</button>
-              </div>
-            </div>
-          ) : (
-            <div className="emptyState">
-              <p>No saved JSA draft on this device.</p>
-              <button className="btn primary sm" onClick={goJsaStart}>Start a JSA</button>
-            </div>
-          )}
+      {savedDraft ? (
+        <div className="listItem">
+          <div className="itemInfo">
+            <strong>{savedDraft.jobSite || savedDraft.templateName || 'JSA Draft'}</strong>
+            <p>{savedDraft.lastSavedAt ? `Last saved ${nowNice(new Date(savedDraft.lastSavedAt))}` : 'Saved on this device'}</p>
+          </div>
+          <div className="itemActions">
+            <button className="btn secondary sm" onClick={loadSavedDraft}>Open Draft</button>
+            <button className="btn ghost sm" onClick={clearDraft}>Delete</button>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="emptyState">
+          <p>No saved JSA draft on this device.</p>
+          <button className="btn primary sm" onClick={goJsaStart}>Start a JSA</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -2427,38 +2429,33 @@ function TemplatesView({ allTemplates, customTemplates, loadTemplate, deleteTemp
         <h2>Reusable Templates</h2>
         <p>Templates save recurring job information, hazards, controls, and setup language. They are not final documents. Save a custom template from the JSA builder.</p>
       </div>
-      <div className="card">
-        <div className="cardHeader"><h3>JSA Templates</h3></div>
-        <div className="cardBody">
-          <div className="listStack">
-            <div className="listItem">
-              <div className="itemInfo">
-                <strong>Blank JSA</strong>
-                <p>Start from a clean form and build a new template if needed.</p>
-              </div>
-              <div className="itemActions">
-                <button className="btn secondary sm" onClick={startBlank}>Use Blank</button>
-              </div>
-            </div>
-            {customTemplates.length ? customTemplates.map(t => (
-              <div className="listItem" key={t.id}>
-                <div className="itemInfo">
-                  <strong>{t.name}</strong>
-                  <p>Updated {t.updatedAt ? nowNice(new Date(t.updatedAt)) : 'on this device'}</p>
-                </div>
-                <div className="itemActions">
-                  <button className="btn secondary sm" onClick={() => loadTemplate(t.id)}>Load</button>
-                  <button className="btn ghost sm" onClick={() => deleteTemplate(t.id)}>Delete</button>
-                </div>
-              </div>
-            )) : (
-              <div className="emptyState">
-                <p>No custom templates yet. Save one from the Review step after filling in recurring job information.</p>
-                <button className="btn primary sm" onClick={startBlank}>Start a JSA</button>
-              </div>
-            )}
+      <div className="listStack">
+        <div className="listItem">
+          <div className="itemInfo">
+            <strong>Blank JSA</strong>
+            <p>Start from a clean form and build a new template if needed.</p>
+          </div>
+          <div className="itemActions">
+            <button className="btn secondary sm" onClick={startBlank}>Use Blank</button>
           </div>
         </div>
+        {customTemplates.length ? customTemplates.map(t => (
+          <div className="listItem" key={t.id}>
+            <div className="itemInfo">
+              <strong>{t.name}</strong>
+              <p>Updated {t.updatedAt ? nowNice(new Date(t.updatedAt)) : 'on this device'}</p>
+            </div>
+            <div className="itemActions">
+              <button className="btn secondary sm" onClick={() => loadTemplate(t.id)}>Load</button>
+              <button className="btn ghost sm" onClick={() => deleteTemplate(t.id)}>Delete</button>
+            </div>
+          </div>
+        )) : (
+          <div className="emptyState">
+            <p>No custom templates yet. Save one from the Review step after filling in recurring job information.</p>
+            <button className="btn primary sm" onClick={startBlank}>Start a JSA</button>
+          </div>
+        )}
       </div>
     </div>
   );

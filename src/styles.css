@@ -30,16 +30,16 @@
 }
 
 html[data-theme='dark'] {
-  --bg: #050506;
-  --nav: #090a0c;
-  --surface: #111214;
-  --surface-2: #18191c;
-  --surface-3: #202126;
-  --text: #f3f4f5;
-  --muted: #b5b8be;
-  --line: #2b2d31;
-  --line-strong: #3a3d43;
-  --accent: #f3f4f5;
+  --bg: #000000;
+  --nav: #0a0a0b;
+  --surface: #131417;
+  --surface-2: #1a1b1f;
+  --surface-3: #232429;
+  --text: #f5f6f7;
+  --muted: #9a9da4;
+  --line: #232429;
+  --line-strong: #34363c;
+  --accent: #f5f6f7;
   --accent-2: #d8d9db;
   --danger: #ef4444;
   --good: #22c55e;
@@ -48,6 +48,15 @@ html[data-theme='dark'] {
   --shadow: 0 2px 8px rgba(0,0,0,0.45), 0 10px 30px rgba(0,0,0,0.35);
   --shadow-lg: 0 6px 20px rgba(0,0,0,0.5), 0 22px 50px rgba(0,0,0,0.4);
   --glow-accent: 0 0 0 1px color-mix(in srgb, var(--text) 30%, transparent);
+}
+
+/* ── Type scale (used for the "confident heading" treatment on Home, the
+   builder's step title, and section titles — a small, consistent set of
+   sizes instead of ad-hoc font-size declarations per component) ── */
+:root {
+  --text-hero: clamp(28px, 4.2vw, 42px);
+  --text-title: clamp(20px, 2.4vw, 26px);
+  --space-section: clamp(28px, 4vw, 44px);
 }
 
 /* ── Reset ── */
@@ -227,12 +236,16 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:focus-v
 }
 .sectionTitle p { color: var(--muted); max-width: 700px; }
 
-/* ── Card ── */
+/* ── Card ──
+   Reserved for genuinely elevated/contained moments (start options, settings,
+   list containers, the preview panel). The five JSA builder steps use the
+   flatter, borderless .stepPanel instead — see below — so the workspace
+   reads as one continuous surface rather than a stack of boxed cards. */
 .card {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  box-shadow: var(--shadow), inset 0 1px 0 color-mix(in srgb, var(--text) 6%, transparent);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.12);
   /* Not overflow:hidden — a form card must never silently clip content that
      doesn't fit; a visible overflow is a bug to notice, not hide. The header's
      own corner radius (below) keeps the rounded-corner look without clipping. */
@@ -240,30 +253,26 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:focus-v
   min-width: 0;
 }
 .cardHeader {
-  padding: 14px 20px;
-  background: var(--surface-2);
-  border-bottom: 1px solid var(--line);
-  border-radius: var(--radius) var(--radius) 0 0;
+  padding: 16px 20px;
   display: grid;
   gap: 4px;
 }
 .cardHeader h3 {
-  display: flex;
-  align-items: center;
-  gap: 10px;
   font-size: 16px;
   font-weight: 700;
 }
-.cardHeader h3::before {
-  content: '';
-  width: 3px;
-  height: 18px;
-  border-radius: 99px;
-  background: var(--line-strong);
-  flex-shrink: 0;
-}
-.cardHeader p { color: var(--muted); font-size: 13.5px; padding-left: 13px; }
-.cardBody { padding: 20px; }
+.cardHeader p { color: var(--muted); font-size: 13.5px; }
+.cardBody { padding: 0 20px 20px; }
+
+/* ── Step panel ──
+   The primary workspace for each of the five JSA builder steps. No border,
+   no background box, no shadow — the step's own large heading and generous
+   spacing carry the hierarchy instead of a container, so the active section
+   reads as "the page" rather than one card among several. */
+.stepPanel { display: grid; gap: 18px; min-width: 0; }
+.stepPanelHeader { display: grid; gap: 6px; max-width: 62ch; }
+.stepPanelHeader h3 { font-size: var(--text-title); font-weight: 800; letter-spacing: -.3px; line-height: 1.15; }
+.stepPanelHeader p { color: var(--muted); font-size: 14px; line-height: 1.55; }
 
 /* ── Buttons ── */
 .btn {
@@ -331,9 +340,11 @@ html[data-theme='dark'] .btn.secondary { background: var(--surface-3); color: va
   max-width: 100%;
 }
 .field > span {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  color: var(--muted);
 }
 .field > small { font-size: 12px; color: var(--muted); }
 input[type=text], input[type=date], input[type=time], input[type=number],
@@ -342,16 +353,18 @@ select, textarea {
   min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
-  border: 1px solid var(--line);
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
-  background: var(--surface);
+  background: var(--surface-2);
   color: var(--text);
-  padding: 10px 12px;
+  padding: 11px 13px;
   font-size: 16px;
   outline: none;
-  transition: border-color .15s, box-shadow .15s;
+  transition: border-color .15s, box-shadow .15s, background .15s;
   min-height: 44px;
 }
+input[type=text]:hover, input[type=date]:hover, input[type=time]:hover, input[type=number]:hover,
+select:hover, textarea:hover { background: var(--surface-3); }
 textarea { resize: vertical; line-height: 1.5; min-height: 100px; }
 /* Content-aware height (see TA in main.jsx): starts small, grows with
    content up to max-height, then scrolls internally. JS-driven, so manual
@@ -497,66 +510,60 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 .dialogActions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
 .dialogActions .btn { min-height: 44px; }
 
-/* ── Home ── */
-.homeLayout { display: grid; gap: 28px; }
+/* ── Home ──
+   A single dominant hero (no border, no card) instead of a grid of panels —
+   the large heading and generous top/bottom space carry the "this is the
+   one thing that matters right now" weight that a bordered box used to. */
+.homeLayout { display: grid; gap: var(--space-section); padding-top: 6px; }
 
-.homeWorkspace {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 18px;
-}
-@media (min-width: 860px) {
-  .homeWorkspace:not(.single) { grid-template-columns: 1.35fr 1fr; }
-}
-.workspacePanel {
-  padding: 30px 32px;
-  border-radius: var(--radius);
-  border: 1px solid var(--line);
-  background: var(--surface);
-  box-shadow: var(--shadow);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.workspacePanelMain {
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--line) 55%);
-  background: color-mix(in srgb, var(--accent) 6%, var(--surface) 94%);
-  box-shadow: var(--shadow), 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent);
-}
-.workspacePanelQuiet { padding: 22px 24px; background: var(--surface-2); box-shadow: none; }
-.workspacePanelQuiet h2 { font-size: 19px; }
-.workspacePanelQuiet .workspaceEyebrow { color: var(--muted); }
-.workspaceEyebrow {
+.todayHero { display: grid; gap: 10px; max-width: 640px; }
+.todayHeroEyebrow {
   font-size: 11px;
   font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: .8px;
-  color: var(--accent);
+  letter-spacing: 1px;
+  color: var(--muted);
   font-family: var(--font-mono);
 }
-.workspacePanel h2 { font-size: clamp(22px, 2.6vw, 30px); font-weight: 800; letter-spacing: -.3px; margin: 2px 0; line-height: 1.15; }
-.workspacePanel p { color: var(--muted); line-height: 1.55; max-width: 46ch; }
-.workspacePanel .btn { align-self: flex-start; margin-top: 12px; }
+.todayHeroTitle { font-size: var(--text-hero); font-weight: 800; letter-spacing: -.8px; line-height: 1.08; }
+.todayHeroMeta { color: var(--muted); font-size: 15px; line-height: 1.5; }
+.todayHeroProgress { display: flex; align-items: center; gap: 10px; margin: 4px 0 2px; }
+.todayHeroProgressTrack { flex: 1 1 auto; max-width: 220px; height: 5px; border-radius: 99px; background: var(--surface-3); overflow: hidden; }
+.todayHeroProgressFill { height: 100%; background: var(--text); border-radius: 99px; transition: width .2s ease; }
+.todayHeroProgress span { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.todayHero .btn { margin-top: 10px; align-self: flex-start; }
 
-.homeSecondaryActions { display: flex; gap: 10px; flex-wrap: wrap; }
-.secondaryLink {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--surface-2);
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text);
-  transition: border-color .15s, background .15s;
+.homeSecondaryActions { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+.quietAction {
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--muted);
+  min-height: 44px;
 }
-.secondaryLink small { font-weight: 500; color: var(--muted); }
-.secondaryLink:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--line) 60%); background: var(--surface-3); }
+.quietAction:hover { color: var(--text); background: var(--surface-2); }
 
-.homeModules { display: grid; gap: 14px; }
-.homeModulesTitle { font-size: 12.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }
+/* Lightweight text-only disclosure for low-priority content (future document
+   types) — no card chrome, just a muted link that expands in place. */
+.quietDisclosure summary {
+  list-style: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 4px 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.quietDisclosure summary::-webkit-details-marker { display: none; }
+.quietDisclosure summary::before { content: '›'; font-size: 16px; transition: transform .15s; }
+.quietDisclosure[open] summary::before { transform: rotate(90deg); }
+.quietDisclosure summary:hover { color: var(--text); }
+.quietDisclosureBody { padding-top: 14px; }
+
 .moduleGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -661,81 +668,22 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   overflow: auto;
 }
 
-/* ── Progress strip ── */
-.progressStrip {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  padding-bottom: 2px;
-}
-.progressStrip::-webkit-scrollbar { display: none; }
-.progressStep {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--text);
-  border-radius: var(--radius-sm);
-  padding: 8px 12px;
-  min-width: 160px;
-  text-align: left;
-  cursor: pointer;
-  transition: border-color .15s, background .15s;
-  flex-shrink: 0;
-}
-.progressStep:hover { border-color: color-mix(in srgb, var(--accent) 50%, var(--line) 50%); }
-.progressStep.active {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--surface) 90%, var(--accent) 10%);
-}
-.stepNum {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: var(--surface-2);
-  display: grid;
-  place-items: center;
-  font-size: 12px;
-  font-weight: 700;
-  font-family: var(--font-mono);
-  flex-shrink: 0;
-}
-.progressStep.active .stepNum { background: var(--accent); color: var(--accent-ink); box-shadow: var(--glow-accent); }
-.stepInfo { display: grid; gap: 1px; min-width: 0; }
-.stepInfo strong { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.stepInfo small { font-size: 11px; color: var(--muted); white-space: nowrap; }
-.stepChip {
-  margin-left: auto;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .4px;
-  border-radius: 999px;
-  padding: 3px 7px;
-  background: var(--surface-2);
-  color: var(--muted);
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-.stepChip.complete, .stepChip.ready { background: color-mix(in srgb, var(--good) 16%, transparent); color: var(--good); }
-.stepChip.needs-info { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+/* ── Builder header ──
+   Flat — no card box. The Back link and status badges sit on one quiet line;
+   the stepper below is the real "where am I" signal, so there's no separate
+   boxed title competing with it for attention. */
+.builderHeader { padding-bottom: 16px; margin-bottom: 18px; border-bottom: 1px solid var(--line); display: grid; gap: 14px; }
+.builderHeaderTop { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.builderHeaderBadges { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
-/* ── Compact stepper (touch devices): every segment always shows its own
-   number, title, and a non-color status glyph — never a blank box. Layout
-   is an explicit 3-column grid (5 items auto-place as an intentional 3+2),
-   switching to a single row of 5 via container query once the stepper's
-   own actual width has room — not an accidental viewport-based wrap. ── */
-.compactStepper { display: grid; gap: 10px; min-width: 0; container-type: inline-size; }
-.compactStepperHead {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  min-width: 0;
-}
-.compactStepperCount {
+/* ── Workflow stepper ──
+   One rail, every viewport. Each segment carries exactly one status glyph
+   (a number, or a check once complete — never color-only) plus the "active"
+   treatment for the current step; label density adapts via container query
+   instead of branching into a separate touch-only component. */
+.stepperWrap { display: grid; gap: 10px; min-width: 0; container-type: inline-size; }
+.stepperHead { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; min-width: 0; }
+.stepperCount {
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
@@ -744,89 +692,61 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   font-family: var(--font-mono);
   flex-shrink: 0;
 }
-.compactStepperTitle {
-  font-size: 15px;
-  font-weight: 700;
-  flex: 1 1 auto;
-  min-width: 0;
-}
-.compactStepperTrack {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
-  min-width: 0;
-}
-@container (min-width: 480px) {
-  .compactStepperTrack { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-}
-.compactStepperSeg {
+.stepperTitle { font-size: 17px; font-weight: 800; letter-spacing: -.2px; min-width: 0; }
+.stepperRail {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 3px;
-  min-height: 44px;
+  gap: 2px;
   min-width: 0;
-  padding: 6px 8px;
-  border: 1px solid var(--line);
-  border-bottom: 3px solid var(--line);
+  background: var(--surface-2);
   border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--text);
-  text-align: left;
+  padding: 3px;
 }
-.compactStepperSegTop {
+.stepperSeg {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  gap: 4px;
+  gap: 7px;
+  flex: 1 1 0;
+  min-height: 40px;
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  color: var(--muted);
+  text-align: left;
 }
-.compactStepperSegNum {
-  font-size: 10px;
+.stepperSegDot {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 10.5px;
   font-weight: 800;
   font-family: var(--font-mono);
+  background: var(--surface-3);
   color: var(--muted);
 }
-.compactStepperSegGlyph {
-  font-size: 11px;
-  font-weight: 900;
-  line-height: 1;
-  color: var(--warn);
-}
-.compactStepperSegLabel {
-  font-size: 10.5px;
-  font-weight: 700;
+.stepperSeg.done .stepperSegDot { background: color-mix(in srgb, var(--good) 20%, var(--surface-3) 80%); color: var(--good); }
+.stepperSeg.active { background: var(--surface); box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+.stepperSeg.active .stepperSegDot { background: var(--text); color: var(--bg); }
+.stepperSeg.active .stepperSegLabel { color: var(--text); font-weight: 700; }
+.stepperSegLabel {
+  font-size: 12.5px;
+  font-weight: 600;
   line-height: 1.2;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
-.compactStepperSeg.active {
-  border-color: var(--accent);
-  border-bottom-color: var(--accent);
-  background: color-mix(in srgb, var(--surface) 90%, var(--accent) 10%);
+/* Below ~460px of actual rail width (phone portrait, 5-up), only the active
+   step's label is worth the space — others collapse to their status dot
+   only and hand the freed width to the active segment via flex-basis. */
+@container (max-width: 460px) {
+  .stepperSeg:not(.active) .stepperSegLabel { display: none; }
+  .stepperSeg:not(.active) { flex: 0 1 38px; justify-content: center; padding: 6px 4px; }
+  .stepperSeg.active { flex: 1 1 auto; justify-content: flex-start; }
 }
-/* Status is communicated by the glyph (icon shape, not color alone) — the
-   border stays reserved for the single "active step" navigation signal so
-   it doesn't compete with the icon as a second, redundant status cue. */
-.compactStepperSeg.complete .compactStepperSegGlyph, .compactStepperSeg.ready .compactStepperSegGlyph { color: var(--good); }
-.compactStepperSeg.needs-info .compactStepperSegGlyph { color: var(--warn); }
-
-/* ── Document header ── */
-.docHeader {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 18px 20px;
-  flex-wrap: wrap;
-}
-.docHeader h2 {
-  font-size: clamp(20px, 2.5vw, 28px);
-  font-weight: 700;
-  letter-spacing: -.3px;
-  margin: 4px 0 6px;
-}
-.docHeader p { color: var(--muted); font-size: 13.5px; max-width: 600px; line-height: 1.5; }
-.docHeaderMeta { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
 
 /* ── Step content ── */
 .stepStack { display: grid; gap: 14px; }
@@ -896,7 +816,7 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 /* Contextual Suggestions overlay: bottom sheet on portrait/phones, side
    drawer on iPad landscape widths. Always an overlay — never a permanent
    second layout column, on any orientation. */
-.suggestionsOverlay {
+.suggestionsOverlay, .actionSheetOverlay {
   position: fixed;
   inset: 0;
   z-index: 260;
@@ -905,7 +825,7 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   justify-content: center;
   background: rgba(0,0,0,.45);
 }
-.suggestionsSheet {
+.suggestionsSheet, .actionSheetPanel {
   width: 100%;
   max-height: 82vh;
   background: var(--surface);
@@ -917,7 +837,7 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   overflow: hidden;
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
-.suggestionsSheetHead {
+.suggestionsSheetHead, .actionSheetHead {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -926,11 +846,11 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   border-bottom: 1px solid var(--line);
   flex: 0 0 auto;
 }
-.suggestionsSheetHead strong { font-size: 16px; font-weight: 700; }
-.suggestionsSheetBody { flex: 1 1 auto; overflow-y: auto; padding: 10px 12px 16px; min-height: 0; }
+.suggestionsSheetHead strong, .actionSheetHead strong { font-size: 16px; font-weight: 700; }
+.suggestionsSheetBody, .actionSheetBody { flex: 1 1 auto; overflow-y: auto; padding: 10px 12px 16px; min-height: 0; }
 @media (min-width: 860px) and (orientation: landscape) {
-  .suggestionsOverlay { align-items: stretch; justify-content: flex-end; }
-  .suggestionsSheet {
+  .suggestionsOverlay, .actionSheetOverlay { align-items: stretch; justify-content: flex-end; }
+  .suggestionsSheet, .actionSheetPanel {
     width: min(420px, 92vw);
     max-height: 100%;
     border-radius: 0;
@@ -939,12 +859,63 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
     border-top: none;
   }
 }
+/* Desktop (mouse, no coarse pointer): centered dialog rather than an edge
+   sheet — matches the existing ConfirmReplaceDialog treatment so the whole
+   app uses one consistent overlay language, just anchored differently per
+   input method. */
+@media (any-pointer: fine) and (pointer: fine) {
+  .actionSheetOverlay { align-items: center; padding: 20px; background: rgba(0,0,0,.5); }
+  .actionSheetPanel { width: 100%; max-width: 440px; max-height: 86vh; border-radius: var(--radius); border: 1px solid var(--line); box-shadow: var(--shadow-lg); }
+}
+.actionSheetGrabber { display: none; }
+@media not all and (any-pointer: fine) {
+  .actionSheetGrabber {
+    display: block;
+    width: 36px;
+    height: 4px;
+    border-radius: 99px;
+    background: var(--line-strong);
+    margin: 10px auto 0;
+    flex: 0 0 auto;
+  }
+}
+.actionSheetCloseBtn {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  background: var(--surface-2);
+  font-size: 15px;
+  flex-shrink: 0;
+}
+.actionSheetCloseBtn:hover { color: var(--text); }
+.actionSheetGroup { display: grid; gap: 8px; padding: 12px 4px; border-bottom: 1px solid var(--line); }
+.actionSheetGroup:last-child { border-bottom: none; }
+.actionSheetGroupLabel { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); padding: 0 12px; }
+.actionSheetAction {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  min-height: 44px;
+}
+.actionSheetAction:hover:not(:disabled) { background: var(--surface-2); }
+.actionSheetAction strong { font-size: 14.5px; font-weight: 700; }
+.actionSheetAction span { font-size: 12.5px; color: var(--muted); line-height: 1.4; }
+.actionSheetInlineActions { display: flex; gap: 8px; flex-wrap: wrap; padding: 0 12px; }
+.actionSheetDestructive { padding: 12px 4px 4px; display: grid; gap: 6px; justify-items: start; }
+.actionSheetDestructive .helperText { padding: 0 12px; }
+.actionSheetGroup .field, .actionSheetGroup .helperText { padding: 0 12px; }
 
 /* ── Quick-add panels (consolidated: recent/favorites, add behavior, custom quick-add) ── */
 .quickPanel {
   min-width: 0;
   width: 100%;
-  border: 1px solid var(--line);
+  border: none;
   border-radius: var(--radius-sm);
   background: var(--surface-2);
   overflow: clip;
@@ -1131,25 +1102,6 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   margin-top: 4px;
 }
 .reviewAutosaveNote { color: var(--muted); font-size: 12.5px; }
-.moreOptions { margin-top: 4px; }
-.moreOptionsPanel {
-  margin-top: 8px;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-  display: grid;
-  gap: 6px;
-  justify-items: start;
-}
-.moreOptionsDestructive {
-  margin-top: 8px;
-  padding-top: 10px;
-  border-top: 1px solid var(--line);
-  display: grid;
-  gap: 6px;
-  justify-items: start;
-}
 .pdfReadyPanel {
   margin-top: 4px;
   padding: 20px;
@@ -1184,12 +1136,6 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   justify-items: start;
 }
 .pdfStaleWarning > strong { color: var(--warn); }
-.templateActions {
-  display: grid;
-  grid-template-columns: 1fr auto auto;
-  gap: 10px;
-  align-items: end;
-}
 
 /* ── Fit badge ── */
 .fitBadge {
@@ -1291,8 +1237,6 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   .moduleGrid { grid-template-columns: 1fr 1fr; }
   .docGrid { grid-template-columns: 1fr 1fr; }
   .launchGrid { grid-template-columns: 1fr; }
-  .templateActions { grid-template-columns: 1fr; }
-  .reviewActions { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 680px) {
@@ -1302,8 +1246,6 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   .appNav { top: 0; }
   .moduleGrid { grid-template-columns: 1fr; }
   .docGrid { grid-template-columns: 1fr; }
-  .progressStrip { gap: 4px; }
-  .progressStep { min-width: 140px; padding: 7px 10px; }
   .stepFooter { flex-direction: column; gap: 8px; }
   .stepFooter .leftBtns, .stepFooter .rightBtns { width: 100%; }
   .stepFooter .btn { flex: 1; }
