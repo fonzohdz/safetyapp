@@ -69,6 +69,10 @@ img { display: block; max-width: 100%; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0.001ms !important; animation-duration: 0.001ms !important; }
 }
+button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 
 /* ── App Shell ── */
 .appShell { min-height: 100vh; display: flex; flex-direction: column; }
@@ -181,6 +185,13 @@ img { display: block; max-width: 100%; }
   transition: color .15s, background .15s, border-color .15s, box-shadow .15s;
 }
 .appNav button:hover { color: var(--text); background: var(--surface); }
+/* Quieted (not hidden) while a document builder is open — reduces the nav's
+   visual weight so it doesn't compete with the stepper below it, while
+   staying fully visible, legible, and one tap away. */
+.appNav.builderActive button.active {
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface) 92%);
+  box-shadow: none;
+}
 .appNav button.active {
   background: color-mix(in srgb, var(--accent) 16%, var(--surface) 84%);
   color: var(--accent);
@@ -512,6 +523,9 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   background: color-mix(in srgb, var(--accent) 6%, var(--surface) 94%);
   box-shadow: var(--shadow), 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent);
 }
+.workspacePanelQuiet { padding: 22px 24px; background: var(--surface-2); box-shadow: none; }
+.workspacePanelQuiet h2 { font-size: 19px; }
+.workspacePanelQuiet .workspaceEyebrow { color: var(--muted); }
 .workspaceEyebrow {
   font-size: 11px;
   font-weight: 800;
@@ -574,6 +588,7 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
+.docGridSingle { grid-template-columns: minmax(0, 1fr); max-width: 360px; }
 .docTile {
   text-align: left;
   border: 1px solid var(--line);
@@ -789,9 +804,10 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   border-bottom-color: var(--accent);
   background: color-mix(in srgb, var(--surface) 90%, var(--accent) 10%);
 }
-.compactStepperSeg.complete, .compactStepperSeg.ready { border-bottom-color: var(--good); }
+/* Status is communicated by the glyph (icon shape, not color alone) — the
+   border stays reserved for the single "active step" navigation signal so
+   it doesn't compete with the icon as a second, redundant status cue. */
 .compactStepperSeg.complete .compactStepperSegGlyph, .compactStepperSeg.ready .compactStepperSegGlyph { color: var(--good); }
-.compactStepperSeg.needs-info { border-bottom-color: var(--warn); }
 .compactStepperSeg.needs-info .compactStepperSegGlyph { color: var(--warn); }
 
 /* ── Document header ── */
@@ -1105,22 +1121,16 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 .sigRuleBox p { color: var(--muted); margin-top: 4px; font-size: 13.5px; line-height: 1.5; }
 
 /* ── Review/export ── */
-.pageFitBox {
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  padding: 14px;
-  background: var(--surface-2);
+.reviewPrimaryAction { display: flex; }
+.reviewPrimaryAction .btn { width: 100%; }
+.reviewSecondaryActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
 }
-.pageFitBox strong { font-weight: 700; }
-.pageFitBox p { color: var(--muted); margin-top: 4px; font-size: 13.5px; line-height: 1.45; }
-.pageFitBox.good { border-color: color-mix(in srgb, var(--good) 40%, transparent); }
-.pageFitBox.warn { border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
-.pageFitBox.bad { border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
-.reviewActions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
+.reviewAutosaveNote { color: var(--muted); font-size: 12.5px; }
 .moreOptions { margin-top: 4px; }
 .moreOptionsPanel {
   margin-top: 8px;
@@ -1132,17 +1142,36 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   gap: 6px;
   justify-items: start;
 }
+.moreOptionsDestructive {
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
 .pdfReadyPanel {
   margin-top: 4px;
-  padding: 12px 14px;
+  padding: 20px;
   border: 1px solid color-mix(in srgb, var(--good) 45%, var(--line) 55%);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
   background: color-mix(in srgb, var(--good) 10%, var(--surface) 90%);
   display: grid;
   gap: 6px;
 }
-.pdfReadyPanel > strong { color: var(--good); }
-.pdfReadyActions { display: flex; gap: 8px; flex-wrap: wrap; }
+.pdfReadyEyebrow {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .8px;
+  color: var(--good);
+  font-family: var(--font-mono);
+}
+.pdfReadyHeadline { font-size: 24px; font-weight: 800; color: var(--good); }
+.pdfReadyFilename { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; margin-bottom: 4px; }
+.pdfReadyActions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.pdfReadyActions .btn.primary { flex: 1 1 220px; }
+.pdfReadyRegenerate { justify-self: start; margin-top: 2px; }
 .pdfShareMessage { margin: 4px 0 0; font-size: 13px; color: var(--warn); }
 .pdfStaleWarning {
   margin-top: 4px;
@@ -1200,7 +1229,11 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   text-align: center;
   font-size: 14px;
   background: var(--surface-2);
+  display: grid;
+  gap: 12px;
+  justify-items: center;
 }
+.emptyState p { margin: 0; max-width: 44ch; }
 .settingsRow {
   display: flex;
   align-items: center;
@@ -1453,6 +1486,9 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   background: var(--surface-2);
   overflow: hidden;
 }
+.reviewSummaryCard.good { border-color: color-mix(in srgb, var(--good) 40%, transparent); }
+.reviewSummaryCard.warn { border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+.reviewSummaryCard.bad { border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
 .reviewSummaryHead {
   display: flex;
   align-items: center;
@@ -1462,6 +1498,7 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   border-bottom: 1px solid var(--line);
 }
 .reviewSummaryHead h4 { margin: 2px 0 0; font-size: 16px; }
+.reviewFitMessage { color: var(--muted); font-size: 13px; line-height: 1.45; padding: 10px 15px 0; }
 .reviewScore {
   min-width: 52px;
   text-align: center;
@@ -1489,8 +1526,8 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 .reviewCheck p { margin: 0; font-size: 12.5px; line-height: 1.3; }
 .reviewCheck.ok > span { color: var(--success); border: 1px solid var(--success); }
 .reviewCheck.missing > span { color: var(--warning); border: 1px solid var(--warning); }
-.exportPlanGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
-.exportPlanGrid > div { display: grid; gap: 3px; padding: 10px; text-align: center; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); }
+.exportPlanGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 0 14px 14px; }
+.exportPlanGrid > div { display: grid; gap: 3px; padding: 10px; text-align: center; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
 .exportPlanGrid strong { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
 .exportPlanGrid span { font-weight: 800; font-size: 18px; }
 .exportNamePreview { display: grid; gap: 7px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); }
