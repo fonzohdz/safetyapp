@@ -139,6 +139,24 @@ function getContentRows(jsa) {
   });
   return [...detailed, ...remainingSummary];
 }
+/* Physical print geometry constants — single source of truth shared by the
+   pagination math below and the ?debug=print panel. Must stay in sync with
+   the .printPage / .documentPage.printPage rule in styles.css's @media
+   print block, which declares the exact same numbers. See that rule's
+   comment for why PRINT_PAGE_WIDTH_IN/PRINT_PAGE_HEIGHT_IN are deliberately
+   smaller than the CSS-theoretical printable area rather than equal to it. */
+const PRINT_PAPER_WIDTH_IN = 8.5;
+const PRINT_PAPER_HEIGHT_IN = 11;
+const PRINT_PAGE_MARGIN_IN = 0.5;
+const PRINT_THEORETICAL_WIDTH_IN = PRINT_PAPER_WIDTH_IN - 2 * PRINT_PAGE_MARGIN_IN; // 7.5in
+const PRINT_THEORETICAL_HEIGHT_IN = PRINT_PAPER_HEIGHT_IN - 2 * PRINT_PAGE_MARGIN_IN; // 10in
+const PRINT_PAGE_WIDTH_IN = 7.1; // deliberately < PRINT_THEORETICAL_WIDTH_IN
+const PRINT_PAGE_HEIGHT_IN = 9.4; // deliberately < PRINT_THEORETICAL_HEIGHT_IN
+const PRINT_PAGE_PADDING_BOTTOM_IN = 0.2;
+const PRINT_WIDTH_SAFETY_IN = PRINT_THEORETICAL_WIDTH_IN - PRINT_PAGE_WIDTH_IN;
+const PRINT_HEIGHT_SAFETY_IN = PRINT_THEORETICAL_HEIGHT_IN - PRINT_PAGE_HEIGHT_IN;
+const PRINT_CONTENT_HEIGHT_IN = PRINT_PAGE_HEIGHT_IN - PRINT_PAGE_PADDING_BOTTOM_IN; // 9.2in
+
 function estimateTextLines(value, charsPerLine) {
   const text = String(value || '');
   if (!text.trim()) return 1;
@@ -146,61 +164,64 @@ function estimateTextLines(value, charsPerLine) {
 }
 /* Chars-per-line derived from the printed task table's actual column widths
    (see .documentPage .printTaskTable th:nth-child(1/2/3) in styles.css:
-   31% / 32% / 37% of the 7.5in usable page width, minus ~4.5px cell padding
-   each side, at the table's 9.8px Arial print font). Average glyph width for
+   31% / 32% / 37% of PRINT_PAGE_WIDTH_IN, minus ~4.5px cell padding each
+   side, at the table's 9.8px Arial print font). Average glyph width for
    Arial body text is roughly 0.55x the font size, so: usable column width /
    (0.55 * 9.8px), rounded down for a safety margin against Safari rendering
    slightly wider than Chromium/desktop font metrics (unverified on physical
-   hardware — see reports/audits). Previous constants (44/58/66) were not
-   derived from column width at all — they overestimated capacity for every
-   column, and had hazards (32% wide) more generous than step (31% wide)
-   despite being barely any wider, which is why long entries under-counted
-   their true wrapped-line count and could overflow the fixed page box. */
+   hardware — see reports/audits). These three numbers (36/37/43) are the
+   previous corrected constants (38/40/46) scaled down by
+   PRINT_PAGE_WIDTH_IN's reduction from the old 7.5in width (ratio
+   7.1/7.5 ≈ 0.947, rounded down) now that the page itself is narrower — see
+   the .printPage geometry comment in styles.css for why. */
 function estimateRowUnits(row) {
   return Math.max(
-    estimateTextLines(row.step, 38),
-    estimateTextLines(row.hazards, 40),
-    estimateTextLines(row.controls, 46),
+    estimateTextLines(row.step, 36),
+    estimateTextLines(row.hazards, 37),
+    estimateTextLines(row.controls, 43),
     1,
   );
 }
 /* Job Info / Meeting Info fields printed above the task table (see
    MainJsaDocumentPage's .printSimpleTable) are free text and can grow well
    past one line. Every wrapped line they add directly shrinks the physical
-   space left for the task table on the Main JSA page (it's a flex:1 child
-   filling whatever remains in a fixed-height column) — mainRowCapacity below
-   accounts for this instead of assuming a fixed budget regardless of content
-   length above it. 60 chars/line approximates that table's ~5.7in usable
-   label+value row width at 8.8px. */
+   space left for the task table on the Main JSA page (it's a flex child
+   filling whatever remains in the fixed-height column) — mainRowCapacity
+   below accounts for this instead of assuming a fixed budget regardless of
+   content length above it. 56 chars/line approximates that table's usable
+   label+value row width at 8.8px, scaled down the same 7.1/7.5 ratio as
+   estimateRowUnits above (was 60 at the old 7.5in page width). */
 function estimateUpperSectionLines(jsa) {
-  return estimateTextLines(jsa.assignedMentorSse, 60)
-    + estimateTextLines(jsa.tailgateTopic, 60)
-    + estimateTextLines(jsa.previousDaySafety, 60)
-    + estimateTextLines(jsa.overallWorkTask, 60);
+  return estimateTextLines(jsa.assignedMentorSse, 56)
+    + estimateTextLines(jsa.tailgateTopic, 56)
+    + estimateTextLines(jsa.previousDaySafety, 56)
+    + estimateTextLines(jsa.overallWorkTask, 56);
 }
-/* Baseline capacity (short upper-section text) with a safety margin: rough
-   physical geometry (10in page - 0.5in margins/pad = 9.8in content box;
-   ~3.1in of that is fixed-height header/info/ack/energy sections; ~6.7in
-   left for the task table before accounting for row overhead) supports
-   roughly 30-35 "units" (1 unit = 1 wrapped line) of single-line-dominant
-   task content before the page is physically full. A deliberate ~35%
-   safety margin below that mathematical ceiling — for Safari font-metric
-   uncertainty this repo cannot verify without physical hardware — lands the
-   short-text baseline at 20, trimmed from the previous unverified 22.
-   BASELINE_UPPER_LINES is what that budget already assumes for the 4 upper
-   rows (~1 line each); every additional wrapped line beyond that comes
-   straight out of the task-table budget one-for-one. */
+/* Baseline capacity (short upper-section text) with a safety margin.
+   PRINT_CONTENT_HEIGHT_IN (9.2in) is the corrected available content height
+   for the whole flex column (down from the previous uncorrected 9.8in, a
+   ratio of ~0.939) — the fixed-height header/info/ack/energy sections above
+   the task table are unaffected by the page-geometry correction (their
+   content doesn't depend on PRINT_PAGE_HEIGHT_IN), so the entire 0.6in
+   reduction comes directly out of the task table's share. Rather than
+   re-deriving the raw physical ceiling from scratch, these constants are the
+   previous physically-derived, safety-margined numbers (20 / 8 / 28) scaled
+   down by that same 0.939 content-height ratio and rounded down for
+   conservatism — the safety margin they already encoded is preserved, not
+   diluted. BASELINE_UPPER_LINES is what that budget already assumes for the
+   4 upper rows (~1 line each); every additional wrapped line beyond that
+   comes straight out of the task-table budget one-for-one. */
 function mainRowCapacity(jsa) {
-  const BASELINE = 20;
+  const BASELINE = 18;
   const BASELINE_UPPER_LINES = 4;
-  const MIN_CAPACITY = 8;
+  const MIN_CAPACITY = 7;
   const extraUpperLines = Math.max(0, estimateUpperSectionLines(jsa) - BASELINE_UPPER_LINES);
   return Math.max(MIN_CAPACITY, BASELINE - extraUpperLines);
 }
 // Continuation pages have a small, near-fixed header (no long free-text
 // fields above the table), so capacity doesn't need to shrink dynamically —
-// only the same class of safety margin applied to the main page (32 -> 28).
-function continuationRowCapacity() { return 28; }
+// same 0.939 content-height scaling applied to the previous 28, rounded down.
+function continuationRowCapacity() { return 26; }
 function paginateRowsByUnits(rows, capacity) {
   const pages = [];
   let current = [];
@@ -2179,8 +2200,14 @@ function usePrintDebugFlag() {
 }
 /* Screen-only pagination diagnostics, only mounted behind ?debug=print —
    for verifying the JS page planner's assumptions against what actually
-   prints, without needing a real device to inspect internal numbers. */
+   prints, without needing a real device to inspect internal numbers.
+   Two sections: (1) the declared geometry model, always available since
+   it's just constants; (2) real captured measurements from the last time
+   Print/Print Preview was actually triggered in THIS browser — genuinely
+   unavailable until then, since .printOnly only lays out under real print
+   media, which this app cannot simulate outside an actual print action. */
 function PrintDebugPanel({ jsa, plan }) {
+  const diagnostics = usePrintDiagnostics();
   return (
     <div className="printDebugPanel">
       <strong>Print Debug (?debug=print)</strong>
@@ -2194,6 +2221,42 @@ function PrintDebugPanel({ jsa, plan }) {
         <div><dt>oversized row detected</dt><dd>{String(plan.oversized)}</dd></div>
         <div><dt>upper-section wrapped lines</dt><dd>{estimateUpperSectionLines(jsa)}</dd></div>
       </dl>
+      <strong style={{ marginTop: 8 }}>Declared print geometry</strong>
+      <dl>
+        <div><dt>paper</dt><dd>{PRINT_PAPER_WIDTH_IN}in x {PRINT_PAPER_HEIGHT_IN}in (Letter)</dd></div>
+        <div><dt>@page margin</dt><dd>{PRINT_PAGE_MARGIN_IN}in each side</dd></div>
+        <div><dt>theoretical printable area</dt><dd>{PRINT_THEORETICAL_WIDTH_IN}in x {PRINT_THEORETICAL_HEIGHT_IN}in</dd></div>
+        <div><dt>logical page (.printPage)</dt><dd>{PRINT_PAGE_WIDTH_IN}in x {PRINT_PAGE_HEIGHT_IN}in</dd></div>
+        <div><dt>width / height safety allowance</dt><dd>{Math.round(PRINT_WIDTH_SAFETY_IN * 100) / 100}in / {Math.round(PRINT_HEIGHT_SAFETY_IN * 100) / 100}in</dd></div>
+        <div><dt>content height (minus padding)</dt><dd>{Math.round(PRINT_CONTENT_HEIGHT_IN * 100) / 100}in</dd></div>
+      </dl>
+      <strong style={{ marginTop: 8 }}>
+        Physical measurements {diagnostics ? `(captured ${diagnostics.capturedAt})` : '(not yet captured)'}
+      </strong>
+      {!diagnostics && (
+        <p style={{ margin: '2px 0 0', color: '#f5c542' }}>
+          Open Print or Print Preview once in this browser to populate real measured
+          numbers below — Chromium/desktop figures here are NOT a substitute for
+          Safari/AirPrint measurements, which this panel cannot capture until an
+          actual print is triggered on the device.
+        </p>
+      )}
+      {diagnostics && diagnostics.pages.map(p => (
+        <div key={p.index} style={{ marginTop: 4, borderTop: '1px solid rgba(255,255,255,.15)', paddingTop: 4 }}>
+          <dl>
+            <div><dt>page {p.index + 1}</dt><dd>{p.type}</dd></div>
+            <div><dt>outer size</dt><dd>{p.outerWidthIn}in x {p.outerHeightIn}in ({p.outerWidthPx}px x {p.outerHeightPx}px)</dd></div>
+            <div><dt>client / scroll W</dt><dd>{p.clientWidth} / {p.scrollWidth}px</dd></div>
+            <div><dt>client / scroll H</dt><dd>{p.clientHeight} / {p.scrollHeight}px</dd></div>
+            <div><dt>overflow X / Y</dt><dd>{p.overflowXPx}px / {p.overflowYPx}px</dd></div>
+            <div><dt>padding (t/r/b/l)</dt><dd>{p.paddingPx.top}/{p.paddingPx.right}/{p.paddingPx.bottom}/{p.paddingPx.left}px</dd></div>
+            <div><dt>border (t/r/b/l)</dt><dd>{p.borderPx.top}/{p.borderPx.right}/{p.borderPx.bottom}/{p.borderPx.left}px</dd></div>
+            <div><dt>box-sizing</dt><dd>{p.boxSizing}</dd></div>
+            <div><dt>task rows</dt><dd>{p.rowCount}</dd></div>
+            <div><dt>min row height (last 5)</dt><dd>{p.minRowHeightPx == null ? 'n/a' : `${p.minRowHeightPx}px`} {p.anyRowBelowMinimum ? `(BELOW ${PRINT_TASK_ROW_MIN_PX}px minimum)` : ''}</dd></div>
+          </dl>
+        </div>
+      ))}
     </div>
   );
 }
@@ -2474,15 +2537,75 @@ function MainJsaDocumentPage({ jsa, plan, className = '' }) {
 // doubled-page bug), this checks the real rendered boxes at the moment the
 // browser is about to print and warns loudly so a planner regression is
 // caught instead of silently mis-printing in the field.
-function checkPrintOverflow(root) {
+//
+// Container-level overflow (scrollHeight vs clientHeight) only catches
+// content that got PUSHED OUT of its box — it cannot detect a table that was
+// forcibly squeezed to fit exactly (no overflow, because nothing stuck out,
+// but individual rows below their intended minimum height). That was
+// confirmed on physical iPad Safari as a real, distinct failure mode this
+// check alone would have missed, so this also measures the last few rows of
+// every task table directly against the CSS floor (PRINT_TASK_ROW_MIN_PX)
+// and reports them separately from container overflow.
+const PRINT_PX_PER_IN = 96; // CSS reference pixel, per spec — used only to
+// convert measured px back to inches for human-readable reporting.
+const PRINT_TASK_ROW_MIN_PX = 24; // must match .printTaskTable td min-height in styles.css
+function measurePrintPages(root) {
   if (!root) return [];
-  const pages = root.querySelectorAll('.printPage');
-  const overflowing = [];
-  pages.forEach((el, idx) => {
-    const overflowPx = el.scrollHeight - el.clientHeight;
-    if (overflowPx > 0) overflowing.push({ index: idx, overflowPx });
+  const pages = Array.from(root.querySelectorAll('.printPage'));
+  return pages.map((el, index) => {
+    let type = 'unknown';
+    if (el.classList.contains('mainJsaPage')) type = 'main';
+    else if (el.classList.contains('continuationPage')) type = 'continuation';
+    else if (el.classList.contains('signInPage')) type = 'signin';
+    const rect = el.getBoundingClientRect();
+    const cs = window.getComputedStyle(el);
+    const rows = Array.from(el.querySelectorAll('.printTaskTable tbody tr'));
+    const lastRows = rows.slice(-5).map(tr => {
+      const h = tr.getBoundingClientRect().height;
+      return { heightPx: Math.round(h * 10) / 10, belowMinimum: h < PRINT_TASK_ROW_MIN_PX };
+    });
+    return {
+      index,
+      type,
+      outerWidthPx: Math.round(rect.width * 10) / 10,
+      outerHeightPx: Math.round(rect.height * 10) / 10,
+      outerWidthIn: Math.round((rect.width / PRINT_PX_PER_IN) * 100) / 100,
+      outerHeightIn: Math.round((rect.height / PRINT_PX_PER_IN) * 100) / 100,
+      paddingPx: { top: parseFloat(cs.paddingTop), right: parseFloat(cs.paddingRight), bottom: parseFloat(cs.paddingBottom), left: parseFloat(cs.paddingLeft) },
+      borderPx: { top: parseFloat(cs.borderTopWidth), right: parseFloat(cs.borderRightWidth), bottom: parseFloat(cs.borderBottomWidth), left: parseFloat(cs.borderLeftWidth) },
+      boxSizing: cs.boxSizing,
+      scrollWidth: el.scrollWidth,
+      clientWidth: el.clientWidth,
+      scrollHeight: el.scrollHeight,
+      clientHeight: el.clientHeight,
+      overflowXPx: el.scrollWidth - el.clientWidth,
+      overflowYPx: el.scrollHeight - el.clientHeight,
+      rowCount: rows.length,
+      lastRows,
+      minRowHeightPx: lastRows.length ? Math.min(...lastRows.map(r => r.heightPx)) : null,
+      anyRowBelowMinimum: lastRows.some(r => r.belowMinimum),
+    };
   });
-  return overflowing;
+}
+
+// Shared module-level store: beforeprint only fires when the user actually
+// triggers Print/Print Preview, so this is the only point real (not
+// Chromium-emulated) layout numbers are ever available. PrintDebugPanel
+// subscribes to this so a user can print once, then check ?debug=print for
+// what really happened — this cannot be populated ahead of time.
+let lastPrintDiagnostics = null;
+const printDiagnosticsListeners = new Set();
+function setPrintDiagnostics(data) {
+  lastPrintDiagnostics = data;
+  printDiagnosticsListeners.forEach(fn => fn(data));
+}
+function usePrintDiagnostics() {
+  const [data, setData] = useState(lastPrintDiagnostics);
+  useEffect(() => {
+    printDiagnosticsListeners.add(setData);
+    return () => printDiagnosticsListeners.delete(setData);
+  }, []);
+  return data;
 }
 
 function PrintableJsa({ jsa }) {
@@ -2491,11 +2614,20 @@ function PrintableJsa({ jsa }) {
 
   useEffect(() => {
     const handler = () => {
-      const overflowing = checkPrintOverflow(rootRef.current);
+      const pages = measurePrintPages(rootRef.current);
+      setPrintDiagnostics({ capturedAt: new Date().toISOString(), pages });
+      const overflowing = pages.filter(p => p.overflowYPx > 0 || p.overflowXPx > 0);
       if (overflowing.length) {
         console.warn(
           `[print] ${overflowing.length} page(s) exceeded the physical page box — pagination planner under-counted content`,
           overflowing,
+        );
+      }
+      const compressed = pages.filter(p => p.anyRowBelowMinimum);
+      if (compressed.length) {
+        console.warn(
+          `[print] ${compressed.length} page(s) have task rows below the ${PRINT_TASK_ROW_MIN_PX}px minimum row height — rows are being compressed`,
+          compressed,
         );
       }
     };

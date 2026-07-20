@@ -1555,8 +1555,25 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 .documentPage .energyBox h3 { margin: 0 0 2px; text-align: center; text-transform: uppercase; font-size: 8.5px; color: #8b0f18; }
 .documentPage .energyGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 8px; }
 .documentPage .energyGrid p { margin: 0; line-height: 1.12; font-size: 7.6px; }
-.documentPage .taskTableFill { flex: 1 1 auto; min-height: 180px; display: flex; margin-top: 4px; overflow: hidden; }
-.documentPage .taskTableFill .printTaskTable { height: 100%; width: 100%; table-layout: fixed; margin: 0; }
+/* flex-shrink is 0, not 1: a shrinkable flex item with overflow:hidden loses
+   its content-based automatic minimum size (CSS Flexbox min-size floor only
+   applies when overflow is visible), so a "1 1 auto" here would let this box
+   silently compress its table child below the table's real content height
+   whenever the page ran tight on room -- the exact bug this rule exists to
+   prevent. It still grows (flex-grow:1) to fill leftover space when there's
+   room. display:flex was removed on purpose too: it made this element's own
+   flex container default (align-items:stretch) stretch its single table
+   child to fill the full box height regardless of content, independently
+   reproducing the same compression through a different mechanism. */
+.documentPage .taskTableFill { flex: 1 0 auto; min-height: 180px; margin-top: 4px; overflow: hidden; }
+/* No explicit height here (previously height:100%): forcing the <table>'s
+   own height to a fixed value -- combined with table-layout:fixed -- is what
+   made the browser's row-height distribution algorithm compress rows below
+   their natural content height as more rows were added, even after the
+   tbody/tr-level height:calc(100%/N) rule was removed. The table now sizes
+   to its natural (auto) content height; the JS planner is solely responsible
+   for ensuring that natural height fits the page (see mainRowCapacity). */
+.documentPage .taskTableFill .printTaskTable { width: 100%; table-layout: fixed; margin: 0; }
 .documentPage .printTaskTable th:nth-child(1), .documentPage .printTaskTable td:nth-child(1) { width: 31%; }
 .documentPage .printTaskTable th:nth-child(2), .documentPage .printTaskTable td:nth-child(2) { width: 32%; }
 .documentPage .printTaskTable th:nth-child(3), .documentPage .printTaskTable td:nth-child(3) { width: 37%; }
@@ -1568,8 +1585,17 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
    shorter than its tallest cell needs, so it naturally grows for wrapped
    text and never compresses. The JS pagination planner (paginateTaskContent
    / mainRowCapacity in main.jsx) is now solely responsible for deciding how
-   many rows are safe to place on this page in the first place. */
-.documentPage .printTaskTable td { min-height: 24px; padding: 4px; font-size: 9.8px; line-height: 1.18; vertical-align: top; white-space: pre-line; overflow-wrap: break-word; }
+   many rows are safe to place on this page in the first place.
+   Deliberately `height`, not `min-height`: measured directly (Chromium,
+   real rendered row boxes), `min-height` on a <td> is silently ignored by
+   the table layout algorithm — real rows and blank filler rows both
+   rendered well under the declared "floor" regardless of it. A specified
+   `height` on a table cell is different: per the standard table sizing
+   algorithm, a row's height is the max of its content's natural height and
+   the largest explicit `height` among its cells — so this still only ever
+   grows a row for taller content, it can't force rows shorter, but it
+   actually takes effect as the intended floor. */
+.documentPage .printTaskTable td { height: 24px; padding: 4px; font-size: 9.8px; line-height: 1.18; vertical-align: top; white-space: pre-line; overflow-wrap: break-word; }
 .documentPage .continuationFlag { flex: 0 0 auto; margin-top: 3px; border: 1px solid #9b111e; padding: 3px 5px; text-align: center; font-size: 7px; font-weight: 700; color: #7f1d1d; background: #fff1f2; }
 .documentPage .printFooter,
 .printPage .printFooter { position: absolute; left: 0; right: 0; bottom: 0; border-top: 1px solid #999; padding-top: 3px; text-align: center; color: #555; font-size: 7px; letter-spacing: .2px; }
@@ -1598,26 +1624,39 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   .printOnly { display: block !important; }
   table { width: 100%; border-collapse: collapse; }
 
-  /* Page box: one physical geometry, shared by every page type. Target size
-     is 10in (Letter 11in minus the 0.5in @page margin top+bottom).
-     overflowstays hidden on purpose: visible overflow from a fixed-height
-     box is exactly what let WebKit's print fragmentation silently open a
-     second physical page per logical page (the original doubled-page bug).
-     A physical page boundary must never depend on overflow to preserve
-     content — the JS pagination planner (main.jsx: mainRowCapacity /
-     continuationRowCapacity / paginateTaskContent) is solely responsible
-     for guaranteeing content fits within this box, conservatively, before
-     it is ever handed to a page. Overflow here is fail-safe clipping for a
-     planner bug, not a delivery mechanism — see the dev-time overflow
-     diagnostic in main.jsx (checkPrintOverflow) which warns loudly instead
-     of relying on this clip to "still work". */
+  /* Page box: one physical geometry, shared by every page type.
+     Declared paper: Letter, 8.5in x 11in. @page margin: 0.5in each side, so
+     the CSS-theoretical printable area is 7.5in x 10in. The box below is
+     deliberately SMALLER than that theoretical maximum (7.1in x 9.4in --
+     0.4in width / 0.6in height of intentional safety allowance), centered
+     with margin:0 auto. Physical iPad Safari/AirPrint testing showed the
+     previous exact-fit 10in box (equal to the theoretical max, zero margin)
+     still produced doubled pages at 100% scaling and needed ~85% to fit --
+     Chromium's print-to-pdf uses its own internal page-box math and can't
+     reproduce Safari's real usable printable height (hardware non-printable
+     margins, iOS's own default print-margin handling, etc.), so this margin
+     exists specifically to absorb a discrepancy this repo cannot measure
+     without physical hardware. These numbers (PRINT_PAGE_WIDTH_IN /
+     PRINT_PAGE_HEIGHT_IN in main.jsx) are the single source of truth the JS
+     pagination planner sizes its capacity against -- keep the two in sync.
+     overflow stays hidden on purpose: visible overflow from a fixed-height
+     box is what let WebKit's print fragmentation silently open a second
+     physical page per logical page (the original doubled-page bug). A
+     physical page boundary must never depend on overflow to preserve
+     content — the JS planner is solely responsible for guaranteeing content
+     fits within this box, conservatively, before it is ever handed to a
+     page. Overflow here is fail-safe clipping for a planner bug, not a
+     delivery mechanism — see the dev-time diagnostic in main.jsx
+     (checkPrintOverflow / beforeprint) which reports it loudly instead of
+     relying on this clip to "still work". */
   .printPage,
   .documentPage.printPage {
     position: relative;
-    width: 100%;
-    height: 10in;
-    min-height: 10in;
-    max-height: 10in;
+    width: 7.1in;
+    height: 9.4in;
+    min-height: 9.4in;
+    max-height: 9.4in;
+    margin: 0 auto;
     box-sizing: border-box;
     overflow: hidden;
     padding-bottom: 0.2in;
@@ -1678,10 +1717,16 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   .printTaskTable th:nth-child(2), .printTaskTable td:nth-child(2) { width: 32%; }
   .printTaskTable th:nth-child(3), .printTaskTable td:nth-child(3) { width: 37%; }
   .printTaskTable th { background: #dedede !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; text-transform: uppercase; font-size: 9.2px; padding: 3px 4px; }
-  .printTaskTable td { height: auto; min-height: 25px; padding: 3.5px 4.5px; font-size: 9.8px; line-height: 1.18; vertical-align: top; white-space: pre-line; overflow-wrap: break-word; }
+  /* height, not min-height -- see the matching comment on the unconditional
+     .documentPage .printTaskTable td rule above; min-height on a <td> does
+     not take effect in the table row-sizing algorithm, height (as a floor
+     input to that algorithm, not a forced size) does. This declaration only
+     actually governs the continuation table's cells in practice (the
+     unconditional main-page rule has higher specificity and wins there). */
+  .printTaskTable td { height: 24px; padding: 3.5px 4.5px; font-size: 9.8px; line-height: 1.18; vertical-align: top; white-space: pre-line; overflow-wrap: break-word; }
   .printTaskTable tr { break-inside: avoid; page-break-inside: avoid; }
   .continuationTaskTable { margin-top: 6px; }
-  .continuationTaskTable td { min-height: 35px; font-size: 9.8px; line-height: 1.2; }
+  .continuationTaskTable td { height: 35px; font-size: 9.8px; line-height: 1.2; }
 
   .continuationNotice {
     border: 1px solid #000;
@@ -1694,12 +1739,18 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
     print-color-adjust: exact;
   }
 
-  /* Page-type layout: fill remaining page height with the table content */
+  /* Page-type layout: fill remaining page height with the table content.
+     flex-shrink is 0 on both (not the previous "1 1 auto" + height:100%):
+     same reasoning as .documentPage .taskTableFill above -- shrinkable +
+     overflow:hidden loses the content-based minimum-size floor and silently
+     compresses rows, and this print-media rule has equal CSS specificity to
+     (and comes after, so would otherwise win over) that unconditional rule,
+     so it has to carry the same fix or it undoes it specifically for print. */
   .mainJsaPage { display: flex; flex-direction: column; }
-  .mainJsaPage .taskTableFill { flex: 1 1 auto; }
+  .mainJsaPage .taskTableFill { flex: 1 0 auto; }
   .continuationPage,
   .signInPage { display: flex; flex-direction: column; }
-  .continuationPage .continuationTaskTable { flex: 1 1 auto; height: 100%; }
+  .continuationPage .continuationTaskTable { flex: 1 0 auto; }
 
   /* Sign-in sheet */
   .attachedSignatureGrid {
