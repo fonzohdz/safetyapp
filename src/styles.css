@@ -1121,6 +1121,40 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
+.moreOptions { margin-top: 4px; }
+.moreOptionsPanel {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+.pdfReadyPanel {
+  margin-top: 4px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--good) 45%, var(--line) 55%);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--good) 10%, var(--surface) 90%);
+  display: grid;
+  gap: 6px;
+}
+.pdfReadyPanel > strong { color: var(--good); }
+.pdfReadyActions { display: flex; gap: 8px; flex-wrap: wrap; }
+.pdfShareMessage { margin: 4px 0 0; font-size: 13px; color: var(--warn); }
+.pdfStaleWarning {
+  margin-top: 4px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--line) 55%);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--warn) 10%, var(--surface) 90%);
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+.pdfStaleWarning > strong { color: var(--warn); }
 .templateActions {
   display: grid;
   grid-template-columns: 1fr auto auto;
@@ -1844,30 +1878,51 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
      every page type identically for both screen and print. */
 }
 
-/* Hidden pagination-measurement rig (see PaginationMeasureRig in main.jsx).
-   Real print geometry only exists inside @media print, which cannot be
-   triggered from running JS outside an actual print action — so this is a
-   deliberately narrow, SEPARATE unconditional ruleset (not a merge with the
-   @media print rules above, to avoid disturbing their existing, already
-   cascade-sensitive specificity/order relationship with the unconditional
-   .documentPage screen-preview rules elsewhere in this file) that
-   reproduces only what affects MEASURED HEIGHT: page box dimensions,
-   fonts/line-heights/padding that affect text wrapping, table column
-   widths, and row-height floors. Colors and decorative-only properties are
-   intentionally not duplicated here since they don't affect layout height.
-   Laid out normally (never display:none) so real rendered heights can be
-   measured before an actual print action, but positioned off-screen and
-   never visible or interactive. Excluded from print output itself (see
-   .printMeasureRoot in the @media print hide-list above) since it exists
-   purely to measure — it must never appear as printed content. */
-.printMeasureRoot {
+/* Hidden, unconditional (not inside @media print) print-geometry ruleset,
+   shared by two different consumers that both need it to apply outside a
+   real print action:
+     .printMeasureRoot — PaginationMeasureRig; measures unpaginated content
+       to plan pagination. Needs geometry/typography, not colors.
+     .pdfExportRoot — the deterministic PDF export pipeline (Phase 4B); adds
+       the color/decorative declarations further below (needed for a real
+       visual capture, harmless for measurement) and renders the FINAL
+       already-paginated plan, one fixed-size box per logical page, for
+       html2canvas to capture directly into a PDF instead of relying on
+       browser print pagination at all — physical iPad Safari repeatedly
+       fragmented every logical page into two physical pages despite this
+       repo's automated tooling verifying clean, zero-overflow geometry
+       every time; this sidesteps browser print pagination for the primary
+       export path entirely rather than continuing to chase that bug.
+   Deliberately a SEPARATE ruleset from the @media print rules above (not a
+   merge), to avoid disturbing their existing, already cascade-sensitive
+   specificity/order relationship with the unconditional .documentPage
+   screen-preview rules elsewhere in this file. Both consumers are laid out
+   normally (never display:none) so real rendered heights/pixels are
+   available before or without an actual print action, but positioned
+   off-screen and never visible or interactive. Excluded from print output
+   itself (see the @media print hide-list above) since neither should ever
+   appear as printed content in the legacy browser-print fallback path. */
+.printMeasureRoot, .pdfExportRoot {
   position: fixed;
   top: 0;
   left: -20000px;
-  visibility: hidden;
   pointer-events: none;
 }
-.printMeasureRoot .printPage {
+/* visibility:hidden is .printMeasureRoot-only, not shared: harmless for
+   measurement (getBoundingClientRect works regardless of visibility), but
+   html2canvas's clone-and-reflow capture approach is not reliably
+   documented to render visibility:hidden content correctly across
+   versions -- .pdfExportRoot relies on off-screen positioning alone (above)
+   to stay invisible to the user, which is sufficient on its own. */
+.printMeasureRoot { visibility: hidden; }
+/* height is auto for .printMeasureRoot (unpaginated content, needs to grow
+   to its natural full height) but fixed for .pdfExportRoot (the final,
+   already-paginated plan — each page must be exactly one Letter page for
+   html2canvas to capture as exactly one PDF page). visibility:hidden above
+   would normally make html2canvas's clone invisible too; the export
+   pipeline explicitly overrides visibility back to visible on its own
+   clone before capture (see generateJsaPdf in main.jsx). */
+.printMeasureRoot .printPage, .pdfExportRoot .printPage {
   position: relative;
   width: 8.5in;
   height: auto;
@@ -1877,43 +1932,85 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   flex-direction: column;
   font-family: Arial, Helvetica, sans-serif;
   font-size: 9px;
+  background: #fff;
+  color: #000;
 }
-.printMeasureRoot table { width: 100%; border-collapse: collapse; }
-.printMeasureRoot .printBrandBar { min-height: 0.48in; display: grid; grid-template-columns: 1.75in 1fr 0.8in; align-items: center; gap: 0.08in; padding: 0.05in 0.08in; }
-.printMeasureRoot .printBrandTitles h1 { margin: 0; font-size: 14px; line-height: 1.05; }
-.printMeasureRoot .printBrandTitles h2 { margin: 2px 0 0; font-size: 8px; line-height: 1; }
-.printMeasureRoot .printBrandHeader { margin-bottom: 4px; }
-.printMeasureRoot .printRedRule { height: 3px; }
+.printMeasureRoot table, .pdfExportRoot table { width: 100%; border-collapse: collapse; }
+.printMeasureRoot .printBrandBar, .pdfExportRoot .printBrandBar { min-height: 0.48in; display: grid; grid-template-columns: 1.75in 1fr 0.8in; align-items: center; gap: 0.08in; padding: 0.05in 0.08in; }
+.printMeasureRoot .printBrandTitles h1, .pdfExportRoot .printBrandTitles h1 { margin: 0; font-size: 14px; line-height: 1.05; }
+.printMeasureRoot .printBrandTitles h2, .pdfExportRoot .printBrandTitles h2 { margin: 2px 0 0; font-size: 8px; line-height: 1; }
+.printMeasureRoot .printBrandHeader, .pdfExportRoot .printBrandHeader { margin-bottom: 4px; }
+.printMeasureRoot .printRedRule, .pdfExportRoot .printRedRule { height: 3px; }
 /* border is included on every element below that has one in the real print
    CSS -- omitting it was a real bug found by testing: a missing 1-2px
    border per row/section, multiplied across dozens of rows, compounded into
    genuine physical overflow the measurement was supposed to prevent. */
-.printMeasureRoot .printInfoTable th, .printMeasureRoot .printInfoTable td,
-.printMeasureRoot .printSimpleTable th, .printMeasureRoot .printSimpleTable td,
-.printMeasureRoot .printTaskTable th, .printMeasureRoot .printTaskTable td { border: 1px solid #000; vertical-align: middle; }
-.printMeasureRoot .printInfoTable th { width: 13%; font-size: 8.8px; padding: 2.8px 4px; line-height: 1.16; }
-.printMeasureRoot .printInfoTable td { width: 20%; font-size: 8.8px; padding: 2.8px 4px; line-height: 1.16; }
-.printMeasureRoot .ackBlock { border: 1px solid #000; border-top: 0; padding: 3px 4px; font-size: 7.6px; line-height: 1.16; }
-.printMeasureRoot .attachedSignInNotice { border: 1px solid #000; border-top: 0; padding: 4px 5px; font-size: 8.8px; }
-.printMeasureRoot .printSimpleTable th { width: 28%; padding: 2.8px 4px; font-size: 8.8px; line-height: 1.16; }
-.printMeasureRoot .printSimpleTable td { padding: 2.8px 4px; font-size: 8.8px; line-height: 1.16; }
-.printMeasureRoot .energyBox { border: 1px solid #000; border-top: 0; padding: 3px 5px; }
-.printMeasureRoot .energyBox h3 { margin: 0 0 2px; font-size: 8.5px; }
-.printMeasureRoot .energyGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 8px; }
-.printMeasureRoot .energyGrid p { margin: 0; line-height: 1.12; font-size: 7.6px; }
-.printMeasureRoot .taskTableFill { margin-top: 4px; }
-.printMeasureRoot .printTaskTable { width: 100%; table-layout: fixed; margin-top: 4px; border-collapse: collapse; }
-.printMeasureRoot .printTaskTable th:nth-child(1), .printMeasureRoot .printTaskTable td:nth-child(1) { width: 31%; }
-.printMeasureRoot .printTaskTable th:nth-child(2), .printMeasureRoot .printTaskTable td:nth-child(2) { width: 32%; }
-.printMeasureRoot .printTaskTable th:nth-child(3), .printMeasureRoot .printTaskTable td:nth-child(3) { width: 37%; }
-.printMeasureRoot .printTaskTable th { font-size: 9.2px; padding: 3px 4px; }
-.printMeasureRoot .printTaskTable td { height: 24px; padding: 3.5px 4.5px; font-size: 9.8px; line-height: 1.18; vertical-align: top; white-space: pre-line; overflow-wrap: break-word; }
-.printMeasureRoot .continuationTaskTable td { height: 35px; font-size: 9.8px; line-height: 1.2; }
-.printMeasureRoot .continuationInfoTable th, .printMeasureRoot .continuationInfoTable td,
-.printMeasureRoot .signInInfoTable th, .printMeasureRoot .signInInfoTable td { font-size: 8.6px; padding: 3px 4px; }
-.printMeasureRoot .continuationNotice { border: 1px solid #000; border-top: 0; padding: 4px 5px; font-size: 8px; line-height: 1.15; }
-.printMeasureRoot .continuationFlag { border: 1px solid #9b111e; margin-top: 3px; padding: 3px 5px; font-size: 7px; }
-.printMeasureRoot .printFooter { border-top: 1px solid #999; padding-top: 3px; font-size: 7px; }
+.printMeasureRoot .printInfoTable th, .pdfExportRoot .printInfoTable th, .printMeasureRoot .printInfoTable td, .pdfExportRoot .printInfoTable td,
+.printMeasureRoot .printSimpleTable th, .pdfExportRoot .printSimpleTable th, .printMeasureRoot .printSimpleTable td, .pdfExportRoot .printSimpleTable td,
+.printMeasureRoot .printTaskTable th, .pdfExportRoot .printTaskTable th, .printMeasureRoot .printTaskTable td, .pdfExportRoot .printTaskTable td { border: 1px solid #000; vertical-align: middle; }
+.printMeasureRoot .printInfoTable th, .pdfExportRoot .printInfoTable th { width: 13%; font-size: 8.8px; padding: 2.8px 4px; line-height: 1.16; }
+.printMeasureRoot .printInfoTable td, .pdfExportRoot .printInfoTable td { width: 20%; font-size: 8.8px; padding: 2.8px 4px; line-height: 1.16; }
+.printMeasureRoot .ackBlock, .pdfExportRoot .ackBlock { border: 1px solid #000; border-top: 0; padding: 3px 4px; font-size: 7.6px; line-height: 1.16; }
+.printMeasureRoot .attachedSignInNotice, .pdfExportRoot .attachedSignInNotice { border: 1px solid #000; border-top: 0; padding: 4px 5px; font-size: 8.8px; }
+.printMeasureRoot .printSimpleTable th, .pdfExportRoot .printSimpleTable th { width: 28%; padding: 2.8px 4px; font-size: 8.8px; line-height: 1.16; }
+.printMeasureRoot .printSimpleTable td, .pdfExportRoot .printSimpleTable td { padding: 2.8px 4px; font-size: 8.8px; line-height: 1.16; }
+.printMeasureRoot .energyBox, .pdfExportRoot .energyBox { border: 1px solid #000; border-top: 0; padding: 3px 5px; }
+.printMeasureRoot .energyBox h3, .pdfExportRoot .energyBox h3 { margin: 0 0 2px; font-size: 8.5px; }
+.printMeasureRoot .energyGrid, .pdfExportRoot .energyGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 8px; }
+.printMeasureRoot .energyGrid p, .pdfExportRoot .energyGrid p { margin: 0; line-height: 1.12; font-size: 7.6px; }
+.printMeasureRoot .taskTableFill, .pdfExportRoot .taskTableFill { margin-top: 4px; }
+.printMeasureRoot .printTaskTable, .pdfExportRoot .printTaskTable { width: 100%; table-layout: fixed; margin-top: 4px; border-collapse: collapse; }
+.printMeasureRoot .printTaskTable th:nth-child(1), .pdfExportRoot .printTaskTable th:nth-child(1), .printMeasureRoot .printTaskTable td:nth-child(1), .pdfExportRoot .printTaskTable td:nth-child(1) { width: 31%; }
+.printMeasureRoot .printTaskTable th:nth-child(2), .pdfExportRoot .printTaskTable th:nth-child(2), .printMeasureRoot .printTaskTable td:nth-child(2), .pdfExportRoot .printTaskTable td:nth-child(2) { width: 32%; }
+.printMeasureRoot .printTaskTable th:nth-child(3), .pdfExportRoot .printTaskTable th:nth-child(3), .printMeasureRoot .printTaskTable td:nth-child(3), .pdfExportRoot .printTaskTable td:nth-child(3) { width: 37%; }
+.printMeasureRoot .printTaskTable th, .pdfExportRoot .printTaskTable th { font-size: 9.2px; padding: 3px 4px; background: #dedede; }
+.printMeasureRoot .printTaskTable td, .pdfExportRoot .printTaskTable td { height: 24px; padding: 3.5px 4.5px; font-size: 9.8px; line-height: 1.18; vertical-align: top; white-space: pre-line; overflow-wrap: break-word; }
+.printMeasureRoot .continuationTaskTable td, .pdfExportRoot .continuationTaskTable td { height: 35px; font-size: 9.8px; line-height: 1.2; }
+.printMeasureRoot .continuationInfoTable th, .pdfExportRoot .continuationInfoTable th, .printMeasureRoot .continuationInfoTable td, .pdfExportRoot .continuationInfoTable td,
+.printMeasureRoot .signInInfoTable th, .pdfExportRoot .signInInfoTable th, .printMeasureRoot .signInInfoTable td, .pdfExportRoot .signInInfoTable td { font-size: 8.6px; padding: 3px 4px; }
+.printMeasureRoot .continuationNotice, .pdfExportRoot .continuationNotice { border: 1px solid #000; border-top: 0; padding: 4px 5px; font-size: 8px; line-height: 1.15; background: #f4f4f4; }
+.printMeasureRoot .continuationFlag, .pdfExportRoot .continuationFlag { border: 1px solid #9b111e; margin-top: 3px; padding: 3px 5px; font-size: 7px; color: #7f1d1d; background: #fff1f2; }
+.printMeasureRoot .printFooter, .pdfExportRoot .printFooter { border-top: 1px solid #999; padding-top: 3px; font-size: 7px; color: #555; }
+
+/* pdfExportRoot-only: branding/decorative colors, sign-in grid, and
+   per-sheet spacing that PaginationMeasureRig never needed (it doesn't
+   render a visual capture, just measures text-flow height).
+   height:11in comes AFTER the shared .printPage rule above (which sets
+   height:auto) specifically so it wins the cascade at equal specificity —
+   ordering here is load-bearing, not cosmetic: .pdfExportRoot renders the
+   FINAL, already-paginated plan and needs each page fixed at exactly one
+   Letter page for html2canvas to capture correctly, unlike
+   .printMeasureRoot which needs auto height to measure unpaginated content. */
+.pdfExportRoot .printPage { height: 11in; max-height: 11in; overflow: hidden; }
+.pdfExportRoot .printBrandBar { background: #171719; color: #fff; }
+.pdfExportRoot .printBrandTitles h2 { color: #e5e5e5; }
+.pdfExportRoot .printRedRule { background: #c1121f; }
+.pdfExportRoot .printInfoTable th { background: #ededed; }
+.pdfExportRoot .attachedSignInNotice { background: #f4f4f4; }
+.pdfExportRoot .printSimpleTable th { background: #efefef; }
+.pdfExportRoot .energyBox h3 { color: #8b0f18; }
+.pdfExportRoot .printSheet + .printSheet { margin-top: 0; }
+.pdfExportRoot .attachedSignatureGrid {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(var(--signature-rows), minmax(0, 1fr));
+  border-left: 1px solid #000;
+  border-top: 1px solid #000;
+  margin-top: 6px;
+}
+.pdfExportRoot .attachedSigLine {
+  min-height: 0;
+  height: auto;
+  border-right: 1px solid #000;
+  border-bottom: 1px solid #000;
+  padding: 5px 7px;
+  font-size: 10px;
+}
+.pdfExportRoot .mainJsaPage .taskTableFill,
+.pdfExportRoot .continuationPage .continuationTaskTable { flex: 1 0 auto; }
+.pdfExportRoot .printFooter { flex: 0 0 auto; }
 
 :root {
   --success: var(--good);

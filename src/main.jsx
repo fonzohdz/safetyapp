@@ -1,5 +1,7 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import html2canvas from 'html2canvas';
+import { PDFDocument } from 'pdf-lib';
 import './styles.css';
 
 /* ── Storage keys ── */
@@ -1031,6 +1033,20 @@ function App() {
   const [confirmReplace, setConfirmReplace] = useState(null); // null | { action: 'blank' } | { action: 'template', templateId }
   const autoSaveTimer = useRef(null);
   const lastAutoSaveSnapshot = useRef('');
+  // null (idle)
+  // | { phase: 'generating', status: 'preparing'|'rendering'|'finalizing', pageIndex?, totalPages? }
+  // | { phase: 'ready', blob, filename, pageCount, fingerprint, shareMessage }
+  const [pdfExportState, setPdfExportState] = useState(null);
+  const pdfExportPageRefsRef = useRef([]);
+  const pdfExportPlan = useJsaPagePlan(jsa);
+  // True once the draft has changed materially since the currently-held PDF
+  // was generated — reusing the same content fingerprint the pagination
+  // system already computes, since it already covers every field the
+  // printed/exported document actually shows (job info, meeting info, task
+  // rows, signature count) and deliberately excludes non-printed fields
+  // like internal notes, so editing notes alone does not falsely mark a
+  // perfectly current PDF as stale.
+  const isPdfStale = pdfExportState?.phase === 'ready' && pdfExportState.fingerprint !== fingerprintPaginationInput(jsa);
 
   const allTemplates = useMemo(() => [...BUILT_IN_TEMPLATES, ...customTemplates], [customTemplates]);
   const isTouchPrimary = useIsTouchPrimary();
@@ -1214,23 +1230,105 @@ function App() {
     upd({ taskRows: [...rows, { step: tmpl.step, hazards: tmpl.hazards, controls: tmpl.controls }] });
     showToast(`Added task row: ${tmpl.label}`);
   }
-  function exportPdf() {
+  // Same pre-flight checks every export path has always used (fit, review
+  // checklist, autosave) — returns false if export should not proceed.
+  function exportPreflight() {
     const measurements = getLatestPageMeasurements();
     const fit = calcFit(jsa, measurements);
     if (fit.status === 'bad') {
       showToast('One task row is too large to print cleanly. Divide or shorten it before exporting.');
       setJsaStep('review');
-      return;
+      return false;
     }
     const missing = getReviewChecks(jsa, measurements).filter(check => !check.ok);
     if (missing.length) {
       const proceed = confirm(`The JSA still has ${missing.length} review item${missing.length === 1 ? '' : 's'}:\n\n${missing.map(item => `• ${item.label}`).join('\n')}\n\nPrint anyway?`);
       if (!proceed) {
         setJsaStep('review');
-        return;
+        return false;
       }
     }
     saveDraft(false);
+    return true;
+  }
+
+  // STEP 1 — Generate. Primary export path (Phase 4B): a real, deterministic
+  // multi-page PDF generated client-side from PdfExportRoot's captured
+  // pages, instead of relying on browser print pagination — physical iPad
+  // Safari repeatedly fragmented every logical page into two physical pages
+  // across several structurally different CSS approaches, despite this
+  // repo's automated tooling verifying clean geometry every time. This
+  // sidesteps that failure mode entirely: Safari receives an
+  // already-finished PDF file, not HTML it has to paginate itself.
+  //
+  // Deliberately does NOT call navigator.share() itself: generation
+  // involves several awaited operations (per-page canvas capture, PDF
+  // assembly) that can easily run long enough for the browser to consider
+  // the original button tap's "transient user activation" expired, which
+  // would make navigator.share() fail with NotAllowedError even though the
+  // user very much did just tap a button moments ago. Instead this stores
+  // the completed PDF in pdfExportState (phase: 'ready') and waits for a
+  // SEPARATE, fresh tap on Share / Print PDF (shareGeneratedPdf below) —
+  // that tap's own activation is what navigator.share() actually needs.
+  async function exportPdf() {
+    if (pdfExportState?.phase === 'generating') return; // guard against duplicate concurrent generation
+    if (!exportPreflight()) return;
+    const filename = `${buildExportName(jsa)}.pdf`;
+    const fingerprint = fingerprintPaginationInput(jsa);
+    try {
+      setPdfExportState({ phase: 'generating', status: 'preparing' });
+      const { blob, pageCount } = await generateJsaPdf(pdfExportPageRefsRef, (pageIndex, totalPages) => {
+        setPdfExportState({ phase: 'generating', status: 'rendering', pageIndex, totalPages });
+      });
+      setPdfExportState({ phase: 'ready', blob, filename, pageCount, fingerprint, shareMessage: null });
+    } catch (err) {
+      console.error('[pdf export]', err);
+      showToast(`PDF export failed (${err?.message || 'unknown error'}). Try Legacy Browser Print instead.`);
+      setPdfExportState(null);
+    }
+  }
+
+  // STEP 2 — Share / Print. Must be invoked directly from that button's own
+  // onClick with no awaited work first (see shareGeneratedPdf's own
+  // comment) — reuses the already-generated Blob, never regenerates. If
+  // sharing is unsupported or fails for a reason other than the user
+  // cancelling, the generated PDF is kept and Share/Download stay
+  // available — a failed share must never discard completed work.
+  function shareGeneratedPdfClick() {
+    if (!pdfExportState || pdfExportState.phase !== 'ready') return;
+    if (isPdfStale) return; // guarded in the UI too; double-checked here
+    const file = new File([pdfExportState.blob], pdfExportState.filename, { type: 'application/pdf' });
+    const result = shareGeneratedPdf(file);
+    if (!result.ok) {
+      setPdfExportState(prev => (prev && prev.phase === 'ready' ? { ...prev, shareMessage: result.reason } : prev));
+      return;
+    }
+    result.promise
+      .then(() => {
+        setPdfExportState(prev => (prev && prev.phase === 'ready' ? { ...prev, shareMessage: null } : prev));
+      })
+      .catch(err => {
+        if (err && err.name === 'AbortError') return; // user cancelled the share sheet -- normal, keep the PDF
+        console.error('[pdf share]', err);
+        setPdfExportState(prev => (prev && prev.phase === 'ready'
+          ? { ...prev, shareMessage: `Sharing failed (${err?.name || err?.message || 'unknown error'}). Try again, or use Download PDF.` }
+          : prev));
+      });
+  }
+
+  function downloadGeneratedPdfClick() {
+    if (!pdfExportState || pdfExportState.phase !== 'ready') return;
+    if (isPdfStale) return;
+    downloadGeneratedPdf(pdfExportState.blob, pdfExportState.filename);
+    showToast(`PDF downloaded: ${pdfExportState.filename}`);
+  }
+
+  // Secondary/fallback path only — the original browser-print-dialog
+  // implementation, kept available under "More Options" in case the
+  // deterministic PDF pipeline fails on a given device (e.g. very old
+  // Safari without File/Blob or canvas support). Not the primary workflow.
+  function legacyBrowserPrint() {
+    if (!exportPreflight()) return;
     const originalTitle = document.title;
     document.title = buildExportName(jsa);
     const restoreTitle = () => { document.title = originalTitle; };
@@ -1283,6 +1381,8 @@ function App() {
               saveName={saveName} setSaveName={setSaveName} saveTemplate={saveTemplate} updateTemplate={updateTemplate}
               addRow={addRow} updRow={updRow} removeRow={removeRow} addSummaryAsRow={addSummaryAsRow} addRowTemplate={addRowTemplate}
               clearDraft={clearDraft} saveDraft={saveDraft} markReady={markReady} exportPdf={exportPdf}
+              legacyBrowserPrint={legacyBrowserPrint} pdfExportState={pdfExportState} isPdfStale={isPdfStale}
+              shareGeneratedPdfClick={shareGeneratedPdfClick} downloadGeneratedPdfClick={downloadGeneratedPdfClick}
               savedDraft={savedDraft} settings={settings} saveStatus={saveStatus}
             />
           )}
@@ -1302,6 +1402,7 @@ function App() {
 
       <PaginationMeasureRig jsa={jsa} />
       <PrintableJsa jsa={jsa} />
+      <PdfExportRoot jsa={jsa} plan={pdfExportPlan} pageRefsRef={pdfExportPageRefsRef} />
       {toast && <div className="toast">{toast}</div>}
     </>
   );
@@ -1473,17 +1574,49 @@ function JsaStartView({ allTemplates, selectedTemplate, templateId, setTemplateI
   );
 }
 
+// Shared across every "Print / Save PDF" button location. Only meaningful
+// while phase 'generating' — StepReview and the compact locations below
+// handle the 'ready' phase (success state) with their own labels/actions,
+// since that phase needs two distinct actions (Share/Print, Download), not
+// one busy-label string.
+function pdfExportStatusLabel(state) {
+  if (!state || state.phase !== 'generating') return null;
+  if (state.status === 'preparing') return 'Preparing PDF…';
+  if (state.status === 'rendering') return `Rendering page ${state.pageIndex} of ${state.totalPages}…`;
+  if (state.status === 'finalizing') return 'Finalizing PDF…';
+  return 'Working…';
+}
+
+// Compact locations (sticky action bar, Live Preview header) get a single
+// "smart" button rather than the full Share/Download pair StepReview shows
+// — space is tight there, and Review is one tap away for the fuller
+// experience. Every tap on this button is its own fresh user-activation
+// event, so routing straight to shareGeneratedPdfClick when a fresh PDF is
+// already held still satisfies navigator.share()'s activation requirement
+// (the click handler calls share() synchronously, nothing awaited first).
+function compactExportLabel(pdfExportState, isPdfStale) {
+  const generating = pdfExportStatusLabel(pdfExportState);
+  if (generating) return generating;
+  if (pdfExportState?.phase === 'ready') return isPdfStale ? 'Regenerate PDF' : 'Share / Print PDF';
+  return 'Print / Save PDF';
+}
+function compactExportAction(pdfExportState, isPdfStale, exportPdf, shareGeneratedPdfClick) {
+  if (pdfExportState?.phase === 'ready' && !isPdfStale) return shareGeneratedPdfClick;
+  return exportPdf;
+}
+
 /* ── Sticky workflow action bar (touch devices): one Back/Next location,
    quiet save status, reachable above the keyboard and Safari's bottom UI. ── */
-function StickyActionBar({ idx, steps, prev, next, exportPdf, showPreview, setShowPreview, saveStatus }) {
+function StickyActionBar({ idx, steps, prev, next, exportPdf, pdfExportState, isPdfStale, shareGeneratedPdfClick, showPreview, setShowPreview, saveStatus }) {
   const isFirst = idx === 0;
   const isLast = idx === steps.length - 1;
   const nextStep = steps[idx + 1];
   const statusText = saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'Saved' : saveStatus === 'error' ? 'Save failed' : '';
+  const isGenerating = pdfExportState?.phase === 'generating';
   return (
     <div className="stickyActionBar">
       <div className="stickyActionSide stickyActionLeft">
-        {!isFirst && <button className="btn ghost sm" onClick={prev}>Back</button>}
+        {!isFirst && <button className="btn ghost sm" onClick={prev} disabled={isGenerating}>Back</button>}
       </div>
       <div className={`stickyActionStatus${saveStatus === 'error' ? ' error' : ''}`} aria-live="polite">{statusText}</div>
       <div className="stickyActionSide stickyActionRight">
@@ -1493,14 +1626,23 @@ function StickyActionBar({ idx, steps, prev, next, exportPdf, showPreview, setSh
           </button>
         )}
         {!isLast && nextStep && <button className="btn primary sm" onClick={next}>Next: {nextStep.label}</button>}
-        {isLast && <button className="btn primary sm" onClick={exportPdf}>Print / Save PDF</button>}
+        {isLast && (
+          <button
+            className="btn primary sm"
+            onClick={compactExportAction(pdfExportState, isPdfStale, exportPdf, shareGeneratedPdfClick)}
+            disabled={isGenerating}
+            aria-busy={isGenerating}
+          >
+            {compactExportLabel(pdfExportState, isPdfStale)}
+          </button>
+        )}
       </div>
     </div>
   );
 }
 
 /* ── JSA Workflow ── */
-function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTemplates, templateId, setTemplateId, selectedTemplate, loadTemplate, saveName, setSaveName, saveTemplate, updateTemplate, addRow, updRow, removeRow, addSummaryAsRow, addRowTemplate, clearDraft, saveDraft, markReady, exportPdf, savedDraft, settings, saveStatus }) {
+function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTemplates, templateId, setTemplateId, selectedTemplate, loadTemplate, saveName, setSaveName, saveTemplate, updateTemplate, addRow, updRow, removeRow, addSummaryAsRow, addRowTemplate, clearDraft, saveDraft, markReady, exportPdf, legacyBrowserPrint, pdfExportState, isPdfStale, shareGeneratedPdfClick, downloadGeneratedPdfClick, savedDraft, settings, saveStatus }) {
   const plan = useJsaPagePlan(jsa);
   const fit = calcFitFromPlan(plan);
   const sigCount = Math.max(1, Math.min(100, Number(jsa.signatureLineCount) || 1));
@@ -1524,7 +1666,14 @@ function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTem
           <strong>Live Preview</strong>
           <span>Live page plan and layout check</span>
         </div>
-        <button className="btn sm outline" onClick={exportPdf}>Print / Save PDF</button>
+        <button
+          className="btn sm outline"
+          onClick={compactExportAction(pdfExportState, isPdfStale, exportPdf, shareGeneratedPdfClick)}
+          disabled={pdfExportState?.phase === 'generating'}
+          aria-busy={pdfExportState?.phase === 'generating'}
+        >
+          {compactExportLabel(pdfExportState, isPdfStale)}
+        </button>
       </div>
       <JsaPreview jsa={jsa} />
     </div>
@@ -1579,7 +1728,7 @@ function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTem
           {jsaStep === 'meeting' && <StepMeeting jsa={jsa} upd={upd} prev={prev} next={next} />}
           {jsaStep === 'work' && <StepWork jsa={jsa} upd={upd} addRow={addRow} updRow={updRow} removeRow={removeRow} addSummaryAsRow={addSummaryAsRow} addRowTemplate={addRowTemplate} customQuick={settings.customQuick || { task: [], hazard: [], control: [] }} prev={prev} next={next} />}
           {jsaStep === 'signatures' && <StepSignatures jsa={jsa} upd={upd} sigCount={sigCount} prev={prev} next={next} />}
-          {jsaStep === 'review' && <StepReview jsa={jsa} upd={upd} fit={fit} saveName={saveName} setSaveName={setSaveName} saveTemplate={saveTemplate} updateTemplate={updateTemplate} saveDraft={saveDraft} markReady={markReady} exportPdf={exportPdf} clearDraft={clearDraft} prev={prev} next={next} />}
+          {jsaStep === 'review' && <StepReview jsa={jsa} upd={upd} fit={fit} saveName={saveName} setSaveName={setSaveName} saveTemplate={saveTemplate} updateTemplate={updateTemplate} saveDraft={saveDraft} markReady={markReady} exportPdf={exportPdf} legacyBrowserPrint={legacyBrowserPrint} pdfExportState={pdfExportState} isPdfStale={isPdfStale} shareGeneratedPdfClick={shareGeneratedPdfClick} downloadGeneratedPdfClick={downloadGeneratedPdfClick} clearDraft={clearDraft} prev={prev} next={next} />}
 
           {!canSideBySide && previewOpen && previewPanel}
         </div>
@@ -1609,6 +1758,9 @@ function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTem
           prev={prev}
           next={next}
           exportPdf={exportPdf}
+          pdfExportState={pdfExportState}
+          isPdfStale={isPdfStale}
+          shareGeneratedPdfClick={shareGeneratedPdfClick}
           showPreview={showPreview}
           setShowPreview={setShowPreview}
           saveStatus={saveStatus}
@@ -2037,17 +2189,21 @@ function StepSignatures({ jsa, upd, sigCount, prev, next }) {
 }
 
 /* ── Step: Review / Export ── */
-function StepReview({ jsa, upd, fit, saveName, setSaveName, saveTemplate, updateTemplate, saveDraft, markReady, exportPdf, clearDraft, prev, next }) {
+function StepReview({ jsa, upd, fit, saveName, setSaveName, saveTemplate, updateTemplate, saveDraft, markReady, exportPdf, legacyBrowserPrint, pdfExportState, isPdfStale, shareGeneratedPdfClick, downloadGeneratedPdfClick, clearDraft, prev, next }) {
   const measurements = usePageMeasurements();
   const plan = useMemo(() => resolvePagePlan(jsa, measurements), [jsa, measurements]);
   const checks = useMemo(() => getReviewChecks(jsa, measurements), [jsa, measurements]);
   const completeCount = checks.filter(check => check.ok).length;
+  const [showMoreOptions, setShowMoreOptions] = useState(false);
+  const isGenerating = pdfExportState?.phase === 'generating';
+  const isReady = pdfExportState?.phase === 'ready';
+  const exportLabel = pdfExportStatusLabel(pdfExportState);
   return (
     <div className="stepStack">
       <div className="card">
         <div className="cardHeader">
           <h3>Review and Export</h3>
-          <p>Use this final check before opening the browser print dialog. Keep Margins set to Default and Paper size set to Letter.</p>
+          <p>Use this final check before generating the PDF.</p>
         </div>
         <div className="cardBody">
           <div className="formGrid">
@@ -2087,12 +2243,50 @@ function StepReview({ jsa, upd, fit, saveName, setSaveName, saveTemplate, update
             </div>
 
             <div className="reviewActions">
-              <button className="btn ghost" onClick={clearDraft}>Clear Draft</button>
-              <button className="btn secondary" onClick={() => saveDraft()}>Save Draft</button>
-              <button className="btn ghost" onClick={markReady}>Mark Ready</button>
-              <button className="btn primary" onClick={exportPdf}>Print / Save PDF</button>
+              <button className="btn ghost" onClick={clearDraft} disabled={isGenerating}>Clear Draft</button>
+              <button className="btn secondary" onClick={() => saveDraft()} disabled={isGenerating}>Save Draft</button>
+              <button className="btn ghost" onClick={markReady} disabled={isGenerating}>Mark Ready</button>
+              {!isReady && (
+                <button className="btn primary" onClick={exportPdf} disabled={isGenerating} aria-busy={isGenerating}>{exportLabel || 'Print / Save PDF'}</button>
+              )}
+              {isReady && !isPdfStale && (
+                <button className="btn primary" onClick={shareGeneratedPdfClick}>Share / Print PDF</button>
+              )}
             </div>
-            <p className="helperText">Save the PDF to your device, iCloud, OneDrive, Google Drive, or project folder. The app does not store final PDFs.</p>
+
+            {!isReady && <p className="helperText">Generates a real multi-page PDF, then opens the share sheet (Print, Save to Files, AirDrop, or email) on supported devices, or offers a direct download. The app does not store final PDFs.</p>}
+
+            {isReady && isPdfStale && (
+              <div className="pdfStaleWarning">
+                <strong>Document changed — regenerate PDF before sharing.</strong>
+                <p>The draft was edited after this PDF was generated, so it no longer reflects the current content.</p>
+                <button className="btn primary sm" onClick={exportPdf} disabled={isGenerating} aria-busy={isGenerating}>{exportLabel || 'Regenerate PDF'}</button>
+              </div>
+            )}
+
+            {isReady && !isPdfStale && (
+              <div className="pdfReadyPanel">
+                <strong>PDF ready — {pdfExportState.pageCount} page{pdfExportState.pageCount === 1 ? '' : 's'}</strong>
+                <p className="helperText">Tap Share / Print PDF to open Print, Save to Files, AirDrop, or email — or download the file directly below. The app does not store final PDFs.</p>
+                <div className="pdfReadyActions">
+                  <button className="btn secondary sm" onClick={downloadGeneratedPdfClick}>Download PDF</button>
+                  <button className="btn ghost sm" onClick={exportPdf} disabled={isGenerating} aria-busy={isGenerating}>Regenerate PDF</button>
+                </div>
+                {pdfExportState.shareMessage && <p className="pdfShareMessage">{pdfExportState.shareMessage}</p>}
+              </div>
+            )}
+
+            <div className="moreOptions">
+              <button type="button" className="btn ghost sm" onClick={() => setShowMoreOptions(v => !v)} disabled={isGenerating}>
+                {showMoreOptions ? 'Hide More Options' : 'More Options'}
+              </button>
+              {showMoreOptions && (
+                <div className="moreOptionsPanel">
+                  <button className="btn ghost sm" onClick={legacyBrowserPrint} disabled={isGenerating}>Legacy Browser Print</button>
+                  <p className="helperText">Opens the browser's native print dialog instead of generating a PDF file. Kept as a fallback only — on some devices this can produce incorrect pagination. Prefer Print / Save PDF above.</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -2628,10 +2822,10 @@ function PrintTaskTable({ rows, className = '' }) {
   );
 }
 
-function MainJsaDocumentPage({ jsa, plan, className = '' }) {
+function MainJsaDocumentPage({ jsa, plan, className = '', pageRef }) {
   const sigCount = Math.max(1, Math.min(100, Number(jsa.signatureLineCount) || 1));
   return (
-    <div className={`documentPage mainJsaPage ${className}`.trim()}>
+    <div className={`documentPage mainJsaPage ${className}`.trim()} ref={pageRef}>
       <PrintBrandHeader title="Job Safety Analysis" subtitle="JSA & Tailgate Meeting Form" pageNumber={1} totalPages={plan.totalPages} />
       <table className="printInfoTable">
         <tbody>
@@ -2915,6 +3109,193 @@ function PaginationMeasureRig({ jsa }) {
   );
 }
 
+/* Off-screen root rendering the FINAL, already-paginated plan (unlike
+   PaginationMeasureRig, which renders raw unpaginated content) — one
+   fixed-size Letter .printPage per logical page, using the exact same
+   components/data/columns/typography/headers/footers as real printing.
+   generateJsaPdf (below) captures each page here directly into a PDF —
+   see the .pdfExportRoot comment in styles.css for why this exists at all:
+   physical iPad Safari repeatedly fragmented every logical page into two
+   physical pages despite this repo's automated tooling verifying clean
+   geometry every time, across several structurally different CSS
+   approaches. This sidesteps browser print pagination entirely for the
+   primary export path rather than continuing to chase that bug blind.
+   Always mounted (same pattern as PaginationMeasureRig/PrintableJsa) so
+   it's ready the instant the user taps Print / Save PDF — no extra mount
+   -and-settle render cycle needed first. pageRefsRef is populated in
+   logical page order every render so generateJsaPdf can read it directly. */
+function PdfExportRoot({ jsa, plan, pageRefsRef }) {
+  const mainRef = useRef(null);
+  const continuationRefs = useRef([]);
+  const signInRefs = useRef([]);
+
+  useLayoutEffect(() => {
+    const ordered = [];
+    if (mainRef.current) ordered.push({ type: 'main', el: mainRef.current });
+    plan.continuationPages.forEach((_, i) => {
+      if (continuationRefs.current[i]) ordered.push({ type: 'continuation', el: continuationRefs.current[i] });
+    });
+    plan.signInPages.forEach((_, i) => {
+      if (signInRefs.current[i]) ordered.push({ type: 'signin', el: signInRefs.current[i] });
+    });
+    pageRefsRef.current = ordered;
+  });
+
+  return (
+    <div className="pdfExportRoot" aria-hidden="true">
+      <MainJsaDocumentPage jsa={jsa} plan={plan} className="printPage" pageRef={mainRef} />
+      {plan.continuationPages.map((rows, idx) => (
+        <TaskContinuationPage
+          key={idx}
+          jsa={jsa}
+          rows={rows}
+          pageNumber={2 + idx}
+          totalPages={plan.totalPages}
+          continuationNumber={idx + 1}
+          continuationTotal={plan.continuationPages.length}
+          pageRef={el => { continuationRefs.current[idx] = el; }}
+        />
+      ))}
+      <AttachedSignIn
+        jsa={jsa}
+        pages={plan.signInPages}
+        pageOffset={1 + plan.continuationPages.length}
+        totalPages={plan.totalPages}
+        getPageRef={(idx, el) => { signInRefs.current[idx] = el; }}
+      />
+    </div>
+  );
+}
+
+function dataUrlToUint8Array(dataUrl) {
+  const base64 = dataUrl.split(',')[1] || '';
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+/* The deterministic PDF export pipeline (Phase 4B). Captures each logical
+   page from PdfExportRoot sequentially — one canvas at a time, released
+   before starting the next — and assembles them into a single PDF with
+   pdf-lib, entirely client-side. No browser print pagination is involved
+   at any point. onProgress(pageIndex, totalPages) is called before each
+   page capture starts, for UI progress display. Throws with a descriptive
+   message on any failure (caller is responsible for showing it to the
+   user) rather than silently producing a broken/partial PDF. */
+async function generateJsaPdf(pageRefsRef, onProgress) {
+  const pages = pageRefsRef.current;
+  if (!pages.length) throw new Error('No pages to export — the document plan is empty.');
+
+  if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) {
+    try { await document.fonts.ready; } catch { /* non-fatal: proceed with whatever is loaded */ }
+  }
+  // At least one settled animation frame after the export root's latest
+  // render, so layout has fully committed before the first capture.
+  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+  const isTouchPrimary = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(any-pointer: coarse)').matches;
+  const scale = isTouchPrimary ? 2 : 2.5; // keep mobile Safari canvases smaller to avoid memory pressure
+
+  const pdfDoc = await PDFDocument.create();
+  const PT_PER_IN = 72;
+  const LETTER_WIDTH_PT = 8.5 * PT_PER_IN;
+  const LETTER_HEIGHT_PT = 11 * PT_PER_IN;
+
+  for (let i = 0; i < pages.length; i += 1) {
+    const { type, el } = pages[i];
+    onProgress?.(i + 1, pages.length);
+    if (!el) throw new Error(`Page ${i + 1} of ${pages.length} (${type}) did not render — export aborted.`);
+
+    const rect = el.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
+      throw new Error(`Page ${i + 1} of ${pages.length} (${type}) has no measurable size — export aborted.`);
+    }
+
+    let canvas;
+    try {
+      canvas = await html2canvas(el, { scale, backgroundColor: '#ffffff', useCORS: true, logging: false });
+    } catch (err) {
+      throw new Error(`Failed to render page ${i + 1} of ${pages.length} (${type}): ${err?.message || err}`);
+    }
+    if (!canvas || canvas.width === 0 || canvas.height === 0) {
+      throw new Error(`Page ${i + 1} of ${pages.length} (${type}) captured empty — export aborted.`);
+    }
+
+    const pngBytes = dataUrlToUint8Array(canvas.toDataURL('image/png'));
+    const pngImage = await pdfDoc.embedPng(pngBytes);
+    const pdfPage = pdfDoc.addPage([LETTER_WIDTH_PT, LETTER_HEIGHT_PT]);
+    pdfPage.drawImage(pngImage, { x: 0, y: 0, width: LETTER_WIDTH_PT, height: LETTER_HEIGHT_PT });
+
+    // Release this page's canvas before moving to the next — never hold
+    // more than one full-resolution capture in memory at a time.
+    canvas.width = 0;
+    canvas.height = 0;
+    canvas = null;
+  }
+
+  const pdfBytes = await pdfDoc.save();
+
+  // Validate before returning: reopen the bytes we actually produced and
+  // confirm the page count matches the logical plan exactly. A mismatch
+  // means silent data loss and must be treated as a hard failure, not a
+  // PDF the user is allowed to print or share.
+  const verifyDoc = await PDFDocument.load(pdfBytes);
+  const pageCount = verifyDoc.getPageCount();
+  if (pageCount !== pages.length) {
+    throw new Error(`Generated PDF has ${pageCount} pages but the plan has ${pages.length} — export aborted.`);
+  }
+
+  return { blob: new Blob([pdfBytes], { type: 'application/pdf' }), pageCount };
+}
+
+/* STEP 2 of the two-step export flow — must be called directly from a user
+   click/tap handler with NO awaited work before navigator.share(), and
+   given an ALREADY-generated File (never regenerates). This is not
+   stylistic: navigator.share() requires "transient user activation", which
+   expires a few seconds after the triggering input event. PDF generation
+   itself involves multiple awaited operations (canvas capture per page,
+   PDF assembly) that can easily take longer than that window, so calling
+   share() automatically right after generation finishes can fail with
+   NotAllowedError even though the user very much did just tap a button —
+   the activation from that ORIGINAL tap has already expired by the time
+   generation completes. Splitting generation (Step 1) from share (Step 2,
+   its own fresh tap) sidesteps this entirely: this function's own click
+   handler IS the fresh activation navigator.share() needs.
+   navigator.canShare() is a feature/support check, not proof activation is
+   still live — real proof only comes from calling share() itself inside a
+   handler with no intervening await, which is what this does. */
+function shareGeneratedPdf(file) {
+  if (typeof navigator === 'undefined' || !navigator.share) {
+    return { ok: false, reason: 'Sharing is not supported on this browser — use Download PDF instead.' };
+  }
+  if (!navigator.canShare || !navigator.canShare({ files: [file] })) {
+    return { ok: false, reason: 'Sharing this file is not supported on this browser — use Download PDF instead.' };
+  }
+  // Fire-and-report: the caller does not await this promise before
+  // returning control to the click handler (nothing here does), so the
+  // share() call itself is what carries the activation, not anything
+  // awaited beforehand.
+  const sharePromise = navigator.share({ files: [file], title: file.name });
+  return { ok: true, promise: sharePromise };
+}
+
+/* STEP: Download PDF — always uses the already-generated Blob, never
+   regenerates. Deliberately NOT an automatic fallback for a cancelled or
+   failed share (the user explicitly asked that a cancelled/failed share
+   must not silently trigger a download) — only ever runs from its own
+   dedicated button. */
+function downloadGeneratedPdf(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+
 function PrintableJsa({ jsa }) {
   const plan = useJsaPagePlan(jsa);
   const rootRef = useRef(null);
@@ -2971,9 +3352,9 @@ function PrintableJsa({ jsa }) {
   );
 }
 
-function TaskContinuationPage({ jsa, rows, pageNumber, totalPages, continuationNumber, continuationTotal }) {
+function TaskContinuationPage({ jsa, rows, pageNumber, totalPages, continuationNumber, continuationTotal, pageRef }) {
   return (
-    <div className="printPage continuationPage">
+    <div className="printPage continuationPage" ref={pageRef}>
       <PrintBrandHeader title="JSA Continuation Sheet" subtitle={`Continuation ${continuationNumber} of ${continuationTotal}`} pageNumber={pageNumber} totalPages={totalPages} />
       <table className="printInfoTable continuationInfoTable">
         <tbody>
@@ -2988,14 +3369,14 @@ function TaskContinuationPage({ jsa, rows, pageNumber, totalPages, continuationN
   );
 }
 
-function AttachedSignIn({ jsa, pages, pageOffset, totalPages }) {
+function AttachedSignIn({ jsa, pages, pageOffset, totalPages, getPageRef }) {
   return (
     <>
       {pages.map((lines, pageIdx) => {
         const rowCount = Math.ceil(lines.length / 2);
         return (
           <section className="printSheet" key={pageIdx}>
-            <div className="printPage signInPage">
+            <div className="printPage signInPage" ref={getPageRef ? (el => getPageRef(pageIdx, el)) : undefined}>
               <PrintBrandHeader title="JSA Sign-In Sheet" subtitle={`Attached Sign-In ${pageIdx + 1} of ${pages.length}`} pageNumber={pageOffset + pageIdx + 1} totalPages={totalPages} />
               <table className="printInfoTable signInInfoTable">
                 <tbody>
