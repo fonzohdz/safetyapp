@@ -1642,12 +1642,15 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 
   /* Page box: one physical geometry, shared by every page type. .printPage
      IS the full 8.5in x 11in sheet -- safe margins are internal padding
-     (0.8in top/bottom, 0.7in left/right), giving the same 7.1in x 9.4in
-     content box this repo already validated as a deliberate, reasoned
-     safety allowance below the previous @page-margin-derived 7.5in x 10in
-     theoretical maximum. PRINT_PAGE_WIDTH_IN / PRINT_PAGE_HEIGHT_IN /
-     PRINT_PAGE_PADDING_X_IN / PRINT_PAGE_PADDING_Y_IN in main.jsx are the
-     single source of truth these numbers must stay in sync with.
+     (0.5in each side, giving a 7.5in x 10in content box), box-sizing is
+     explicitly border-box (confirmed by direct Chromium measurement under
+     real print-media emulation that this was already correctly applied
+     everywhere -- getBoundingClientRect on every page type measured exactly
+     816px x 1056px / 8.5in x 11in, not the ~950x1210px a content-box bug
+     would have produced; see the Phase 4 corrective-round-3 report for the
+     full measurement). PRINT_PAGE_WIDTH_IN / PRINT_PAGE_HEIGHT_IN /
+     PRINT_PAGE_PADDING_IN in main.jsx are the single source of truth these
+     numbers must stay in sync with.
      overflow stays hidden on purpose: visible overflow from a fixed-height
      box is what let WebKit's print fragmentation silently open a second
      physical page per logical page. A physical page boundary must never
@@ -1668,7 +1671,8 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
     max-height: 11in;
     box-sizing: border-box;
     overflow: hidden;
-    padding: 0.8in 0.7in;
+    padding: 0.5in;
+    margin: 0;
     display: flex;
     flex-direction: column;
     page-break-after: always;
@@ -1831,7 +1835,7 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   width: 8.5in;
   height: auto;
   box-sizing: border-box;
-  padding: 0.8in 0.7in;
+  padding: 0.5in;
   display: flex;
   flex-direction: column;
   font-family: Arial, Helvetica, sans-serif;

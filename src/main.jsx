@@ -143,26 +143,26 @@ function getContentRows(jsa) {
    pagination math below and the ?debug=print panel. Must stay in sync with
    the .printPage / .documentPage.printPage rule in styles.css's @media
    print block, which declares the exact same numbers.
-   Single-sheet model (corrective round 2): @page has NO margin of its own —
-   .printPage IS the full physical sheet, and safe margins are implemented
-   as internal padding, not a second/competing margin system. The resulting
-   content box (7.1in x 9.4in) is unchanged from the previous round's
-   deliberately-smaller-than-theoretical-max reasoning; only the mechanism
-   that produces it changed (padding instead of @page margin + a separately
-   sized box). PRINT_WIDTH_SAFETY_IN / PRINT_HEIGHT_SAFETY_IN below now
-   directly mean "how much of the full sheet is intentionally left unused as
-   a buffer against hardware non-printable margins / iOS print quirks this
-   repo cannot measure without physical hardware" — the padding itself. */
+   Single-sheet model: @page has NO margin of its own — .printPage IS the
+   full physical sheet, and safe margins are implemented as internal
+   padding (uniform 0.5in each side), not a second/competing margin system.
+   box-sizing is explicitly border-box (confirmed by direct Chromium
+   measurement under real print-media emulation: every page type's
+   getBoundingClientRect was exactly 816px x 1056px / 8.5in x 11in, not the
+   larger box a content-box bug would produce). PRINT_WIDTH_SAFETY_IN /
+   PRINT_HEIGHT_SAFETY_IN below mean "how much of the full sheet is
+   intentionally left unused as a buffer against hardware non-printable
+   margins / iOS print quirks this repo cannot measure without physical
+   hardware" — the padding itself, not a separate margin system. */
 const PRINT_PAPER_WIDTH_IN = 8.5;
 const PRINT_PAPER_HEIGHT_IN = 11;
 const PRINT_PAGE_WIDTH_IN = PRINT_PAPER_WIDTH_IN; // .printPage IS the sheet
 const PRINT_PAGE_HEIGHT_IN = PRINT_PAPER_HEIGHT_IN;
-const PRINT_PAGE_PADDING_X_IN = 0.7; // left/right, each side
-const PRINT_PAGE_PADDING_Y_IN = 0.8; // top/bottom, each side
-const PRINT_CONTENT_WIDTH_IN = PRINT_PAGE_WIDTH_IN - 2 * PRINT_PAGE_PADDING_X_IN; // 7.1in
-const PRINT_CONTENT_HEIGHT_IN = PRINT_PAGE_HEIGHT_IN - 2 * PRINT_PAGE_PADDING_Y_IN; // 9.4in
-const PRINT_WIDTH_SAFETY_IN = 2 * PRINT_PAGE_PADDING_X_IN;
-const PRINT_HEIGHT_SAFETY_IN = 2 * PRINT_PAGE_PADDING_Y_IN;
+const PRINT_PAGE_PADDING_IN = 0.5; // every side, uniform
+const PRINT_CONTENT_WIDTH_IN = PRINT_PAGE_WIDTH_IN - 2 * PRINT_PAGE_PADDING_IN; // 7.5in
+const PRINT_CONTENT_HEIGHT_IN = PRINT_PAGE_HEIGHT_IN - 2 * PRINT_PAGE_PADDING_IN; // 10in
+const PRINT_WIDTH_SAFETY_IN = 2 * PRINT_PAGE_PADDING_IN;
+const PRINT_HEIGHT_SAFETY_IN = 2 * PRINT_PAGE_PADDING_IN;
 const PRINT_PX_PER_IN_GEOMETRY = 96; // CSS reference pixel — absolute units resolve
 // identically on screen and in print, which is what makes the hidden
 // PaginationMeasureRig's screen-mode measurements print-accurate.
@@ -172,7 +172,7 @@ const PRINT_CONTENT_HEIGHT_PX = PRINT_CONTENT_HEIGHT_IN * PRINT_PX_PER_IN_GEOMET
 // page's own bottom padding is excluded, top padding is not (because
 // measurements below are always taken relative to the page's top edge, so
 // top padding is already baked into them by construction).
-const PRINT_CONTENT_BOTTOM_PX = (PRINT_PAGE_HEIGHT_IN - PRINT_PAGE_PADDING_Y_IN) * PRINT_PX_PER_IN_GEOMETRY;
+const PRINT_CONTENT_BOTTOM_PX = (PRINT_PAGE_HEIGHT_IN - PRINT_PAGE_PADDING_IN) * PRINT_PX_PER_IN_GEOMETRY;
 
 function estimateTextLines(value, charsPerLine) {
   const text = String(value || '');
@@ -2355,7 +2355,7 @@ function PrintDebugPanel({ jsa, plan }) {
       <dl>
         <div><dt>paper / .printPage</dt><dd>{PRINT_PAPER_WIDTH_IN}in x {PRINT_PAPER_HEIGHT_IN}in (Letter — .printPage IS the sheet)</dd></div>
         <div><dt>@page margin</dt><dd>0in (safety margin is internal padding, not @page margin)</dd></div>
-        <div><dt>internal padding (x / y)</dt><dd>{PRINT_PAGE_PADDING_X_IN}in / {PRINT_PAGE_PADDING_Y_IN}in each side</dd></div>
+        <div><dt>internal padding</dt><dd>{PRINT_PAGE_PADDING_IN}in each side (box-sizing: border-box)</dd></div>
         <div><dt>content box</dt><dd>{PRINT_CONTENT_WIDTH_IN}in x {Math.round(PRINT_CONTENT_HEIGHT_IN * 100) / 100}in</dd></div>
         <div><dt>width / height safety allowance</dt><dd>{Math.round(PRINT_WIDTH_SAFETY_IN * 100) / 100}in / {Math.round(PRINT_HEIGHT_SAFETY_IN * 100) / 100}in</dd></div>
       </dl>
