@@ -141,26 +141,26 @@ function getContentRows(jsa) {
 }
 /* Physical print geometry constants — single source of truth shared by the
    pagination math below and the ?debug=print panel. Must stay in sync with
-   the .printPage / .documentPage.printPage rule in styles.css's @media
-   print block, which declares the exact same numbers.
-   Single-sheet model: @page has NO margin of its own — .printPage IS the
-   full physical sheet, and safe margins are implemented as internal
-   padding (uniform 0.5in each side), not a second/competing margin system.
-   box-sizing is explicitly border-box (confirmed by direct Chromium
-   measurement under real print-media emulation: every page type's
-   getBoundingClientRect was exactly 816px x 1056px / 8.5in x 11in, not the
-   larger box a content-box bug would produce). PRINT_WIDTH_SAFETY_IN /
-   PRINT_HEIGHT_SAFETY_IN below mean "how much of the full sheet is
-   intentionally left unused as a buffer against hardware non-printable
-   margins / iOS print quirks this repo cannot measure without physical
-   hardware" — the padding itself, not a separate margin system. */
+   the .printSheet / .printPage rules in styles.css's @media print block,
+   which declare the exact same numbers.
+   Two-level sheet model: @page has no margin of its own — .printSheet is
+   the full physical sheet (exactly 8.5in x 11in, zero margin/padding, owns
+   the page-break decision), and .printPage fills it (100%/100%) with a
+   single padding value (0.3in each side) as the one authoritative inset
+   from the physical sheet edge to the JSA form's outer border — nothing
+   else in the ancestor chain adds margin or padding. box-sizing is
+   explicitly border-box (confirmed by direct Chromium measurement under
+   real print-media emulation). PRINT_WIDTH_SAFETY_IN / PRINT_HEIGHT_SAFETY_IN
+   below mean "how much of the full sheet is intentionally left unused as a
+   buffer against hardware non-printable margins / iOS print quirks this
+   repo cannot measure without physical hardware" — the padding itself. */
 const PRINT_PAPER_WIDTH_IN = 8.5;
 const PRINT_PAPER_HEIGHT_IN = 11;
-const PRINT_PAGE_WIDTH_IN = PRINT_PAPER_WIDTH_IN; // .printPage IS the sheet
+const PRINT_PAGE_WIDTH_IN = PRINT_PAPER_WIDTH_IN; // .printSheet IS the sheet, .printPage fills it
 const PRINT_PAGE_HEIGHT_IN = PRINT_PAPER_HEIGHT_IN;
-const PRINT_PAGE_PADDING_IN = 0.5; // every side, uniform
-const PRINT_CONTENT_WIDTH_IN = PRINT_PAGE_WIDTH_IN - 2 * PRINT_PAGE_PADDING_IN; // 7.5in
-const PRINT_CONTENT_HEIGHT_IN = PRINT_PAGE_HEIGHT_IN - 2 * PRINT_PAGE_PADDING_IN; // 10in
+const PRINT_PAGE_PADDING_IN = 0.3; // every side, uniform — the effective margin, since nothing else in the ancestor chain adds inset
+const PRINT_CONTENT_WIDTH_IN = PRINT_PAGE_WIDTH_IN - 2 * PRINT_PAGE_PADDING_IN; // 7.9in
+const PRINT_CONTENT_HEIGHT_IN = PRINT_PAGE_HEIGHT_IN - 2 * PRINT_PAGE_PADDING_IN; // 10.4in
 const PRINT_WIDTH_SAFETY_IN = 2 * PRINT_PAGE_PADDING_IN;
 const PRINT_HEIGHT_SAFETY_IN = 2 * PRINT_PAGE_PADDING_IN;
 const PRINT_PX_PER_IN_GEOMETRY = 96; // CSS reference pixel — absolute units resolve
@@ -2344,7 +2344,7 @@ function PrintDebugPanel({ jsa, plan }) {
       <dl>
         <div><dt>logical pages</dt><dd>{plan.totalPages} (1 main + {plan.continuationPages.length} continuation + {plan.signInPages.length} sign-in)</dd></div>
         <div><dt>main capacity / used</dt><dd>{plan.mainCapacity} / {plan.mainUsed} {plan.measured ? 'px' : 'units (heuristic)'}</dd></div>
-        <div><dt>main content rows</dt><dd>{plan.mainContentRows.length} (padded to {plan.mainRows.length})</dd></div>
+        <div><dt>main populated / filler rows</dt><dd>{plan.mainContentRows.length} populated + {plan.mainRows.length - plan.mainContentRows.length} filler = {plan.mainRows.length} total</dd></div>
         <div><dt>continuation capacity</dt><dd>{plan.measured ? 'see row-height measurement below' : `${continuationRowCapacity()} units/page (heuristic)`}</dd></div>
         <div><dt>continuation pages</dt><dd>{plan.continuationPages.length}</dd></div>
         <div><dt>sign-in pages</dt><dd>{plan.signInPages.length}</dd></div>
@@ -2380,15 +2380,23 @@ function PrintDebugPanel({ jsa, plan }) {
         <div key={p.index} style={{ marginTop: 4, borderTop: '1px solid rgba(255,255,255,.15)', paddingTop: 4 }}>
           <dl>
             <div><dt>page {p.index + 1}</dt><dd>{p.type}</dd></div>
-            <div><dt>outer size</dt><dd>{p.outerWidthIn}in x {p.outerHeightIn}in ({p.outerWidthPx}px x {p.outerHeightPx}px)</dd></div>
+            <div><dt>sheet size</dt><dd>{p.sheetWidthPx}px x {p.sheetHeightPx}px</dd></div>
+            <div><dt>break-before / after</dt><dd>{p.breakBefore} / {p.breakAfter} ({p.pageBreakBefore} / {p.pageBreakAfter})</dd></div>
+            <div><dt>form outer size</dt><dd>{p.outerWidthIn}in x {p.outerHeightIn}in ({p.outerWidthPx}px x {p.outerHeightPx}px)</dd></div>
+            <div><dt>effective margin (t/r/b/l)</dt><dd>{p.effectiveMarginPx.top}/{p.effectiveMarginPx.right}/{p.effectiveMarginPx.bottom}/{p.effectiveMarginPx.left}px</dd></div>
             <div><dt>client / scroll W</dt><dd>{p.clientWidth} / {p.scrollWidth}px</dd></div>
             <div><dt>client / scroll H</dt><dd>{p.clientHeight} / {p.scrollHeight}px</dd></div>
             <div><dt>overflow X / Y</dt><dd>{p.overflowXPx}px / {p.overflowYPx}px</dd></div>
             <div><dt>padding (t/r/b/l)</dt><dd>{p.paddingPx.top}/{p.paddingPx.right}/{p.paddingPx.bottom}/{p.paddingPx.left}px</dd></div>
             <div><dt>border (t/r/b/l)</dt><dd>{p.borderPx.top}/{p.borderPx.right}/{p.borderPx.bottom}/{p.borderPx.left}px</dd></div>
             <div><dt>box-sizing</dt><dd>{p.boxSizing}</dd></div>
-            <div><dt>task rows</dt><dd>{p.rowCount}</dd></div>
+            {p.columnWidths.length > 0 && (
+              <div><dt>column widths</dt><dd>{p.columnWidths.map(c => `${c.widthPx}px (${c.widthPct}%)`).join(', ')}</dd></div>
+            )}
+            <div><dt>task rows (populated+filler)</dt><dd>{p.rowCount}</dd></div>
+            <div><dt>last 5 row heights</dt><dd>{p.lastRows.map(r => `${r.heightPx}px`).join(', ') || 'n/a'}</dd></div>
             <div><dt>min row height (last 5)</dt><dd>{p.minRowHeightPx == null ? 'n/a' : `${p.minRowHeightPx}px`} {p.anyRowBelowMinimum ? `(BELOW ${PRINT_TASK_ROW_MIN_PX}px minimum)` : ''}</dd></div>
+            <div><dt>footer top / bottom</dt><dd>{p.footerTopPx == null ? 'n/a' : `${p.footerTopPx}px / ${p.footerBottomPx}px`} (page height {p.outerHeightPx}px)</dd></div>
           </dl>
         </div>
       ))}
@@ -2686,28 +2694,55 @@ const PRINT_PX_PER_IN = 96; // CSS reference pixel, per spec — used only to
 const PRINT_TASK_ROW_MIN_PX = 24; // must match .printTaskTable td min-height in styles.css
 function measurePrintPages(root) {
   if (!root) return [];
-  const pages = Array.from(root.querySelectorAll('.printPage'));
-  return pages.map((el, index) => {
+  const sheets = Array.from(root.querySelectorAll('.printSheet'));
+  return sheets.map((sheetEl, index) => {
+    const el = sheetEl.querySelector('.printPage');
     let type = 'unknown';
     if (el.classList.contains('mainJsaPage')) type = 'main';
     else if (el.classList.contains('continuationPage')) type = 'continuation';
     else if (el.classList.contains('signInPage')) type = 'signin';
+    const sheetRect = sheetEl.getBoundingClientRect();
+    const sheetCs = window.getComputedStyle(sheetEl);
     const rect = el.getBoundingClientRect();
     const cs = window.getComputedStyle(el);
     const rows = Array.from(el.querySelectorAll('.printTaskTable tbody tr'));
+    const allRowHeights = rows.map(tr => Math.round(tr.getBoundingClientRect().height * 10) / 10);
     const lastRows = rows.slice(-5).map(tr => {
       const h = tr.getBoundingClientRect().height;
       return { heightPx: Math.round(h * 10) / 10, belowMinimum: h < PRINT_TASK_ROW_MIN_PX };
     });
+    const footer = el.querySelector('.printFooter');
+    const footerRect = footer ? footer.getBoundingClientRect() : null;
+    const headerCells = Array.from(el.querySelectorAll('.printTaskTable thead th'));
+    const columnWidths = headerCells.map(th => {
+      const w = th.getBoundingClientRect().width;
+      return { widthPx: Math.round(w * 10) / 10, widthPct: Math.round((w / rect.width) * 1000) / 10 };
+    });
     return {
       index,
       type,
+      sheetWidthPx: Math.round(sheetRect.width * 10) / 10,
+      sheetHeightPx: Math.round(sheetRect.height * 10) / 10,
+      breakBefore: sheetCs.breakBefore,
+      breakAfter: sheetCs.breakAfter,
+      pageBreakBefore: sheetCs.pageBreakBefore,
+      pageBreakAfter: sheetCs.pageBreakAfter,
       outerWidthPx: Math.round(rect.width * 10) / 10,
       outerHeightPx: Math.round(rect.height * 10) / 10,
       outerWidthIn: Math.round((rect.width / PRINT_PX_PER_IN) * 100) / 100,
       outerHeightIn: Math.round((rect.height / PRINT_PX_PER_IN) * 100) / 100,
       paddingPx: { top: parseFloat(cs.paddingTop), right: parseFloat(cs.paddingRight), bottom: parseFloat(cs.paddingBottom), left: parseFloat(cs.paddingLeft) },
       borderPx: { top: parseFloat(cs.borderTopWidth), right: parseFloat(cs.borderRightWidth), bottom: parseFloat(cs.borderBottomWidth), left: parseFloat(cs.borderLeftWidth) },
+      // Effective margin from the physical sheet edge to the JSA form's
+      // outer border — the number that actually matters visually, since
+      // nothing else in the ancestor chain (.printOnly, .printSheet) adds
+      // any inset of its own; this equals the padding above by construction.
+      effectiveMarginPx: {
+        left: Math.round((rect.left - sheetRect.left) * 10) / 10,
+        top: Math.round((rect.top - sheetRect.top) * 10) / 10,
+        right: Math.round((sheetRect.right - rect.right) * 10) / 10,
+        bottom: Math.round((sheetRect.bottom - rect.bottom) * 10) / 10,
+      },
       boxSizing: cs.boxSizing,
       scrollWidth: el.scrollWidth,
       clientWidth: el.clientWidth,
@@ -2716,9 +2751,13 @@ function measurePrintPages(root) {
       overflowXPx: el.scrollWidth - el.clientWidth,
       overflowYPx: el.scrollHeight - el.clientHeight,
       rowCount: rows.length,
+      allRowHeights,
       lastRows,
       minRowHeightPx: lastRows.length ? Math.min(...lastRows.map(r => r.heightPx)) : null,
       anyRowBelowMinimum: lastRows.some(r => r.belowMinimum),
+      columnWidths,
+      footerTopPx: footerRect ? Math.round((footerRect.top - rect.top) * 10) / 10 : null,
+      footerBottomPx: footerRect ? Math.round((footerRect.bottom - rect.top) * 10) / 10 : null,
     };
   });
 }
@@ -2905,18 +2944,21 @@ function PrintableJsa({ jsa }) {
 
   return (
     <div className="printOnly" ref={rootRef}>
-      <MainJsaDocumentPage jsa={jsa} plan={plan} className="printPage" />
+      <section className="printSheet">
+        <MainJsaDocumentPage jsa={jsa} plan={plan} className="printPage" />
+      </section>
 
       {plan.continuationPages.map((rows, idx) => (
-        <TaskContinuationPage
-          key={idx}
-          jsa={jsa}
-          rows={rows}
-          pageNumber={2 + idx}
-          totalPages={plan.totalPages}
-          continuationNumber={idx + 1}
-          continuationTotal={plan.continuationPages.length}
-        />
+        <section className="printSheet" key={idx}>
+          <TaskContinuationPage
+            jsa={jsa}
+            rows={rows}
+            pageNumber={2 + idx}
+            totalPages={plan.totalPages}
+            continuationNumber={idx + 1}
+            continuationTotal={plan.continuationPages.length}
+          />
+        </section>
       ))}
 
       <AttachedSignIn
@@ -2952,20 +2994,22 @@ function AttachedSignIn({ jsa, pages, pageOffset, totalPages }) {
       {pages.map((lines, pageIdx) => {
         const rowCount = Math.ceil(lines.length / 2);
         return (
-          <div className="printPage signInPage" key={pageIdx}>
-            <PrintBrandHeader title="JSA Sign-In Sheet" subtitle={`Attached Sign-In ${pageIdx + 1} of ${pages.length}`} pageNumber={pageOffset + pageIdx + 1} totalPages={totalPages} />
-            <table className="printInfoTable signInInfoTable">
-              <tbody>
-                <tr><th>Location:</th><td>{jsa.location}</td><th>Date:</th><td>{dateStr(jsa.date)}</td><th>Job #:</th><td>{jsa.jobNumber}</td></tr>
-                <tr><th>Job Site:</th><td>{jsa.jobSite}</td><th>Superintendent/Foreman:</th><td>{jsa.superintendentForeman}</td><th>Overall Task:</th><td>{jsa.overallWorkTask}</td></tr>
-              </tbody>
-            </table>
-            <div className="ackBlock signInAck"><strong>Acknowledgement:</strong> I have reviewed and understand the JSA and tailgate meeting information and will exercise stop work authority for unsafe acts, conditions, or hazards.</div>
-            <div className="attachedSignatureGrid" style={{ '--signature-rows': rowCount }}>
-              {lines.map(n => <div className="attachedSigLine" key={n}>{n}.</div>)}
+          <section className="printSheet" key={pageIdx}>
+            <div className="printPage signInPage">
+              <PrintBrandHeader title="JSA Sign-In Sheet" subtitle={`Attached Sign-In ${pageIdx + 1} of ${pages.length}`} pageNumber={pageOffset + pageIdx + 1} totalPages={totalPages} />
+              <table className="printInfoTable signInInfoTable">
+                <tbody>
+                  <tr><th>Location:</th><td>{jsa.location}</td><th>Date:</th><td>{dateStr(jsa.date)}</td><th>Job #:</th><td>{jsa.jobNumber}</td></tr>
+                  <tr><th>Job Site:</th><td>{jsa.jobSite}</td><th>Superintendent/Foreman:</th><td>{jsa.superintendentForeman}</td><th>Overall Task:</th><td>{jsa.overallWorkTask}</td></tr>
+                </tbody>
+              </table>
+              <div className="ackBlock signInAck"><strong>Acknowledgement:</strong> I have reviewed and understand the JSA and tailgate meeting information and will exercise stop work authority for unsafe acts, conditions, or hazards.</div>
+              <div className="attachedSignatureGrid" style={{ '--signature-rows': rowCount }}>
+                {lines.map(n => <div className="attachedSigLine" key={n}>{n}.</div>)}
+              </div>
+              <footer className="printFooter">Shackelford Construction and Hauling, LLC · Attached Sign-In Sheet</footer>
             </div>
-            <footer className="printFooter">Shackelford Construction and Hauling, LLC · Attached Sign-In Sheet</footer>
-          </div>
+          </section>
         );
       })}
     </>

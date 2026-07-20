@@ -1640,49 +1640,86 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   .printOnly { display: block !important; }
   table { width: 100%; border-collapse: collapse; }
 
-  /* Page box: one physical geometry, shared by every page type. .printPage
-     IS the full 8.5in x 11in sheet -- safe margins are internal padding
-     (0.5in each side, giving a 7.5in x 10in content box), box-sizing is
-     explicitly border-box (confirmed by direct Chromium measurement under
-     real print-media emulation that this was already correctly applied
-     everywhere -- getBoundingClientRect on every page type measured exactly
-     816px x 1056px / 8.5in x 11in, not the ~950x1210px a content-box bug
-     would have produced; see the Phase 4 corrective-round-3 report for the
-     full measurement). PRINT_PAGE_WIDTH_IN / PRINT_PAGE_HEIGHT_IN /
-     PRINT_PAGE_PADDING_IN in main.jsx are the single source of truth these
-     numbers must stay in sync with.
+  /* Two-level sheet model, split on purpose (previous rounds combined both
+     concerns into one .printPage element that was both the 8.5x11in sheet
+     AND the padded content box):
+       .printSheet — one per logical page. Pure physical geometry: exactly
+         8.5in x 11in, zero margin/padding of its own. Owns the break
+         decision.
+       .printPage — the padded content box inside it (100%/100% of the
+         sheet), owns typography/layout, never the break decision.
+     Break model is break-before on the adjacent-sibling selector, not
+     break-after + :last-child: every previous round (including one that
+     measured a clean, zero-overflow, exactly-816x1056px DOM in Chromium)
+     still reproduced Safari AirPrint physically doubling every single
+     logical page. That is a symptom this repo's tooling cannot reproduce or
+     directly diagnose — switching the break mechanism entirely (rather than
+     re-tuning numbers within the same mechanism) is a deliberate, distinct
+     change, not a guess at more of the same. break-after + :last-child
+     requires the engine to correctly special-case the final element in a
+     print fragmentation context; break-before on "any sheet preceded by
+     another sheet" never needs that special case at all — every sheet
+     after the first requests a break before itself, and nothing ever
+     requests one after itself, including the last. */
+  .printSheet {
+    width: 8.5in;
+    height: 11in;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    break-before: auto;
+    break-after: auto;
+    page-break-before: auto;
+    page-break-after: auto;
+  }
+  .printSheet + .printSheet {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  /* Page box: one physical geometry, shared by every page type. Padding is
+     the single authoritative inset from the physical sheet edge to the
+     JSA form's outer border — nothing else in the ancestor chain
+     (.printOnly, .printSheet) adds any margin/padding of its own, so this
+     number IS the effective margin. 0.3in (down from a previous 0.5in)
+     per direct physical iPad feedback that margins looked too large.
+     box-sizing is explicitly border-box (confirmed by direct Chromium
+     measurement under real print-media emulation). PRINT_PAGE_PADDING_IN
+     in main.jsx is the single source of truth this number must stay in
+     sync with.
      overflow stays hidden on purpose: visible overflow from a fixed-height
      box is what let WebKit's print fragmentation silently open a second
      physical page per logical page. A physical page boundary must never
-     depend on overflow to preserve content — the JS planner (now backed by
+     depend on overflow to preserve content — the JS planner (backed by
      real rendered-height measurement via PaginationMeasureRig, not just
      character-count estimates) is solely responsible for guaranteeing
      content fits within this box before it is ever handed to a page.
-     Overflow here is fail-safe clipping for a planner bug, not a delivery
-     mechanism — see the dev-time diagnostic in main.jsx (measurePrintPages
-     / beforeprint) which reports it loudly instead of relying on this clip
-     to "still work". */
+     min-height/max-height are repeated alongside height (not just height
+     alone) on purpose: confirmed by direct measurement that the Main JSA
+     page (which also carries the unconditional .documentPage class, used
+     by the screen preview at its own 720x960px canvas size) silently
+     inherited that rule's un-overridden max-height:960px, capping this
+     height:100% down from the correct 1056px with no property here to
+     contest it — same class of bug as the earlier padding specificity
+     fix, different property. */
   .printPage,
   .documentPage.printPage {
     position: relative;
-    width: 8.5in;
-    height: 11in;
-    min-height: 11in;
-    max-height: 11in;
+    width: 100%;
+    height: 100%;
+    min-height: 100%;
+    max-height: 100%;
     box-sizing: border-box;
     overflow: hidden;
-    padding: 0.5in;
+    padding: 0.3in;
     margin: 0;
     display: flex;
     flex-direction: column;
-    page-break-after: always;
-    break-after: page;
     font-family: Arial, Helvetica, sans-serif;
     font-size: 9px;
     color: #000;
     background: #fff !important;
   }
-  .printPage:last-child { page-break-after: auto; break-after: auto; }
 
   /* Brand header (same on every page type) */
   .printBrandHeader { margin-bottom: 4px; }
@@ -1835,7 +1872,7 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   width: 8.5in;
   height: auto;
   box-sizing: border-box;
-  padding: 0.5in;
+  padding: 0.3in;
   display: flex;
   flex-direction: column;
   font-family: Arial, Helvetica, sans-serif;
