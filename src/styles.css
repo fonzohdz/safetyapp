@@ -1916,8 +1916,10 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 }
 .printMeasureRoot table, .pdfExportRoot table { width: 100%; border-collapse: collapse; }
 .printMeasureRoot .printBrandBar, .pdfExportRoot .printBrandBar { min-height: 0.48in; display: grid; grid-template-columns: 1.75in 1fr 0.8in; align-items: center; gap: 0.08in; padding: 0.05in 0.08in; }
-.printMeasureRoot .printBrandTitles h1, .pdfExportRoot .printBrandTitles h1 { margin: 0; font-size: 14px; line-height: 1.05; }
+.printMeasureRoot .printBrandTitles, .pdfExportRoot .printBrandTitles { text-align: center; }
+.printMeasureRoot .printBrandTitles h1, .pdfExportRoot .printBrandTitles h1 { margin: 0; font-size: 14px; line-height: 1.05; letter-spacing: .25px; text-transform: uppercase; }
 .printMeasureRoot .printBrandTitles h2, .pdfExportRoot .printBrandTitles h2 { margin: 2px 0 0; font-size: 8px; line-height: 1; }
+.printMeasureRoot .printPageNumber, .pdfExportRoot .printPageNumber { text-align: right; font-size: 8px; font-weight: 700; white-space: nowrap; }
 .printMeasureRoot .printBrandHeader, .pdfExportRoot .printBrandHeader { margin-bottom: 4px; }
 .printMeasureRoot .printRedRule, .pdfExportRoot .printRedRule { height: 3px; }
 /* border is included on every element below that has one in the real print
@@ -1927,14 +1929,15 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 .printMeasureRoot .printInfoTable th, .pdfExportRoot .printInfoTable th, .printMeasureRoot .printInfoTable td, .pdfExportRoot .printInfoTable td,
 .printMeasureRoot .printSimpleTable th, .pdfExportRoot .printSimpleTable th, .printMeasureRoot .printSimpleTable td, .pdfExportRoot .printSimpleTable td,
 .printMeasureRoot .printTaskTable th, .pdfExportRoot .printTaskTable th, .printMeasureRoot .printTaskTable td, .pdfExportRoot .printTaskTable td { border: 1px solid #000; vertical-align: middle; }
-.printMeasureRoot .printInfoTable th, .pdfExportRoot .printInfoTable th { width: 13%; font-size: 8.8px; padding: 2.8px 4px; line-height: 1.16; }
+.printMeasureRoot .printInfoTable th, .pdfExportRoot .printInfoTable th { width: 13%; text-align: left; font-weight: 700; font-size: 8.8px; padding: 2.8px 4px; line-height: 1.16; }
 .printMeasureRoot .printInfoTable td, .pdfExportRoot .printInfoTable td { width: 20%; font-size: 8.8px; padding: 2.8px 4px; line-height: 1.16; }
-.printMeasureRoot .ackBlock, .pdfExportRoot .ackBlock { border: 1px solid #000; border-top: 0; padding: 3px 4px; font-size: 7.6px; line-height: 1.16; }
+.printMeasureRoot .ackBlock, .pdfExportRoot .ackBlock { border: 1px solid #000; border-top: 0; padding: 3px 4px; font-size: 7.6px; text-transform: uppercase; line-height: 1.16; }
+.printMeasureRoot .signInAck, .pdfExportRoot .signInAck { font-size: 8.6px; line-height: 1.18; padding: 4px 5px; }
 .printMeasureRoot .attachedSignInNotice, .pdfExportRoot .attachedSignInNotice { border: 1px solid #000; border-top: 0; padding: 4px 5px; font-size: 8.8px; }
-.printMeasureRoot .printSimpleTable th, .pdfExportRoot .printSimpleTable th { width: 28%; padding: 2.8px 4px; font-size: 8.8px; line-height: 1.16; }
+.printMeasureRoot .printSimpleTable th, .pdfExportRoot .printSimpleTable th { width: 28%; text-align: left; font-weight: 700; padding: 2.8px 4px; font-size: 8.8px; line-height: 1.16; }
 .printMeasureRoot .printSimpleTable td, .pdfExportRoot .printSimpleTable td { padding: 2.8px 4px; font-size: 8.8px; line-height: 1.16; }
 .printMeasureRoot .energyBox, .pdfExportRoot .energyBox { border: 1px solid #000; border-top: 0; padding: 3px 5px; }
-.printMeasureRoot .energyBox h3, .pdfExportRoot .energyBox h3 { margin: 0 0 2px; font-size: 8.5px; }
+.printMeasureRoot .energyBox h3, .pdfExportRoot .energyBox h3 { margin: 0 0 2px; text-align: center; text-transform: uppercase; font-size: 8.5px; }
 .printMeasureRoot .energyGrid, .pdfExportRoot .energyGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 8px; }
 .printMeasureRoot .energyGrid p, .pdfExportRoot .energyGrid p { margin: 0; line-height: 1.12; font-size: 7.6px; }
 .printMeasureRoot .taskTableFill, .pdfExportRoot .taskTableFill { margin-top: 4px; }
@@ -1942,14 +1945,14 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 .printMeasureRoot .printTaskTable th:nth-child(1), .pdfExportRoot .printTaskTable th:nth-child(1), .printMeasureRoot .printTaskTable td:nth-child(1), .pdfExportRoot .printTaskTable td:nth-child(1) { width: 31%; }
 .printMeasureRoot .printTaskTable th:nth-child(2), .pdfExportRoot .printTaskTable th:nth-child(2), .printMeasureRoot .printTaskTable td:nth-child(2), .pdfExportRoot .printTaskTable td:nth-child(2) { width: 32%; }
 .printMeasureRoot .printTaskTable th:nth-child(3), .pdfExportRoot .printTaskTable th:nth-child(3), .printMeasureRoot .printTaskTable td:nth-child(3), .pdfExportRoot .printTaskTable td:nth-child(3) { width: 37%; }
-.printMeasureRoot .printTaskTable th, .pdfExportRoot .printTaskTable th { font-size: 9.2px; padding: 3px 4px; background: #dedede; }
+.printMeasureRoot .printTaskTable th, .pdfExportRoot .printTaskTable th { text-transform: uppercase; font-size: 9.2px; padding: 3px 4px; background: #dedede; }
 .printMeasureRoot .printTaskTable td, .pdfExportRoot .printTaskTable td { height: 24px; padding: 3.5px 4.5px; font-size: 9.8px; line-height: 1.18; vertical-align: top; white-space: pre-line; overflow-wrap: break-word; }
 .printMeasureRoot .continuationTaskTable td, .pdfExportRoot .continuationTaskTable td { height: 35px; font-size: 9.8px; line-height: 1.2; }
 .printMeasureRoot .continuationInfoTable th, .pdfExportRoot .continuationInfoTable th, .printMeasureRoot .continuationInfoTable td, .pdfExportRoot .continuationInfoTable td,
 .printMeasureRoot .signInInfoTable th, .pdfExportRoot .signInInfoTable th, .printMeasureRoot .signInInfoTable td, .pdfExportRoot .signInInfoTable td { font-size: 8.6px; padding: 3px 4px; }
 .printMeasureRoot .continuationNotice, .pdfExportRoot .continuationNotice { border: 1px solid #000; border-top: 0; padding: 4px 5px; font-size: 8px; line-height: 1.15; background: #f4f4f4; }
-.printMeasureRoot .continuationFlag, .pdfExportRoot .continuationFlag { border: 1px solid #9b111e; margin-top: 3px; padding: 3px 5px; font-size: 7px; color: #7f1d1d; background: #fff1f2; }
-.printMeasureRoot .printFooter, .pdfExportRoot .printFooter { border-top: 1px solid #999; padding-top: 3px; font-size: 7px; color: #555; }
+.printMeasureRoot .continuationFlag, .pdfExportRoot .continuationFlag { border: 1px solid #9b111e; margin-top: 3px; padding: 3px 5px; text-align: center; font-weight: 700; font-size: 7px; color: #7f1d1d; background: #fff1f2; }
+.printMeasureRoot .printFooter, .pdfExportRoot .printFooter { border-top: 1px solid #999; padding-top: 3px; text-align: center; font-size: 7px; color: #555; letter-spacing: .2px; }
 
 /* pdfExportRoot-only: branding/decorative colors, sign-in grid, and
    per-sheet spacing that PaginationMeasureRig never needed (it doesn't
