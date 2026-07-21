@@ -1953,6 +1953,26 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 .printMeasureRoot .attachedSignInNotice, .pdfExportRoot .attachedSignInNotice { border: 1px solid #000; border-top: 0; padding: 4px 5px; font-size: 8.8px; }
 .printMeasureRoot .printSimpleTable th, .pdfExportRoot .printSimpleTable th { width: 28%; text-align: left; font-weight: 700; padding: 2.8px 4px; font-size: 8.8px; line-height: 1.3; }
 .printMeasureRoot .printSimpleTable td, .pdfExportRoot .printSimpleTable td { padding: 2.8px 4px; font-size: 8.8px; line-height: 1.3; }
+/* Main-page-only breathing room for the job-information and meeting-information
+   tables: the html2canvas baseline bias measured above (~4-5px, roughly
+   constant regardless of row size) can't be eliminated by row height alone,
+   but the original 2.8px/1.3 rows left so little clearance that the biased
+   text could sit right at or past the bottom border on physical iPad output.
+   This gives single-line cells enough slack for the existing -5px capture
+   compensation to land with visible margin instead of none, without touching
+   continuation/sign-in tables (their .printInfoTable rows stay at the base
+   2.8px/1.3 above -- deliberately not enlarged, since only the main page was
+   reported as visually cramped) or the task table/ackBlock/energyBox (out of
+   scope; already validated as correct). Scoped to .mainJsaPage specifically
+   so it never reaches .continuationPage/.signInPage's own printInfoTable use.
+   Must stay mirrored on .printMeasureRoot: PaginationMeasureRig measures this
+   exact content's height to decide how many task rows fit on page one, and
+   that measurement has to match what .pdfExportRoot actually renders or the
+   planner sizes the task table against the wrong amount of remaining space. */
+.printMeasureRoot .mainJsaPage .printInfoTable th, .pdfExportRoot .mainJsaPage .printInfoTable th,
+.printMeasureRoot .mainJsaPage .printInfoTable td, .pdfExportRoot .mainJsaPage .printInfoTable td,
+.printMeasureRoot .mainJsaPage .printSimpleTable th, .pdfExportRoot .mainJsaPage .printSimpleTable th,
+.printMeasureRoot .mainJsaPage .printSimpleTable td, .pdfExportRoot .mainJsaPage .printSimpleTable td { padding: 3.5px 4px; line-height: 1.4; }
 .printMeasureRoot .energyBox, .pdfExportRoot .energyBox { border: 1px solid #000; border-top: 0; padding: 3px 5px; }
 .printMeasureRoot .energyBox h3, .pdfExportRoot .energyBox h3 { margin: 0 0 2px; text-align: center; text-transform: uppercase; font-size: 8.5px; }
 .printMeasureRoot .energyGrid, .pdfExportRoot .energyGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 8px; }
