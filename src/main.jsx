@@ -3229,6 +3229,59 @@ function dataUrlToUint8Array(dataUrl) {
   return bytes;
 }
 
+/* Capture-only compensation for a stable html2canvas rendering quirk:
+   confirmed by direct pixel measurement (native DOM vs. html2canvas capture
+   of the identical live DOM, in both Chromium and WebKit) that html2canvas
+   paints compact single-line table-cell text a few pixels lower than the
+   browser's own layout — never in the live preview or legacy browser-print
+   path, which don't go through html2canvas and render this text correctly
+   already. Wraps only genuinely single-line, non-blank cell text in a span
+   that .pdfExportRoot shifts upward at capture time (see .pdfSingleLineText
+   in styles.css); wrapped multi-line values (Job Site, Client, etc. when
+   long) and blank cells are left completely untouched — shifting wrapped
+   text would undo the b11e2bc line-height clipping fix's safety margin.
+   Single-vs-wrapped is measured live via Range.getClientRects() (exactly 1
+   rect = one visual line) rather than assumed from character count or label
+   text, because real column widths already wrap some labels (e.g.
+   "Emergency/Rescue Phone #:") that would be wrong to shift.
+   Purely additive and reversible: returns a cleanup function that must be
+   called (via try/finally) immediately after this page's html2canvas
+   capture, success or failure, so the mutation never outlives a single
+   page's capture and can never accumulate across repeated exports. */
+function prepareSingleLineTextForCapture(pageEl) {
+  const cells = pageEl.querySelectorAll(
+    '.printInfoTable th, .printInfoTable td, .printSimpleTable th, .printSimpleTable td'
+  );
+  const wrappedSpans = [];
+  cells.forEach((cell) => {
+    if (cell.querySelector('.pdfSingleLineText')) return; // already prepared -- never double-wrap
+    const textNode = Array.from(cell.childNodes).find(
+      (n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim().length > 0
+    );
+    if (!textNode) return; // blank cell -- nothing to shift
+
+    const range = document.createRange();
+    range.selectNodeContents(textNode);
+    const isSingleLine = range.getClientRects().length === 1;
+    if (!isSingleLine) return; // wrapped content -- must never be shifted
+
+    const span = document.createElement('span');
+    span.className = 'pdfSingleLineText';
+    cell.insertBefore(span, textNode);
+    span.appendChild(textNode);
+    wrappedSpans.push(span);
+  });
+
+  return function cleanupSingleLineTextCapture() {
+    wrappedSpans.forEach((span) => {
+      const parent = span.parentNode;
+      if (!parent) return;
+      while (span.firstChild) parent.insertBefore(span.firstChild, span);
+      parent.removeChild(span);
+    });
+  };
+}
+
 /* The deterministic PDF export pipeline (Phase 4B). Captures each logical
    page from PdfExportRoot sequentially — one canvas at a time, released
    before starting the next — and assembles them into a single PDF with
@@ -3266,11 +3319,14 @@ async function generateJsaPdf(pageRefsRef, onProgress) {
       throw new Error(`Page ${i + 1} of ${pages.length} (${type}) has no measurable size — export aborted.`);
     }
 
+    const cleanupSingleLineText = prepareSingleLineTextForCapture(el);
     let canvas;
     try {
       canvas = await html2canvas(el, { scale, backgroundColor: '#ffffff', useCORS: true, logging: false });
     } catch (err) {
       throw new Error(`Failed to render page ${i + 1} of ${pages.length} (${type}): ${err?.message || err}`);
+    } finally {
+      cleanupSingleLineText();
     }
     if (!canvas || canvas.width === 0 || canvas.height === 0) {
       throw new Error(`Page ${i + 1} of ${pages.length} (${type}) captured empty — export aborted.`);

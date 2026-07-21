@@ -1989,6 +1989,21 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 .pdfExportRoot .printSimpleTable th { background: #efefef; }
 .pdfExportRoot .energyBox h3 { color: #8b0f18; }
 .pdfExportRoot .printSheet + .printSheet { margin-top: 0; }
+/* html2canvas 1.4.1 applies a stable downward baseline bias when rasterizing
+   compact single-line table-cell text (confirmed by direct pixel
+   measurement against native rendering, in both Chromium and WebKit) --
+   painting it a few px lower than real browser layout, even though the row/
+   cell geometry itself is captured correctly. This span only ever exists
+   for the instant of one page's html2canvas capture (see
+   prepareSingleLineTextForCapture in main.jsx, which wraps only genuinely
+   single-line, non-blank cell text and unwraps it again immediately after),
+   so this transform is capture-only by construction -- it never reaches the
+   live preview or legacy browser-print DOM, and wrapped multi-line text is
+   never wrapped in this span, so it's never shifted. -5px was calibrated
+   against the current PDF typography (8.8px font, 1.3 line-height, 2.8px
+   padding on .printInfoTable/.printSimpleTable cells) and must be
+   re-measured if any of those three values change again. */
+.pdfExportRoot .pdfSingleLineText { display: inline-block; transform: translateY(-5px); }
 .pdfExportRoot .attachedSignatureGrid {
   flex: 1 1 auto;
   min-height: 0;
