@@ -1929,25 +1929,42 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 .printMeasureRoot .printInfoTable th, .pdfExportRoot .printInfoTable th, .printMeasureRoot .printInfoTable td, .pdfExportRoot .printInfoTable td,
 .printMeasureRoot .printSimpleTable th, .pdfExportRoot .printSimpleTable th, .printMeasureRoot .printSimpleTable td, .pdfExportRoot .printSimpleTable td,
 .printMeasureRoot .printTaskTable th, .pdfExportRoot .printTaskTable th, .printMeasureRoot .printTaskTable td, .pdfExportRoot .printTaskTable td { border: 1px solid #000; vertical-align: middle; }
-.printMeasureRoot .printInfoTable th, .pdfExportRoot .printInfoTable th { width: 13%; text-align: left; font-weight: 700; font-size: 8.8px; padding: 2.8px 4px; line-height: 1.16; }
-.printMeasureRoot .printInfoTable td, .pdfExportRoot .printInfoTable td { width: 20%; font-size: 8.8px; padding: 2.8px 4px; line-height: 1.16; }
-.printMeasureRoot .ackBlock, .pdfExportRoot .ackBlock { border: 1px solid #000; border-top: 0; padding: 3px 4px; font-size: 7.6px; text-transform: uppercase; line-height: 1.16; }
-.printMeasureRoot .signInAck, .pdfExportRoot .signInAck { font-size: 8.6px; line-height: 1.18; padding: 4px 5px; }
+.printMeasureRoot .printInfoTable th, .pdfExportRoot .printInfoTable th { width: 13%; text-align: left; font-weight: 700; font-size: 8.8px; padding: 2.8px 4px; line-height: 1.3; }
+.printMeasureRoot .printInfoTable td, .pdfExportRoot .printInfoTable td { width: 20%; font-size: 8.8px; padding: 2.8px 4px; line-height: 1.3; }
+/* line-height is intentionally taller here than the .documentPage/@media print
+   copies of these same rules (1.16-1.2 there): html2canvas 1.4.1 reimplements
+   text layout itself rather than reusing the browser's already-computed line
+   boxes, and its effective per-line height for wrapped, multi-line table-cell
+   text runs measurably taller than the specified line-height -- confirmed by
+   comparing a native browser screenshot against the exact html2canvas capture
+   of the same live DOM. At the original values that deficit compounded across
+   2-3 wrapped lines until the last line crossed the row's bottom border and
+   was clipped by overflow:hidden -- a real data-loss bug (wrapped Job Site/
+   Client/Muster Point values, the acknowledgement paragraph, and hazard/
+   control cells), not a cosmetic one. These taller values only pad out the
+   *specified* line-height so the row's real (correctly-measured) height keeps
+   safe clearance for html2canvas's own taller rendering; they must stay on
+   this shared .printMeasureRoot/.pdfExportRoot selector (not the preview or
+   legacy print copies, which don't go through html2canvas and don't need it),
+   and printMeasureRoot must keep matching pdfExportRoot exactly so pagination
+   is measured against the same row heights the export actually produces. */
+.printMeasureRoot .ackBlock, .pdfExportRoot .ackBlock { border: 1px solid #000; border-top: 0; padding: 3px 4px; font-size: 7.6px; text-transform: uppercase; line-height: 1.3; }
+.printMeasureRoot .signInAck, .pdfExportRoot .signInAck { font-size: 8.6px; line-height: 1.32; padding: 4px 5px; }
 .printMeasureRoot .attachedSignInNotice, .pdfExportRoot .attachedSignInNotice { border: 1px solid #000; border-top: 0; padding: 4px 5px; font-size: 8.8px; }
-.printMeasureRoot .printSimpleTable th, .pdfExportRoot .printSimpleTable th { width: 28%; text-align: left; font-weight: 700; padding: 2.8px 4px; font-size: 8.8px; line-height: 1.16; }
-.printMeasureRoot .printSimpleTable td, .pdfExportRoot .printSimpleTable td { padding: 2.8px 4px; font-size: 8.8px; line-height: 1.16; }
+.printMeasureRoot .printSimpleTable th, .pdfExportRoot .printSimpleTable th { width: 28%; text-align: left; font-weight: 700; padding: 2.8px 4px; font-size: 8.8px; line-height: 1.3; }
+.printMeasureRoot .printSimpleTable td, .pdfExportRoot .printSimpleTable td { padding: 2.8px 4px; font-size: 8.8px; line-height: 1.3; }
 .printMeasureRoot .energyBox, .pdfExportRoot .energyBox { border: 1px solid #000; border-top: 0; padding: 3px 5px; }
 .printMeasureRoot .energyBox h3, .pdfExportRoot .energyBox h3 { margin: 0 0 2px; text-align: center; text-transform: uppercase; font-size: 8.5px; }
 .printMeasureRoot .energyGrid, .pdfExportRoot .energyGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 8px; }
-.printMeasureRoot .energyGrid p, .pdfExportRoot .energyGrid p { margin: 0; line-height: 1.12; font-size: 7.6px; }
+.printMeasureRoot .energyGrid p, .pdfExportRoot .energyGrid p { margin: 0; line-height: 1.3; font-size: 7.6px; }
 .printMeasureRoot .taskTableFill, .pdfExportRoot .taskTableFill { margin-top: 4px; }
 .printMeasureRoot .printTaskTable, .pdfExportRoot .printTaskTable { width: 100%; table-layout: fixed; margin-top: 4px; border-collapse: collapse; }
 .printMeasureRoot .printTaskTable th:nth-child(1), .pdfExportRoot .printTaskTable th:nth-child(1), .printMeasureRoot .printTaskTable td:nth-child(1), .pdfExportRoot .printTaskTable td:nth-child(1) { width: 31%; }
 .printMeasureRoot .printTaskTable th:nth-child(2), .pdfExportRoot .printTaskTable th:nth-child(2), .printMeasureRoot .printTaskTable td:nth-child(2), .pdfExportRoot .printTaskTable td:nth-child(2) { width: 32%; }
 .printMeasureRoot .printTaskTable th:nth-child(3), .pdfExportRoot .printTaskTable th:nth-child(3), .printMeasureRoot .printTaskTable td:nth-child(3), .pdfExportRoot .printTaskTable td:nth-child(3) { width: 37%; }
 .printMeasureRoot .printTaskTable th, .pdfExportRoot .printTaskTable th { text-transform: uppercase; font-size: 9.2px; padding: 3px 4px; background: #dedede; }
-.printMeasureRoot .printTaskTable td, .pdfExportRoot .printTaskTable td { height: 24px; padding: 3.5px 4.5px; font-size: 9.8px; line-height: 1.18; vertical-align: top; white-space: pre-line; overflow-wrap: break-word; }
-.printMeasureRoot .continuationTaskTable td, .pdfExportRoot .continuationTaskTable td { height: 35px; font-size: 9.8px; line-height: 1.2; }
+.printMeasureRoot .printTaskTable td, .pdfExportRoot .printTaskTable td { height: 24px; padding: 3.5px 4.5px; font-size: 9.8px; line-height: 1.32; vertical-align: top; white-space: pre-line; overflow-wrap: break-word; }
+.printMeasureRoot .continuationTaskTable td, .pdfExportRoot .continuationTaskTable td { height: 35px; font-size: 9.8px; line-height: 1.34; }
 .printMeasureRoot .continuationInfoTable th, .pdfExportRoot .continuationInfoTable th, .printMeasureRoot .continuationInfoTable td, .pdfExportRoot .continuationInfoTable td,
 .printMeasureRoot .signInInfoTable th, .pdfExportRoot .signInInfoTable th, .printMeasureRoot .signInInfoTable td, .pdfExportRoot .signInInfoTable td { font-size: 8.6px; padding: 3px 4px; }
 .printMeasureRoot .continuationNotice, .pdfExportRoot .continuationNotice { border: 1px solid #000; border-top: 0; padding: 4px 5px; font-size: 8px; line-height: 1.15; background: #f4f4f4; }
