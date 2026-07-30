@@ -785,6 +785,17 @@ function getReviewChecks(jsa, measurements) {
 
 function IconLock(props) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}><rect x="5" y="10.5" width="14" height="9" rx="1.5" /><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" /></svg>; }
 
+/* ── Sidebar nav icons ── deliberately plain single-stroke line marks (no
+   fill, no per-item color) so recognition comes from shape, not a rainbow
+   of accent colors — the active/inactive state is carried by the nav
+   item's text color, not the icon itself. */
+function IconHome(props) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M4 11.5 12 4l8 7.5" /><path d="M6 10v9h12v-9" /><path d="M10 19v-5h4v5" /></svg>; }
+function IconDocuments(props) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M7 3.5h7l3 3v14H7z" /><path d="M14 3.5v3h3" /><path d="M9.5 13h5M9.5 16.5h5" /></svg>; }
+function IconDrafts(props) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M4 20.5 4.7 17l10-10 3 3-10 10z" /><path d="M13.5 8.2l3 3" /></svg>; }
+function IconTemplates(props) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}><rect x="4" y="4" width="7" height="7" rx="1" /><rect x="13" y="4" width="7" height="7" rx="1" /><rect x="4" y="13" width="7" height="7" rx="1" /><rect x="13" y="13" width="7" height="7" rx="1" /></svg>; }
+function IconSettings(props) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="12" cy="12" r="3" /><path d="M12 3v2.4M12 18.6V21M21 12h-2.4M5.4 12H3M18 6l-1.7 1.7M7.7 16.3 6 18M18 18l-1.7-1.7M7.7 7.7 6 6" /></svg>; }
+function IconChevronRight(props) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M9 5l7 7-7 7" /></svg>; }
+
 /* ── Layout capability helpers ──
    Touch-primary detection uses (any-pointer: coarse), a real hardware-capability
    media feature, not a viewport-width guess — this stays correct even if Safari
@@ -836,12 +847,13 @@ function useDebugLayoutFlag() {
    the current step, so status and position never fight for attention. */
 function WorkflowStepper({ steps, jsa, jsaStep, setJsaStep }) {
   const idx = Math.max(0, steps.findIndex(s => s.id === jsaStep));
-  const current = steps[idx];
   return (
     <div className="stepperWrap">
+      {/* Step count only — the current step's name is already the active
+          segment's own label in the rail below; showing it twice was
+          redundant. Count alone still orients the user ("Step 2 of 5"). */}
       <div className="stepperHead">
         <span className="stepperCount">Step {idx + 1} of {steps.length}</span>
-        <span className="stepperTitle">{current.label}</span>
       </div>
       <div className="stepperRail" role="tablist" aria-label="JSA workflow steps">
         {steps.map((s, i) => {
@@ -1427,27 +1439,33 @@ function App() {
   return (
     <>
       <div className="appShell">
-        <header className="topbar">
-          <div className="brandText">
-            <h1>{APP_NAME}</h1>
-            <p>{APP_SUB} · v{APP_VERSION}</p>
-            {BUILD_TIME && <p className="buildStamp">{buildStamp(BUILD_TIME, BUILD_COMMIT)}</p>}
+        <aside className={`sidebar${activeDoc === 'jsa' ? ' builderActive' : ''}`}>
+          <div className="sidebarBrand">
+            <span className="sidebarBrandName">{APP_NAME}</span>
+            <span className="sidebarBrandSub">{APP_SUB}</span>
           </div>
-          <div className="topActions">
-            <span className="saveStatus">{jsa.lastSavedAt ? `Draft saved ${nowNice(new Date(jsa.lastSavedAt))}` : 'No active saved draft'}</span>
-            <button className="topBtn" onClick={() => setSettings(prev => ({ ...prev, theme: settings.theme === 'dark' ? 'light' : 'dark' }))}>
-              {settings.theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+
+          <nav className="sidebarNav">
+            <button className={`sidebarNavItem${tab === 'home' ? ' active' : ''}`} onClick={goHome}>
+              <IconHome className="sidebarNavIcon" /><span className="sidebarNavLabel">Home</span>
+            </button>
+            <button className={`sidebarNavItem${tab === 'documents' ? ' active' : ''}`} onClick={goDocs}>
+              <IconDocuments className="sidebarNavIcon" /><span className="sidebarNavLabel">Documents</span>
+            </button>
+            <button className={`sidebarNavItem${tab === 'drafts' ? ' active' : ''}`} onClick={() => setTab('drafts')}>
+              <IconDrafts className="sidebarNavIcon" /><span className="sidebarNavLabel">Drafts</span>
+            </button>
+            <button className={`sidebarNavItem${tab === 'templates' ? ' active' : ''}`} onClick={() => setTab('templates')}>
+              <IconTemplates className="sidebarNavIcon" /><span className="sidebarNavLabel">Templates</span>
+            </button>
+          </nav>
+
+          <div className="sidebarBottom">
+            <button className={`sidebarNavItem${tab === 'settings' ? ' active' : ''}`} onClick={() => setTab('settings')}>
+              <IconSettings className="sidebarNavIcon" /><span className="sidebarNavLabel">Settings</span>
             </button>
           </div>
-        </header>
-
-        <nav className={`appNav${activeDoc === 'jsa' ? ' builderActive' : ''}`}>
-          <button className={tab === 'home' ? 'active' : ''} onClick={goHome}>Home</button>
-          <button className={tab === 'documents' ? 'active' : ''} onClick={goDocs}>Documents</button>
-          <button className={tab === 'drafts' ? 'active' : ''} onClick={() => setTab('drafts')}>Drafts</button>
-          <button className={tab === 'templates' ? 'active' : ''} onClick={() => setTab('templates')}>Templates</button>
-          <button className={tab === 'settings' ? 'active' : ''} onClick={() => setTab('settings')}>Settings</button>
-        </nav>
+        </aside>
 
         <main className="page">
           {tab === 'home' && <HomeView savedDraft={savedDraft} customTemplates={customTemplates} goJsaStart={goJsaStart} startBlank={requestStartBlank} setTab={setTab} loadSavedDraft={loadSavedDraft} />}
@@ -1490,12 +1508,45 @@ function App() {
   );
 }
 
+/* ── Planned document library ──
+   Shared by Home and Documents so the "not yet built" list is defined once.
+   Deliberately inert: no onClick, no href, cursor:default via CSS — these
+   are not disabled buttons pretending to be buttons, they're plain rows. */
+const PLANNED_DOCUMENT_TYPES = [
+  { name: 'Incident Report', desc: 'Document incidents and near misses in a structured format.' },
+  { name: 'BBS Observation', desc: 'Behavior-based safety observations and coaching notes.' },
+  { name: 'Unplanned Event', desc: 'Capture unplanned events before they escalate.' },
+  { name: 'Sign-In Sheet', desc: 'Standalone sign-in sheet for meetings and training.' },
+  { name: 'Toolbox Talk', desc: 'Short-form safety talks and crew acknowledgement.' },
+  { name: 'SOP', desc: 'Standard operating procedures for recurring tasks.' },
+  { name: 'Inspection', desc: 'Site and equipment inspection checklists.' },
+];
+function PlannedDocumentList() {
+  return (
+    <div className="libraryCard">
+      <div className="libraryList">
+        {PLANNED_DOCUMENT_TYPES.map(doc => (
+          <div className="libraryRow" key={doc.name}>
+            <IconLock className="libraryRowIcon" />
+            <div className="libraryRowText">
+              <strong>{doc.name}</strong>
+              <span>{doc.desc}</span>
+            </div>
+            <span className="badge soon">Planned</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ── Home view ──
-   A focused launch point rather than a feature catalog: one dominant "Today's
-   JSA" workspace (or a single Start-a-JSA hero when nothing is in progress),
-   a quiet row of secondary actions, and future document types tucked behind
-   one small text disclosure. */
-function HomeView({ savedDraft, customTemplates, goJsaStart, startBlank, setTab, loadSavedDraft }) {
+   A cross-document workspace, not a single "Start a JSA" hero: a compact
+   header, JSA as the one currently-available document type (plus real
+   in-progress draft data when it exists), quick access to the existing
+   Documents/Drafts/Templates destinations, and an always-visible (not
+   disclosure-hidden) preview of the broader document library roadmap. */
+function HomeView({ savedDraft, customTemplates, startBlank, setTab, loadSavedDraft }) {
   const hasDraft = Boolean(savedDraft);
   const draftTitle = savedDraft?.jobSite || savedDraft?.templateName || 'Untitled JSA Draft';
   const savedLabel = savedDraft?.lastSavedAt ? nowNice(new Date(savedDraft.lastSavedAt)) : 'on this device';
@@ -1505,83 +1556,69 @@ function HomeView({ savedDraft, customTemplates, goJsaStart, startBlank, setTab,
 
   return (
     <div className="homeLayout">
-      {hasDraft ? (
-        <section className="todayHero">
-          <span className="todayHeroEyebrow">Today's JSA</span>
-          <h1 className="todayHeroTitle">{draftTitle}</h1>
-          <p className="todayHeroMeta">
-            {savedDraft.location && <>{savedDraft.location} &middot; </>}
-            Next: {nextStep} &middot; Saved {savedLabel}
-          </p>
-          <div className="todayHeroProgress">
-            <div className="todayHeroProgressTrack"><div className="todayHeroProgressFill" style={{ width: `${progressPct}%` }} /></div>
-            <span>{progress.done} of {progress.total} steps complete</span>
-          </div>
-          <button className="btn primary lg" onClick={loadSavedDraft}>Continue JSA</button>
-        </section>
-      ) : (
-        <section className="todayHero">
-          <span className="todayHeroEyebrow">Get Started</span>
-          <h1 className="todayHeroTitle">Start a JSA</h1>
-          <p className="todayHeroMeta">Build today's Job Safety Analysis in a few short steps.</p>
-          <button className="btn primary lg" onClick={goJsaStart}>Start a JSA</button>
-        </section>
-      )}
+      <header className="homeHeader">
+        <h1>Safety Documentation Center</h1>
+        <p>Create, manage, review, and export field safety documents.</p>
+      </header>
 
-      <div className="homeSecondaryActions">
-        {hasDraft ? (
-          <button className="quietAction" onClick={goJsaStart}>Start New JSA</button>
-        ) : (
-          <button className="quietAction" onClick={startBlank}>Start Blank</button>
+      <div className={`homePrimaryRow${hasDraft ? '' : ' single'}`}>
+        <section className="homeCard startDocCard">
+          <span className="availableNowTag">Available now</span>
+          <h2>Job Safety Analysis</h2>
+          <p>Create a new JSA or begin from a saved template.</p>
+          <div className="homeCardActions">
+            <button className="btn primary homeCardBtn" onClick={startBlank}>Start Blank</button>
+            <button className="btn ghost homeCardBtn" onClick={() => setTab('templates')}>
+              Browse Templates{customTemplates.length > 0 ? ` (${customTemplates.length})` : ''}
+            </button>
+          </div>
+        </section>
+
+        {hasDraft && (
+          <section className="homeCard continueWorkCard">
+            <span className="homeCardEyebrow">Continue Current Work</span>
+            <h2>{draftTitle}</h2>
+            <p className="continueWorkMeta">
+              {savedDraft.location && <>{savedDraft.location} &middot; </>}
+              Next: {nextStep} &middot; Saved {savedLabel}
+            </p>
+            <div className="continueWorkProgress">
+              <div className="continueWorkProgressTrack"><div className="continueWorkProgressFill" style={{ width: `${progressPct}%` }} /></div>
+              <span>{progress.done} of {progress.total} steps complete</span>
+            </div>
+            <div className="homeCardActions">
+              <button className="btn primary" onClick={loadSavedDraft}>Continue JSA</button>
+            </div>
+          </section>
         )}
-        <button className="quietAction" onClick={() => setTab('templates')}>
-          Browse Templates{customTemplates.length > 0 ? ` (${customTemplates.length})` : ''}
-        </button>
-        <button className="quietAction" onClick={() => setTab('documents')}>Documents</button>
       </div>
 
-      <details className="quietDisclosure">
-        <summary>More document types coming later</summary>
-        <div className="quietDisclosureBody">
-          <div className="moduleGrid">
-            <div className="moduleTile locked">
-              <div className="moduleTileHead">
-                <IconLock className="moduleLockIcon" />
-                <strong>Incident Report</strong>
-              </div>
-              <p>Document incidents and near misses in a structured format.</p>
-            </div>
-            <div className="moduleTile locked">
-              <div className="moduleTileHead">
-                <IconLock className="moduleLockIcon" />
-                <strong>Field Observation</strong>
-              </div>
-              <p>Record corrective actions and safety observations.</p>
-            </div>
-            <div className="moduleTile locked">
-              <div className="moduleTileHead">
-                <IconLock className="moduleLockIcon" />
-                <strong>Unplanned Event Report</strong>
-              </div>
-              <p>Capture unplanned events before they escalate.</p>
-            </div>
-            <div className="moduleTile locked">
-              <div className="moduleTileHead">
-                <IconLock className="moduleLockIcon" />
-                <strong>Sign-In Sheet</strong>
-              </div>
-              <p>Standalone sign-in sheet for meetings and training.</p>
-            </div>
-            <div className="moduleTile locked">
-              <div className="moduleTileHead">
-                <IconLock className="moduleLockIcon" />
-                <strong>Weekly Inspection</strong>
-              </div>
-              <p>Site safety inspection checklists.</p>
-            </div>
-          </div>
+      <section className="homeSection">
+        <span className="homeSectionEyebrow">Workspace</span>
+        <div className="workspaceAccessGrid">
+          <button className="accessRow" onClick={() => setTab('documents')}>
+            <IconDocuments className="accessRowIcon" />
+            <span className="accessRowText"><strong>Documents</strong><small>Start or continue a document</small></span>
+            <IconChevronRight className="accessRowChevron" />
+          </button>
+          <button className="accessRow" onClick={() => setTab('drafts')}>
+            <IconDrafts className="accessRowIcon" />
+            <span className="accessRowText"><strong>Drafts</strong><small>Work in progress on this device</small></span>
+            <IconChevronRight className="accessRowChevron" />
+          </button>
+          <button className="accessRow" onClick={() => setTab('templates')}>
+            <IconTemplates className="accessRowIcon" />
+            <span className="accessRowText"><strong>Templates</strong><small>{customTemplates.length > 0 ? `${customTemplates.length} saved` : 'Reusable starting points'}</small></span>
+            <IconChevronRight className="accessRowChevron" />
+          </button>
         </div>
-      </details>
+      </section>
+
+      <section className="homeSection">
+        <span className="homeSectionEyebrow">Document Library</span>
+        <p className="homeSectionSub">More document types are planned for future releases.</p>
+        <PlannedDocumentList />
+      </section>
     </div>
   );
 }
@@ -1592,32 +1629,28 @@ function DocCenterView({ goJsaStart }) {
     <div className="sectionStack">
       <div className="sectionTitle">
         <div className="eyebrow">Documents</div>
-        <h2>Start a Document</h2>
-        <p>Select a document type. Only the JSA creator is active in this version; the rest will be added in later phases.</p>
-      </div>
-      <div className="listItem">
-        <div className="itemInfo">
-          <strong>Job Safety Analysis</strong>
-          <p>Start blank, load a saved template, or continue a draft.</p>
-        </div>
-        <div className="itemActions">
-          <span className="badge avail">Available</span>
-          <button className="btn secondary sm" onClick={goJsaStart}>Start</button>
-        </div>
+        <h2>Documents</h2>
+        <p>Start or open a document type that's available now. Planned types will arrive in later releases.</p>
       </div>
 
-      <details className="quietDisclosure">
-        <summary>More document types coming later</summary>
-        <div className="quietDisclosureBody">
-          <div className="docGrid">
-            <div className="docTile disabled"><strong>Incident Report</strong><p>Structured incident and near miss documentation.</p></div>
-            <div className="docTile disabled"><strong>Field Observation</strong><p>Safety observations and corrective actions.</p></div>
-            <div className="docTile disabled"><strong>Unplanned Event Report</strong><p>Capture unplanned events before they escalate.</p></div>
-            <div className="docTile disabled"><strong>Sign-In Sheet</strong><p>Standalone sign-in sheet for meetings.</p></div>
-            <div className="docTile disabled"><strong>Weekly Inspection</strong><p>Site safety inspection checklists.</p></div>
+      <section className="homeSection">
+        <span className="homeSectionEyebrow">Available Now</span>
+        <div className="listItem">
+          <div className="itemInfo">
+            <strong>Job Safety Analysis</strong>
+            <p>Start blank, load a saved template, or continue a draft.</p>
+          </div>
+          <div className="itemActions">
+            <span className="badge avail">Available</span>
+            <button className="btn secondary sm" onClick={goJsaStart}>Start</button>
           </div>
         </div>
-      </details>
+      </section>
+
+      <section className="homeSection">
+        <span className="homeSectionEyebrow">Planned</span>
+        <PlannedDocumentList />
+      </section>
     </div>
   );
 }
@@ -1749,6 +1782,13 @@ function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTem
   const debugLayout = useDebugLayoutFlag();
   const layoutMode = canSideBySide ? 'desktop-side-by-side' : (isTouchPrimary ? 'touch-stacked' : 'desktop-stacked-narrow');
   const previewOpen = jsaStep !== 'review' && showPreview;
+  // Whether the side-by-side preview column is actually rendering right now —
+  // both canSideBySide (width/touch capability) and previewOpen (the existing
+  // toggle) are pre-existing derived values; this only combines them so the
+  // builder can expand to use the full laptop width whenever a preview isn't
+  // actually occupying the right column, instead of always reserving that
+  // space just because the viewport is technically wide enough for it.
+  const showSideBySide = canSideBySide && previewOpen;
 
   function prev() { if (idx > 0) setJsaStep(STEPS[idx - 1].id); }
   function next() { if (idx < STEPS.length - 1) setJsaStep(STEPS[idx + 1].id); }
@@ -1776,22 +1816,29 @@ function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTem
   return (
     <>
       <div className="builderHeader">
-        <div className="builderHeaderTop">
-          <button className="backBtn" onClick={goJsaStart}>&larr; Start Options</button>
-          <div className="builderHeaderBadges">
-            <span className={`fitBadge ${fit.status}`}>{fit.label}</span>
-            <span className={`badge ${jsa.status}`}>{jsa.status === 'ready' ? 'Ready to Export' : 'Draft'}</span>
-            {!canSideBySide && !isTouchPrimary && jsaStep !== 'review' && (
-              <button className="btn sm outline" onClick={() => setShowPreview(v => !v)}>
-                {showPreview ? 'Hide Preview' : 'Preview JSA'}
-              </button>
-            )}
+        <div className="builderHeaderTitleRow">
+          <div className="builderHeaderTitleBlock">
+            <span className="builderHeaderKicker">Job Safety Analysis</span>
+            <h1 className="builderHeaderTitle">{jsa.jobSite || jsa.templateName || 'Untitled JSA'}</h1>
           </div>
+          <button className="backBtn" onClick={goJsaStart}>&larr; Start Options</button>
+        </div>
+        <div className="builderHeaderTop">
+          <div className="builderHeaderBadges">
+            <span className={`badge ${jsa.status}`}>{jsa.status === 'ready' ? 'Ready to Export' : 'Draft'}</span>
+            <span className={`fitBadge ${fit.status}`}>{fit.label}</span>
+            <span className="builderHeaderSaved">{jsa.lastSavedAt ? `Saved ${nowNice(new Date(jsa.lastSavedAt))}` : 'Not saved yet'}</span>
+          </div>
+          {!isTouchPrimary && jsaStep !== 'review' && (
+            <button className="btn sm outline" onClick={() => setShowPreview(v => !v)}>
+              {showPreview ? 'Hide Preview' : 'Preview JSA'}
+            </button>
+          )}
         </div>
         <WorkflowStepper steps={STEPS} jsa={jsa} jsaStep={jsaStep} setJsaStep={setJsaStep} />
       </div>
 
-      <div className={`workflowShell${canSideBySide ? '' : ' stacked'}`} ref={shellRef}>
+      <div className={`workflowShell${showSideBySide ? '' : ' stacked'}`} ref={shellRef}>
         <div className="workflowLeft">
           {jsaStep === 'job' && <StepJob jsa={jsa} upd={upd} prev={prev} next={next} />}
           {jsaStep === 'meeting' && <StepMeeting jsa={jsa} upd={upd} prev={prev} next={next} />}
@@ -1819,7 +1866,7 @@ function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTem
           {!canSideBySide && previewOpen && previewPanel}
         </div>
 
-        {canSideBySide && (
+        {showSideBySide && (
           <div className="workflowRight">
             {previewPanel}
           </div>
@@ -1870,26 +1917,44 @@ function StepJob({ jsa, upd, prev, next }) {
     <div className="stepStack">
       <div className="stepPanel">
         <div className="stepPanelHeader"><h3>Job Information</h3></div>
-        <div className="formGrid">
-          <F label="Location / City" value={jsa.location} onChange={v => upd({ location: v })} />
-          <F label="Job Site" value={jsa.jobSite} onChange={v => upd({ jobSite: v })} />
-          <div className={datePairClass}>
-            <F label="Date" type="date" value={jsa.date} onChange={v => upd({ date: v })} />
-            <F label="Job #" value={jsa.jobNumber} onChange={v => upd({ jobNumber: v })} />
+        {/* Visual grouping only — same fields, same order, same bindings,
+            just presented as related clusters instead of one continuous
+            list of ten fields. */}
+        <div className="formSectionGroup">
+          <div className="formSection">
+            <span className="formSectionHeading">Site Details</span>
+            <div className="formGrid">
+              <F label="Location / City" value={jsa.location} onChange={v => upd({ location: v })} />
+              <F label="Job Site" value={jsa.jobSite} onChange={v => upd({ jobSite: v })} />
+              <div className={datePairClass}>
+                <F label="Date" type="date" value={jsa.date} onChange={v => upd({ date: v })} />
+                <F label="Job #" value={jsa.jobNumber} onChange={v => upd({ jobNumber: v })} />
+              </div>
+            </div>
           </div>
-          <div className="formPairRow">
-            <F label="Client" value={jsa.client} onChange={v => upd({ client: v })} />
-            <F label="Muster Point" value={jsa.musterPoint} onChange={v => upd({ musterPoint: v })} />
+          <div className="formSection">
+            <span className="formSectionHeading">Client and Schedule</span>
+            <div className="formGrid">
+              <div className="formPairRow">
+                <F label="Client" value={jsa.client} onChange={v => upd({ client: v })} />
+                <F label="Muster Point" value={jsa.musterPoint} onChange={v => upd({ musterPoint: v })} />
+              </div>
+              <div className={datePairClass}>
+                <F label="Time Issued" type="time" value={jsa.timeIssued} onChange={v => upd({ timeIssued: v })} />
+                <F label="Time Expired" type="time" value={jsa.timeExpired} onChange={v => upd({ timeExpired: v })} />
+              </div>
+            </div>
           </div>
-          <div className={datePairClass}>
-            <F label="Time Issued" type="time" value={jsa.timeIssued} onChange={v => upd({ timeIssued: v })} />
-            <F label="Time Expired" type="time" value={jsa.timeExpired} onChange={v => upd({ timeExpired: v })} />
+          <div className="formSection">
+            <span className="formSectionHeading">Supervision and Emergency</span>
+            <div className="formGrid">
+              <F label="Superintendent / Foreman" value={jsa.superintendentForeman} onChange={v => upd({ superintendentForeman: v })} />
+              <F label="Emergency / Rescue Phone #" value={jsa.emergencyPhone} onChange={v => upd({ emergencyPhone: v })} />
+              <F label="Site Contact Phone #" value={jsa.siteContactPhone} onChange={v => upd({ siteContactPhone: v })} />
+              <F label="Nearest Medical Facility" value={jsa.nearestMedicalFacility} onChange={v => upd({ nearestMedicalFacility: v })} />
+              <F label="Assigned Mentor / SSE Number" value={jsa.assignedMentorSse} onChange={v => upd({ assignedMentorSse: v })} />
+            </div>
           </div>
-          <F label="Superintendent / Foreman" value={jsa.superintendentForeman} onChange={v => upd({ superintendentForeman: v })} />
-          <F label="Emergency / Rescue Phone #" value={jsa.emergencyPhone} onChange={v => upd({ emergencyPhone: v })} />
-          <F label="Site Contact Phone #" value={jsa.siteContactPhone} onChange={v => upd({ siteContactPhone: v })} />
-          <F label="Nearest Medical Facility" value={jsa.nearestMedicalFacility} onChange={v => upd({ nearestMedicalFacility: v })} />
-          <F label="Assigned Mentor / SSE Number" value={jsa.assignedMentorSse} onChange={v => upd({ assignedMentorSse: v })} />
         </div>
       </div>
       <StepFooter prev={prev} next={next} hasPrev={false} hasNext />
@@ -2139,31 +2204,43 @@ function StepWork({ jsa, upd, addRow, updRow, removeRow, addSummaryAsRow, addRow
           <h3>Tasks, Hazards, and Controls</h3>
           <p>Tasks describe the work. Hazards describe what could cause harm. Controls describe how the risk will be reduced.</p>
         </div>
-        <div className="formGrid">
-          <FieldWithSuggestions
-            label="Tasks for Today" value={jsa.dailyTasks} onChange={v => upd({ dailyTasks: v })}
-            onBlur={() => upd({ dailyTasks: dedupeList(splitLines(jsa.dailyTasks)).join('\n') })} rows={6}
-            placeholder="Enter each work activity on its own line."
-            quickPanelTitle="Quick Daily Tasks" sheetTitle="Daily Task Suggestions" groups={taskGroups}
-            onPick={handleTaskPick} onRemove={handleTaskRemove}
-            fieldKey="dailyTasks" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
-          />
-          <FieldWithSuggestions
-            label="Hazards in Work Area" value={jsa.hazardsSummary} onChange={v => upd({ hazardsSummary: v })}
-            onBlur={() => upd({ hazardsSummary: dedupeList(splitLines(jsa.hazardsSummary)).join('\n') })} rows={6}
-            placeholder="Enter each exposure or hazardous condition on its own line."
-            quickPanelTitle="Quick Hazards" sheetTitle="Hazard Suggestions" groups={hazardGroups}
-            onPick={handleHazardPick} onRemove={handleHazardRemove}
-            fieldKey="hazards" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
-          />
-          <FieldWithSuggestions
-            label="Controls and Mitigations" value={jsa.controlsSummary} onChange={v => upd({ controlsSummary: v })}
-            onBlur={() => upd({ controlsSummary: dedupeList(splitLines(jsa.controlsSummary)).join('\n') })} rows={6}
-            placeholder="Enter each preventive action or requirement on its own line."
-            quickPanelTitle="Quick Controls" sheetTitle="Control Suggestions" groups={controlGroups}
-            onPick={handleControlPick} onRemove={handleControlRemove}
-            fieldKey="controls" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
-          />
+        <div className="formSectionGroup">
+          <div className="formSection">
+            <div className="formGrid">
+              <FieldWithSuggestions
+                label="Tasks for Today" value={jsa.dailyTasks} onChange={v => upd({ dailyTasks: v })}
+                onBlur={() => upd({ dailyTasks: dedupeList(splitLines(jsa.dailyTasks)).join('\n') })} rows={6}
+                placeholder="Enter each work activity on its own line."
+                quickPanelTitle="Quick Daily Tasks" sheetTitle="Daily Task Suggestions" groups={taskGroups}
+                onPick={handleTaskPick} onRemove={handleTaskRemove}
+                fieldKey="dailyTasks" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
+              />
+            </div>
+          </div>
+          <div className="formSection">
+            <div className="formGrid">
+              <FieldWithSuggestions
+                label="Hazards in Work Area" value={jsa.hazardsSummary} onChange={v => upd({ hazardsSummary: v })}
+                onBlur={() => upd({ hazardsSummary: dedupeList(splitLines(jsa.hazardsSummary)).join('\n') })} rows={6}
+                placeholder="Enter each exposure or hazardous condition on its own line."
+                quickPanelTitle="Quick Hazards" sheetTitle="Hazard Suggestions" groups={hazardGroups}
+                onPick={handleHazardPick} onRemove={handleHazardRemove}
+                fieldKey="hazards" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
+              />
+            </div>
+          </div>
+          <div className="formSection">
+            <div className="formGrid">
+              <FieldWithSuggestions
+                label="Controls and Mitigations" value={jsa.controlsSummary} onChange={v => upd({ controlsSummary: v })}
+                onBlur={() => upd({ controlsSummary: dedupeList(splitLines(jsa.controlsSummary)).join('\n') })} rows={6}
+                placeholder="Enter each preventive action or requirement on its own line."
+                quickPanelTitle="Quick Controls" sheetTitle="Control Suggestions" groups={controlGroups}
+                onPick={handleControlPick} onRemove={handleControlRemove}
+                fieldKey="controls" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
+              />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -2402,8 +2479,11 @@ function DraftsView({ savedDraft, loadSavedDraft, goJsaStart, clearDraft }) {
       {savedDraft ? (
         <div className="listItem">
           <div className="itemInfo">
-            <strong>{savedDraft.jobSite || savedDraft.templateName || 'JSA Draft'}</strong>
-            <p>{savedDraft.lastSavedAt ? `Last saved ${nowNice(new Date(savedDraft.lastSavedAt))}` : 'Saved on this device'}</p>
+            <div className="itemInfoTitleRow">
+              <strong>{savedDraft.jobSite || savedDraft.templateName || 'JSA Draft'}</strong>
+              <span className={`badge ${savedDraft.status === 'ready' ? 'ready' : 'draft'}`}>{savedDraft.status === 'ready' ? 'Ready to Export' : 'Draft'}</span>
+            </div>
+            <p>Next: {nextStepHint(savedDraft)} &middot; {savedDraft.lastSavedAt ? `Last saved ${nowNice(new Date(savedDraft.lastSavedAt))}` : 'Saved on this device'}</p>
           </div>
           <div className="itemActions">
             <button className="btn secondary sm" onClick={loadSavedDraft}>Open Draft</button>
@@ -2503,12 +2583,12 @@ function SettingsView({ settings, setSettings }) {
         <p>This build stores drafts, templates, favorites, recent items, and custom quick adds locally on this device.</p>
       </div>
       <div className="card">
-        <div className="cardHeader"><h3>Display</h3></div>
+        <div className="cardHeader"><h3>Appearance</h3></div>
         <div className="cardBody">
           <div className="settingsRow">
             <div className="rowInfo">
               <strong>Theme</strong>
-              <p>Dark mode uses charcoal gray with red accents. Light mode uses a white layout.</p>
+              <p>Light mode uses a navy-and-off-white workspace and is the primary experience. Dark mode uses layered navy surfaces with the same red accent.</p>
             </div>
             <button className="btn ghost" onClick={() => setSettings(prev => ({ ...prev, theme: settings.theme === 'dark' ? 'light' : 'dark' }))}>
               Switch to {settings.theme === 'dark' ? 'Light' : 'Dark'} Mode
@@ -2562,6 +2642,13 @@ function SettingsView({ settings, setSettings }) {
             <p><strong>Outside the app:</strong> Final PDFs should be saved to your desktop, iPad Files, OneDrive, iCloud, or project folder after export.</p>
             <p><strong>Important:</strong> All data is stored locally in your browser. Clearing browser data will remove saved drafts, templates, and custom items.</p>
           </div>
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="cardHeader"><h3>About</h3></div>
+        <div className="cardBody">
+          <p className="aboutVersionLine">v{APP_VERSION}{BUILD_TIME ? ` · ${buildStamp(BUILD_TIME, BUILD_COMMIT)}` : ''}</p>
         </div>
       </div>
     </div>
