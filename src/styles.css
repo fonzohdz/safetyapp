@@ -1,53 +1,117 @@
 /* ===== Safety App v4 ===== */
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap');
+/* No external font import — the interface uses the native/system font
+   stack defined in --font/--font-mono below (see typography system). */
 
 /* ── Tokens ── */
 /* App-UI palette only. Printed/exported JSA and Shackelford branding use their
    own hardcoded colors elsewhere in this file and do not read these tokens. */
+/* Premium American Field Workspace — navy sidebar + light workspace is the
+   PRIMARY direction. Exact palette per spec (not derived/approximated).
+   --workspace and --surface stay deliberately different tones (cool
+   off-white canvas vs. white cards) so form sections read as raised
+   surfaces. --success is an alias for --good added here in the SCREEN
+   tokens — it was previously only defined inside the @media print block
+   (line ~2050) and used in 4 places in the live UI (quick-chip "included"
+   state, review checklist), so it silently rendered with no color at all
+   outside print; this fixes that without touching the print block. */
 :root {
-  --bg: #f2f2f3;
-  --nav: #ececed;
-  --surface: #ffffff;
-  --surface-2: #f5f5f6;
-  --surface-3: #e8e8ea;
-  --text: #17181a;
-  --muted: #55585e;
-  --line: #d9d9db;
-  --line-strong: #c2c3c6;
-  --accent: #17181a;
-  --accent-2: #2c2e32;
-  --danger: #dc2626;
-  --good: #15803d;
-  --warn: #b45309;
-  --accent-ink: #f5f5f6;
-  --shadow: 0 2px 8px rgba(20,20,22,0.08), 0 10px 26px rgba(20,20,22,0.06);
-  --shadow-lg: 0 6px 18px rgba(20,20,22,0.10), 0 20px 44px rgba(20,20,22,0.08);
-  --glow-accent: 0 0 0 1px color-mix(in srgb, var(--text) 25%, transparent);
-  --radius: 12px;
-  --radius-sm: 8px;
-  --font: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --bg: #F4F7FA;
+  --workspace: #F4F7FA;
+  --workspace-2: #EEF3F8;
+  --surface: #FFFFFF;
+  --surface-2: #EEF3F8;
+  --surface-3: #E8F0F8;
+  --text: #10233D;
+  --muted: #607187;
+  --text-faint: #7D8C9E;
+  --text-very-faint: #98A5B4;
+  --line: #D7E0EA;
+  --line-strong: #BECBD8;
+  --accent: #C51F3A;
+  --accent-2: #A71931;
+  --accent-3: #851426;
+  --accent-ink: #FFFFFF;
+  --accent-tint: #FCE8EC;
+  --accent-border-tint: #E8AAB5;
+  --focus: #2F6398;
+  --focus-hover: #285681;
+  --focus-tint: #E8F0F8;
+  --danger: #A92238;
+  --danger-tint: #FBE8EB;
+  --good: #2E7656;
+  --good-tint: #E8F4ED;
+  --success: var(--good);
+  --warn: #A87521;
+  --warn-tint: #FAF1DF;
+  --shadow: 0 8px 24px rgba(10, 35, 66, 0.07);
+  --shadow-hover: 0 10px 28px rgba(10, 35, 66, 0.10);
+  --shadow-lg: 0 16px 40px rgba(10, 35, 66, 0.14);
+  --glow-accent: 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
+  --radius: 10px;
+  --radius-sm: 7px;
+  --radius-pill: 999px;
+  --font: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  /* Sidebar is a fixed brand surface — same navy identity regardless of the
+     light/dark toggle (the toggle only changes the workspace), so these are
+     defined once, not per-theme. */
+  --sidebar-w: 212px;
+  --sidebar-w-collapsed: 64px;
+  --sidebar-bg: #071B33;
+  --sidebar-bg-active: #12365D;
+  --sidebar-bg-hover: #173F6D;
+  --sidebar-border: rgba(244,247,250,.10);
+  --sidebar-text: #F4F7FA;
+  --sidebar-text-muted: color-mix(in srgb, #F4F7FA 58%, #071B33 42%);
+  --action-dock-height: 64px;
+  --input-bg: var(--surface);
 }
 
+/* Dark mode: kept functional (this pass is not a full rebuild), with
+   distinct layered surfaces per spec — canvas/workspace/surface/raised
+   surface/input are five genuinely different tones, not one flat navy
+   field. Accent uses the given dark-specific red pair so bare red text
+   passes readable contrast against dark navy (the light-theme red, mixed
+   with a dark navy surface, produced a muddy purple — the exact bug this
+   replaces: dark tokens are explicit literal values now, never colors
+   mixed across the light/dark boundary). */
 html[data-theme='dark'] {
-  --bg: #000000;
-  --nav: #0a0a0b;
-  --surface: #131417;
-  --surface-2: #1a1b1f;
-  --surface-3: #232429;
-  --text: #f5f6f7;
-  --muted: #9a9da4;
-  --line: #232429;
-  --line-strong: #34363c;
-  --accent: #f5f6f7;
-  --accent-2: #d8d9db;
-  --danger: #ef4444;
-  --good: #22c55e;
-  --warn: #f59e0b;
-  --accent-ink: #111214;
-  --shadow: 0 2px 8px rgba(0,0,0,0.45), 0 10px 30px rgba(0,0,0,0.35);
-  --shadow-lg: 0 6px 20px rgba(0,0,0,0.5), 0 22px 50px rgba(0,0,0,0.4);
-  --glow-accent: 0 0 0 1px color-mix(in srgb, var(--text) 30%, transparent);
+  --bg: #071629;
+  --workspace: #0B203A;
+  --workspace-2: #0D2846;
+  --surface: #123153;
+  --surface-2: #173B63;
+  --surface-3: #173B63;
+  --text: #F5F7FA;
+  --muted: #BBC8D7;
+  --text-faint: #91A3B8;
+  --text-very-faint: #7690A8;
+  --line: #2A4A6D;
+  --line-strong: color-mix(in srgb, #2A4A6D 65%, #F5F7FA 35%);
+  --accent: #C51F3A;
+  --accent-2: #DC2E4B;
+  --accent-3: #DC2E4B;
+  --accent-ink: #FFFFFF;
+  --accent-tint: #173B63;
+  --accent-border-tint: #DC2E4B;
+  --accent-text: #FF7588;
+  --focus: #6EA8E0;
+  --focus-hover: #8CBAE8;
+  --focus-tint: #0D2846;
+  --danger: #FF7588;
+  --danger-tint: #173B63;
+  --good: #4C9172;
+  --good-tint: #123153;
+  --success: var(--good);
+  --warn: #C79A4B;
+  --warn-tint: #123153;
+  --shadow: 0 8px 24px rgba(0,0,0,.4);
+  --shadow-hover: 0 10px 28px rgba(0,0,0,.48);
+  --shadow-lg: 0 20px 48px rgba(0,0,0,.5);
+  --glow-accent: 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+  /* Input surface distinct from card surface, per spec ("Dark Input"),
+     read by the input rules further down this file. */
+  --input-bg: #0D2846;
 }
 
 /* ── Type scale (used for the "confident heading" treatment on Home, the
@@ -59,9 +123,20 @@ html[data-theme='dark'] {
   --space-section: clamp(28px, 4vw, 44px);
 }
 
-/* ── Reset ── */
+/* ── Reset ──
+   box-sizing:border-box is set globally so width/min-width math throughout
+   this file is predictable. No overflow-x:hidden here — that hides
+   symptoms rather than fixing the layout; the one sanctioned safety net is
+   overflow-x:clip on .appShell itself (below), after the actual
+   overflow-prone containers (grids/flex children) are given min-width:0. */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html, body, #root { height: 100%; }
+html, body, #root { height: 100%; height: 100dvh; }
+/* Tells the browser which palette to use for native form-control chrome
+   (date/time picker icons, scrollbars) so they stay visible against the
+   input background in both themes instead of defaulting to light-only
+   icon rendering that can disappear on a dark input. */
+html { color-scheme: light; }
+html[data-theme='dark'] { color-scheme: dark; }
 body {
   background: var(--bg);
   color: var(--text);
@@ -69,7 +144,6 @@ body {
   font-size: 15px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
 }
 button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; border: none; background: none; }
@@ -83,139 +157,117 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:focus-v
   outline-offset: 2px;
 }
 
-/* ── App Shell ── */
-.appShell { min-height: 100vh; display: flex; flex-direction: column; }
+/* ── App Shell ──
+   Row layout hosting a fixed left sidebar beside the scrolling content
+   column, replacing the previous stacked top-bar + horizontal-tab-row
+   header entirely. overflow-x:clip is the one sanctioned safety net (per
+   the layout-correction standard: fix root causes with min-width:0 first,
+   then this only clips whatever residual overflow slips through — it does
+   not create a scroll container of its own the way overflow-x:hidden on
+   body could, and it can never itself push the sidebar off-screen). */
+.appShell { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: row; align-items: stretch; overflow-x: clip; }
 
-/* ── Top Bar ── */
-.topbar {
+/* ── Sidebar ──
+   Fixed navy brand surface (--sidebar-* tokens, defined once — not
+   per-theme, since the brand identity doesn't change with the light/dark
+   toggle). Sticky for its full viewport height, same "pin while the page
+   scrolls" model already used elsewhere in this file. Deliberately plain
+   geometry (small radius, one clear accent) rather than a soft rounded
+   admin-template look. */
+.sidebar {
   position: sticky;
   top: 0;
-  z-index: 20;
+  height: 100vh;
+  height: 100dvh;
+  flex-shrink: 0;
+  width: var(--sidebar-w);
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding-top: 0;
-  padding-bottom: 0;
-  padding-left: max(clamp(14px, 3.5vw, 40px), env(safe-area-inset-left, 0px));
-  padding-right: max(clamp(14px, 3.5vw, 40px), env(safe-area-inset-right, 0px));
-  height: 60px;
-  background: #0d0f13;
-  border-bottom: 2px solid var(--accent);
-  color: #fff;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.35), 0 1px 0 color-mix(in srgb, var(--accent) 35%, transparent);
-  flex-shrink: 0;
+  flex-direction: column;
+  background: var(--sidebar-bg);
+  padding: 26px 12px 18px;
+  gap: 4px;
+  overflow-y: auto;
 }
-.brandMark {
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  border-radius: 8px;
-  background: var(--accent);
-  color: #fff;
-  font-weight: 700;
-  font-size: 12px;
-  letter-spacing: .5px;
-  font-family: var(--font-mono);
-  flex-shrink: 0;
-}
-.brandText h1 {
-  font-size: 16px;
+.sidebarBrand { padding: 0 10px 26px; display: grid; gap: 4px; }
+.sidebarBrandName {
+  font-size: 17px;
   font-weight: 800;
-  letter-spacing: .1px;
-  white-space: nowrap;
+  letter-spacing: 0;
+  line-height: 1.2;
+  color: var(--sidebar-text);
 }
-.brandText p {
-  font-size: 10px;
+.sidebarBrandSub {
+  font-size: 10.5px;
   font-weight: 600;
-  color: rgba(255,255,255,.5);
-  letter-spacing: 1.2px;
+  letter-spacing: .4px;
   text-transform: uppercase;
+  color: var(--sidebar-text-muted);
 }
-.brandText .buildStamp {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  font-weight: 500;
-  color: rgba(255,255,255,.32);
-  letter-spacing: .2px;
-  text-transform: none;
-}
-.topActions {
-  margin-left: auto;
+.sidebarNav { display: grid; gap: 2px; }
+/* Sharper, more deliberate active treatment: a subtle navy surface shift
+   (not a gray pill) plus a solid 3px red vertical indicator. Small,
+   near-square radius — not the rounded-pill look of a generic template.
+   Row height ~46px (10px vertical padding + 18px icon/line, comfortably
+   above the 44px minimum touch target). */
+.sidebarNavItem {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-.saveStatus {
-  color: rgba(255,255,255,.6);
-  font-size: 12px;
-  font-weight: 500;
-  white-space: nowrap;
-}
-.topBtn {
-  border: 1px solid rgba(255,255,255,.2);
-  color: rgba(255,255,255,.9);
-  background: rgba(255,255,255,.07);
-  border-radius: 6px;
-  padding: 6px 12px;
-  font-size: 13px;
+  gap: 11px;
+  padding: 12px 12px;
+  border-radius: 5px;
+  border-left: 3px solid transparent;
+  color: var(--sidebar-text-muted);
+  font-size: 13.5px;
   font-weight: 600;
+  text-align: left;
   white-space: nowrap;
+  transition: color .15s, background .15s, border-color .15s;
 }
-.topBtn:hover { background: rgba(255,255,255,.13); }
-
-/* ── Navigation ── */
-.appNav {
-  position: sticky;
-  top: 60px;
-  z-index: 19;
-  display: flex;
-  gap: 6px;
-  padding: 10px clamp(14px, 3.5vw, 40px);
-  background: var(--nav);
-  border-bottom: 1px solid var(--line);
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.appNav::-webkit-scrollbar { display: none; }
-.appNav button {
-  border: 1px solid transparent;
-  background: none;
-  color: var(--muted);
-  border-radius: var(--radius-sm);
-  padding: 8px 18px;
+.sidebarNavIcon { width: 18px; height: 18px; flex-shrink: 0; }
+.sidebarNavLabel { overflow: hidden; text-overflow: ellipsis; }
+.sidebarNavItem:hover { color: var(--sidebar-text); background: var(--sidebar-bg-hover); }
+.sidebarNavItem.active {
+  color: var(--sidebar-text);
+  background: var(--sidebar-bg-active);
+  border-left-color: var(--accent);
   font-weight: 700;
-  font-size: 12.5px;
-  letter-spacing: .35px;
-  text-transform: uppercase;
-  white-space: nowrap;
-  transition: color .15s, background .15s, border-color .15s, box-shadow .15s;
 }
-.appNav button:hover { color: var(--text); background: var(--surface); }
-/* Quieted (not hidden) while a document builder is open — reduces the nav's
-   visual weight so it doesn't compete with the stepper below it, while
-   staying fully visible, legible, and one tap away. */
-.appNav.builderActive button.active {
-  background: color-mix(in srgb, var(--accent) 8%, var(--surface) 92%);
-  box-shadow: none;
-}
-.appNav button.active {
-  background: color-mix(in srgb, var(--accent) 16%, var(--surface) 84%);
-  color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--line) 45%);
-  box-shadow: var(--glow-accent);
+/* Quieted (not hidden) while a document builder is open — the JSA
+   workflow's own document header is the real "where am I" signal at that
+   point, so the sidebar recedes slightly rather than competing with it. */
+.sidebar.builderActive .sidebarNavItem.active { background: color-mix(in srgb, var(--sidebar-bg-active) 55%, transparent); }
+.sidebarBottom { margin-top: auto; display: grid; gap: 2px; padding-top: 10px; border-top: 1px solid var(--sidebar-border); }
+
+/* Icon-only rail below a normal laptop width — flat collapse, no new
+   interactive state; the same destinations stay one tap away. Save status
+   and the theme toggle move to the document header / Settings respectively
+   (see JsaWorkflow / SettingsView) so nothing becomes unreachable. */
+@media (max-width: 900px) {
+  .sidebar { width: var(--sidebar-w-collapsed); padding: 22px 8px 16px; }
+  .sidebarBrandSub, .sidebarNavLabel { display: none; }
+  .sidebarBrand { padding: 0 4px 22px; text-align: center; }
+  .sidebarBrandName { font-size: 11px; }
+  .sidebarNavItem { justify-content: center; padding: 11px 4px; border-left-width: 3px; }
 }
 
-/* ── Page ── */
+/* ── Page ──
+   The one consistent content frame for every destination (Home, Documents,
+   Drafts, Templates, Settings, JSA workflow) — a single max-width/padding
+   pattern instead of each screen inventing its own. Bottom padding clears
+   the action dock (see .stickyActionBar) using the shared
+   --action-dock-height token, per the layout-correction standard, so the
+   dock can never cover the last field/button on any screen. */
 .page {
   flex: 1;
-  max-width: 1400px;
+  max-width: 1220px;
   width: 100%;
   margin: 0 auto;
-  padding: 24px max(clamp(14px, 3.5vw, 40px), env(safe-area-inset-right, 0px)) calc(80px + env(safe-area-inset-bottom, 0px)) max(clamp(14px, 3.5vw, 40px), env(safe-area-inset-left, 0px));
+  padding: clamp(22px, 3vw, 32px) max(clamp(16px, 3.5vw, 40px), env(safe-area-inset-right, 0px)) calc(var(--action-dock-height) + 32px + env(safe-area-inset-bottom, 0px)) max(clamp(16px, 3.5vw, 40px), env(safe-area-inset-left, 0px));
   min-width: 0;
+  background: var(--workspace);
+}
+@media (max-width: 680px) {
+  .page { padding-left: 16px; padding-right: 16px; }
 }
 
 /* ── Utility ── */
@@ -263,15 +315,25 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:focus-v
 }
 .cardHeader p { color: var(--muted); font-size: 13.5px; }
 .cardBody { padding: 0 20px 20px; }
+.aboutVersionLine { font-family: var(--font-mono); font-size: 11px; color: var(--text-faint); }
 
 /* ── Step panel ──
-   The primary workspace for each of the five JSA builder steps. No border,
-   no background box, no shadow — the step's own large heading and generous
-   spacing carry the hierarchy instead of a container, so the active section
-   reads as "the page" rather than one card among several. */
-.stepPanel { display: grid; gap: 18px; min-width: 0; }
+   A real raised white surface on the off-white workspace — the previous
+   borderless/flat treatment left no visible document-workspace boundary.
+   Capped width (via .stepStack below) keeps it a comfortable working
+   width instead of stretching across the whole content column. */
+.stepPanel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 28px 32px;
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
 .stepPanelHeader { display: grid; gap: 6px; max-width: 62ch; }
-.stepPanelHeader h3 { font-size: var(--text-title); font-weight: 800; letter-spacing: -.3px; line-height: 1.15; }
+.stepPanelHeader h3 { font-size: var(--text-title); font-weight: 800; letter-spacing: -.3px; line-height: 1.15; color: var(--text); }
 .stepPanelHeader p { color: var(--muted); font-size: 14px; line-height: 1.55; }
 
 /* ── Buttons ── */
@@ -295,6 +357,9 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:focus-v
 .btn:disabled { opacity: .45; cursor: not-allowed; transform: none !important; }
 .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 700; }
 .btn.primary:hover:not(:disabled) { background: var(--accent-2); border-color: var(--accent-2); }
+/* Dark theme: slightly heavier/more deliberate primary button — a touch
+   more padding and letter-spacing, not a brighter or more playful color. */
+html[data-theme='dark'] .btn.primary { padding: 9px 16px; letter-spacing: .2px; }
 .btn.secondary { background: #111113; color: #fff; border-color: #111113; }
 html[data-theme='dark'] .btn.secondary { background: var(--surface-3); color: var(--text); border-color: var(--line); }
 .btn.ghost { background: var(--surface-2); color: var(--text); border-color: var(--line); }
@@ -347,32 +412,43 @@ html[data-theme='dark'] .btn.secondary { background: var(--surface-3); color: va
   color: var(--muted);
 }
 .field > small { font-size: 12px; color: var(--muted); }
+/* Solid, visibly-bordered input surface — the previous pale-gray
+   background on an off-white page made fields look disabled/invisible.
+   Hover only strengthens the border, never shifts the background, so
+   fields read as one consistent solid surface at rest and on hover.
+   --input-bg equals --surface in light mode (no visible change there) but
+   is a genuinely distinct darker tone in dark mode ("Dark Input"), so
+   inputs never blend into their parent card the way they would if they
+   just reused --surface in both themes. */
 input[type=text], input[type=date], input[type=time], input[type=number],
 select, textarea {
   width: 100%;
   min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
-  border: 1px solid transparent;
+  border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  background: var(--surface-2);
+  background: var(--input-bg);
   color: var(--text);
   padding: 11px 13px;
   font-size: 16px;
   outline: none;
-  transition: border-color .15s, box-shadow .15s, background .15s;
+  transition: border-color .15s, box-shadow .15s;
   min-height: 44px;
 }
 input[type=text]:hover, input[type=date]:hover, input[type=time]:hover, input[type=number]:hover,
-select:hover, textarea:hover { background: var(--surface-3); }
+select:hover, textarea:hover { border-color: var(--line-strong); }
 textarea { resize: vertical; line-height: 1.5; min-height: 100px; }
 /* Content-aware height (see TA in main.jsx): starts small, grows with
    content up to max-height, then scrolls internally. JS-driven, so manual
    drag-resize is disabled to avoid fighting the auto-grow on next keystroke. */
 textarea.autoGrow { resize: none; min-height: 64px; max-height: 320px; overflow-y: auto; }
+/* Blue focus (--focus), not the red brand accent — red stays reserved for
+   primary actions/active navigation/selected emphasis, per the brief's
+   "do not use red across every component." */
 input:focus, select:focus, textarea:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+  border-color: var(--focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 22%, transparent);
 }
 .helperText { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
 
@@ -414,28 +490,38 @@ input:focus, select:focus, textarea:focus {
   pointer-events: none;
 }
 
-/* ── Sticky workflow action bar (touch devices) ── */
+/* ── Sticky workflow action bar (touch devices) ──
+   position:sticky within the normal document-content flow — a deliberate
+   change from the previous position:fixed, viewport-wide strip (which had
+   to fake its way around the sidebar with manual left-offset math and, at
+   the wrong width, could sit over form content). As a normal flow child of
+   .page it automatically inherits the same content frame as everything
+   else (never wider than .page, never overlapping the sidebar, since it's
+   simply never rendered underneath/beside it in the first place) — a
+   contained raised panel near the bottom of the workflow content, not
+   browser chrome. .page's bottom padding (--action-dock-height + 32px)
+   guarantees real content always has room to scroll fully clear of it
+   before it engages. */
 .stickyActionBar {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 150;
+  position: sticky;
+  bottom: max(14px, env(safe-area-inset-bottom, 0px));
+  z-index: 50;
+  margin-top: 14px;
+  min-height: var(--action-dock-height);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 10px max(14px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(14px, env(safe-area-inset-left, 0px));
+  padding: 10px 16px;
   background: var(--surface);
-  border-top: 1px solid var(--line);
-  box-shadow: 0 -4px 16px rgba(0,0,0,.12);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
 }
 .stickyActionSide { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 .stickyActionStatus { flex: 1 1 auto; text-align: center; font-size: 12px; font-weight: 600; color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .stickyActionStatus.error { color: var(--danger); }
 .stickyActionBar .btn { min-height: 44px; }
-/* Keep the last field/button clear of the fixed bar on touch devices. */
-html[data-pointer='coarse'] .page { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
 
 /* ── Layout diagnostics overlay (?debug=layout only, see main.jsx LayoutDebugPanel) ── */
 .layoutDebugPanel {
@@ -511,38 +597,113 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 .dialogActions .btn { min-height: 44px; }
 
 /* ── Home ──
-   A single dominant hero (no border, no card) instead of a grid of panels —
-   the large heading and generous top/bottom space carry the "this is the
-   one thing that matters right now" weight that a bordered box used to. */
-.homeLayout { display: grid; gap: var(--space-section); padding-top: 6px; }
+   A composed cross-document workspace: compact header, a two-up primary
+   row (available document type + real in-progress draft when one exists),
+   a restrained Workspace access row, and an always-visible Document
+   Library — not one giant "Start a JSA" hero plus a hidden disclosure. */
+.homeLayout { display: grid; gap: 32px; padding-top: 4px; }
 
-.todayHero { display: grid; gap: 10px; max-width: 640px; }
-.todayHeroEyebrow {
+.homeHeader { display: grid; gap: 6px; }
+.homeHeader h1 { font-size: clamp(24px, 2.6vw, 30px); font-weight: 800; letter-spacing: -.3px; color: var(--text); }
+.homeHeader p { color: var(--muted); font-size: 15px; }
+
+.homePrimaryRow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: stretch; }
+/* No real draft: the JSA panel gets the full row instead of a fake empty
+   second column or an awkwardly narrow fixed card. */
+.homePrimaryRow.single { grid-template-columns: minmax(0, 1fr); }
+.homePrimaryRow.single .homeCard { max-width: 860px; }
+/* With a real draft: JSA start ~2/3, Continue Current Work ~1/3. */
+.homePrimaryRow:not(.single) { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+
+.homeCard {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 26px 28px;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  min-width: 0;
+}
+.availableNowTag {
+  justify-self: start;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 1px;
-  color: var(--muted);
-  font-family: var(--font-mono);
+  letter-spacing: .5px;
+  color: var(--good);
+  background: var(--good-tint);
+  border-radius: var(--radius-pill);
+  padding: 3px 10px;
 }
-.todayHeroTitle { font-size: var(--text-hero); font-weight: 800; letter-spacing: -.8px; line-height: 1.08; }
-.todayHeroMeta { color: var(--muted); font-size: 15px; line-height: 1.5; }
-.todayHeroProgress { display: flex; align-items: center; gap: 10px; margin: 4px 0 2px; }
-.todayHeroProgressTrack { flex: 1 1 auto; max-width: 220px; height: 5px; border-radius: 99px; background: var(--surface-3); overflow: hidden; }
-.todayHeroProgressFill { height: 100%; background: var(--text); border-radius: 99px; transition: width .2s ease; }
-.todayHeroProgress span { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
-.todayHero .btn { margin-top: 10px; align-self: flex-start; }
+.homeCardEyebrow { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.1px; color: var(--accent); font-family: var(--font-mono); }
+.homeCard h2 { font-size: 21px; font-weight: 800; letter-spacing: -.3px; color: var(--text); line-height: 1.2; }
+.homeCard > p { color: var(--muted); font-size: 14px; line-height: 1.5; }
+.homeCardActions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+/* Contained, not stretched — a button that happens to sit in a wide card
+   should still read as a button, not a full-width bar. */
+.homeCardBtn { min-height: 44px; padding-left: 20px; padding-right: 20px; }
+.continueWorkMeta { font-size: 13.5px; }
+.continueWorkProgress { display: flex; align-items: center; gap: 10px; margin: 2px 0; }
+.continueWorkProgressTrack { flex: 1 1 auto; max-width: 200px; height: 5px; border-radius: 99px; background: var(--surface-3); overflow: hidden; }
+.continueWorkProgressFill { height: 100%; background: var(--accent); border-radius: 99px; transition: width .2s ease; }
+.continueWorkProgress span { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
 
-.homeSecondaryActions { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
-.quietAction {
-  padding: 10px 14px;
-  border-radius: var(--radius-sm);
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--muted);
-  min-height: 44px;
+.homeSection { display: grid; gap: 12px; }
+.homeSectionEyebrow { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.1px; color: var(--muted); font-family: var(--font-mono); }
+.homeSectionSub { color: var(--muted); font-size: 13.5px; margin-top: -6px; }
+
+/* Workspace access rows: ~76px tall, compact and clearly actionable
+   (hover feedback), not oversized dashboard cards. */
+.workspaceAccessGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.accessRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px;
+  min-height: 76px;
+  min-width: 0;
+  cursor: pointer;
+  transition: border-color .16s, background .16s;
 }
-.quietAction:hover { color: var(--text); background: var(--surface-2); }
+.accessRow:hover { border-color: var(--line-strong); background: var(--surface-2); }
+.accessRowIcon { width: 22px; height: 22px; flex-shrink: 0; color: var(--accent); }
+.accessRowText { display: grid; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.accessRowText strong { font-size: 14.5px; font-weight: 700; color: var(--text); }
+.accessRowText small { font-size: 12.5px; color: var(--muted); }
+.accessRowChevron { flex-shrink: 0; width: 16px; height: 16px; color: var(--text-very-faint); }
+
+/* ── Planned document library ──
+   One shared surface (not seven floating cards) holding compact, visibly
+   inert rows — lower contrast, no hover elevation, no pointer cursor, a
+   muted "Planned" badge instead of anything that reads as actionable. */
+.libraryCard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: clip; }
+.libraryList { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.libraryRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 72px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  cursor: default;
+}
+/* Vertical divider between the two columns, skipped on the right column. */
+.libraryList .libraryRow:nth-child(odd) { border-right: 1px solid var(--line); }
+.libraryRowIcon { width: 15px; height: 15px; flex-shrink: 0; color: var(--text-very-faint); }
+.libraryRowText { display: grid; gap: 1px; min-width: 0; flex: 1 1 auto; }
+.libraryRowText strong { font-size: 13.5px; font-weight: 700; color: var(--muted); }
+.libraryRowText span { font-size: 12px; color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (max-width: 900px) {
+  .homePrimaryRow, .homePrimaryRow:not(.single), .workspaceAccessGrid, .libraryList { grid-template-columns: 1fr; }
+  .libraryList .libraryRow:nth-child(odd) { border-right: none; }
+}
 
 /* Lightweight text-only disclosure for low-priority content (future document
    types) — no card chrome, just a muted link that expands in place. */
@@ -647,40 +808,76 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 }
 .templateLauncher .helperText { grid-column: 1 / -1; }
 
-/* ── JSA Workflow shell ── */
+/* ── JSA Workflow shell ──
+   Capped and centered rather than stretching to whatever width remains
+   next to the sidebar — the JSA is a document with a natural working
+   width, not a page that should fill an ultrawide laptop screen edge to
+   edge. .builderHeader shares the same cap so the title/stepper above
+   never reads wider than the content below it. */
+/* .workflowShell/.builderHeader deliberately have no max-width of their
+   own — both inherit .page's single 1220px content frame. Column template
+   only reserves a right (preview) column when a preview is genuinely
+   about to render there; .stacked (computed in JS from canSideBySide +
+   previewOpen — both pre-existing state, nothing new) means "single
+   column right now," whether because the viewport/touch doesn't support
+   side-by-side OR because the user closed the preview. That is the fix
+   for the builder being stranded at ~720px with the right half of a large
+   screen empty: .workflowLeft's own max-width below is conditional on
+   this same class, not a flat constant. */
 .workflowShell {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(380px, 440px);
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) minmax(380px, 460px);
+  gap: 28px;
   align-items: start;
-  max-width: 1400px;
   min-width: 0;
 }
-/* Layout mode is decided in JS (touch capability + actual container width,
-   not viewport width — see useIsTouchPrimary/useElementWidth in main.jsx). */
 .workflowShell.stacked { grid-template-columns: 1fr; }
-.workflowLeft { display: grid; gap: 14px; min-width: 0; }
+/* Preview open (side-by-side): comfortable two-column reading width. */
+.workflowShell:not(.stacked) .workflowLeft { max-width: 780px; }
+/* Preview closed/unavailable: expand to use the laptop screen instead of
+   stranding the form at a narrow fixed width — tiered by the same
+   breakpoints used for the rest of the shell (see section 23 in the
+   product brief this maps to: compact/normal/large laptop). */
+.workflowShell.stacked .workflowLeft { display: grid; gap: 18px; min-width: 0; max-width: 100%; }
+@media (min-width: 901px) {
+  .workflowShell.stacked .workflowLeft { max-width: 940px; }
+}
+@media (min-width: 1360px) {
+  .workflowShell.stacked .workflowLeft { max-width: 1000px; }
+}
+.workflowLeft { display: grid; gap: 18px; min-width: 0; }
+/* top matches .page's own responsive top padding (clamp 22-32px);
+   there is no top bar in the sidebar shell to calibrate against. */
 .workflowRight {
   position: sticky;
-  top: 128px;
+  top: 24px;
   align-self: start;
-  max-height: calc(100vh - 140px);
+  max-height: calc(100vh - 48px);
+  max-height: calc(100dvh - 48px);
   overflow: auto;
 }
 
-/* ── Builder header ──
-   Flat — no card box. The Back link and status badges sit on one quiet line;
-   the stepper below is the real "where am I" signal, so there's no separate
-   boxed title competing with it for attention. */
-.builderHeader { padding-bottom: 16px; margin-bottom: 18px; border-bottom: 1px solid var(--line); display: grid; gap: 14px; }
+/* ── Document header ──
+   One composed unit: title row (document type + name + Start Options),
+   status/meta row (status, page-fit, save state), then the stepper —
+   related information grouped together instead of scattered rows. */
+.builderHeader { margin: 0 0 20px; padding-bottom: 18px; border-bottom: 1px solid var(--line); display: grid; gap: 14px; }
+.builderHeaderTitleRow { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.builderHeaderTitleBlock { display: grid; gap: 3px; min-width: 0; }
+.builderHeaderKicker { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.1px; color: var(--accent); font-family: var(--font-mono); }
+.builderHeaderTitle { font-size: clamp(20px, 2.2vw, 25px); font-weight: 800; letter-spacing: -.3px; color: var(--text); line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 46ch; }
 .builderHeaderTop { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.builderHeaderBadges { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.builderHeaderBadges { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.builderHeaderSaved { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
 
 /* ── Workflow stepper ──
-   One rail, every viewport. Each segment carries exactly one status glyph
-   (a number, or a check once complete — never color-only) plus the "active"
-   treatment for the current step; label density adapts via container query
-   instead of branching into a separate touch-only component. */
+   Sized to its content on laptop widths (not stretched full-width with
+   large empty gaps between five short labels) via the min-width media
+   query below; unchanged full-width equal-segment behavior stays the
+   default for touch/narrow viewports, where evenly-sized tap targets
+   matter more than compactness. Current step gets restrained red
+   emphasis; completed steps keep the existing green — logic untouched,
+   only the paint. */
 .stepperWrap { display: grid; gap: 10px; min-width: 0; container-type: inline-size; }
 .stepperHead { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; min-width: 0; }
 .stepperCount {
@@ -706,12 +903,21 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   align-items: center;
   gap: 7px;
   flex: 1 1 0;
-  min-height: 40px;
+  min-height: 44px;
   min-width: 0;
-  padding: 6px 8px;
+  padding: 6px 12px;
   border-radius: 6px;
+  border: 1px solid transparent;
   color: var(--muted);
   text-align: left;
+  transition: color .16s, background .16s, border-color .16s;
+}
+/* Placed after the base rule (not before) so equal-specificity cascade
+   order actually lets this win at laptop widths — sized to content
+   instead of stretching five short labels across the full rail width. */
+@media (min-width: 900px) {
+  .stepperRail { display: inline-flex; }
+  .stepperSeg { flex: 0 0 auto; min-width: 128px; }
 }
 .stepperSegDot {
   flex-shrink: 0;
@@ -726,9 +932,20 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   background: var(--surface-3);
   color: var(--muted);
 }
-.stepperSeg.done .stepperSegDot { background: color-mix(in srgb, var(--good) 20%, var(--surface-3) 80%); color: var(--good); }
-.stepperSeg.active { background: var(--surface); box-shadow: 0 1px 3px rgba(0,0,0,.15); }
-.stepperSeg.active .stepperSegDot { background: var(--text); color: var(--bg); }
+/* Completed: transparent segment background, solid green circle. */
+.stepperSeg.done .stepperSegDot { background: var(--good); color: #fff; }
+/* Current: clean red state (not a purple/pink mix) — solid red circle,
+   light red-tinted segment background with a matching red-tinted border,
+   navy label. Exact values from the accent-tint/accent-border-tint
+   tokens, which in dark mode are literal navy-family values rather than
+   red mixed across the light/dark boundary — that mix is what produced
+   the purple this replaces. */
+.stepperSeg.active {
+  background: var(--accent-tint);
+  border: 1px solid var(--accent-border-tint);
+  box-shadow: none;
+}
+.stepperSeg.active .stepperSegDot { background: var(--accent); color: var(--accent-ink); }
 .stepperSeg.active .stepperSegLabel { color: var(--text); font-weight: 700; }
 .stepperSegLabel {
   font-size: 12.5px;
@@ -755,11 +972,25 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 .formGrid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 16px;
+  gap: 18px;
   container-type: inline-size;
   min-width: 0;
 }
 .spanFull { grid-column: 1 / -1; }
+
+/* Visual field grouping (StepJob) — a small heading + divider between
+   related clusters of fields, inside the one raised .stepPanel surface.
+   No nested card-in-card: just spacing and a hairline rule. */
+.formSectionGroup { display: grid; gap: 28px; }
+.formSection { display: grid; gap: 14px; }
+.formSection + .formSection { padding-top: 22px; border-top: 1px solid var(--line); }
+.formSectionHeading {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--muted);
+}
 
 /* Paired field row (Date|Job #, Client|Muster Point, Time Issued|Time Expired):
    each row is its own container; one field per row by default, two equal
@@ -781,32 +1012,40 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
    see StepJob in main.jsx for why this can't rely on container width alone. */
 .formPairRow.forcedStack { grid-template-columns: 1fr; }
 
-/* Field+quick-add side by side when space allows */
+/* Field with its Suggestions trigger stacked below-left — not a second
+   wide column. .quickPanel below is itself compact/content-sized, not
+   width:100%, so this reads as "a small button under the field," never a
+   giant full-width bar (the exact problem this replaces). */
 .fieldWithQuick {
   display: grid;
-  grid-template-columns: 1fr minmax(260px, 310px);
-  gap: 14px;
+  grid-template-columns: 1fr;
+  gap: 8px;
   align-items: start;
 }
 .fieldWithQuick .field { width: 100%; }
-.fieldWithQuick .quickPanel { margin-top: 24px; }
+.fieldWithQuick .quickPanel { margin-top: 0; justify-self: start; }
 /* .fieldWithQuick now only ever renders on desktop — FieldWithSuggestions
    (main.jsx) branches to the contextual Suggestions sheet on touch devices
    before this markup is reached at all, so no touch override is needed here. */
 
-/* Touch devices: field + a small "Suggestions" trigger, stacked full width.
-   The QuickPanel itself only mounts inside the overlay it opens. */
+/* Touch devices: field + a small "Suggestions" trigger. .fieldStack is a
+   grid, whose items default to justify-self:stretch — without an explicit
+   override the trigger below would silently stretch to the full field
+   width despite being display:inline-flex (inline-flex only controls how
+   ITS OWN children lay out, not whether its own box fills the grid cell).
+   justify-self:start is what actually keeps it compact/content-sized. */
 .fieldStack { display: grid; gap: 8px; min-width: 0; }
 .suggestionsTrigger {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   align-self: flex-start;
-  min-height: 44px;
+  justify-self: start;
+  min-height: 40px;
   padding: 8px 16px;
   border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface-3);
   color: var(--accent);
   font-size: 12.5px;
   font-weight: 700;
@@ -911,43 +1150,56 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 .actionSheetDestructive .helperText { padding: 0 12px; }
 .actionSheetGroup .field, .actionSheetGroup .helperText { padding: 0 12px; }
 
-/* ── Quick-add panels (consolidated: recent/favorites, add behavior, custom quick-add) ── */
+/* ── Quick-add panels (consolidated: recent/favorites, add behavior, custom quick-add) ──
+   A compact secondary button when closed — content-sized, not a
+   full-width bar/pill — that expands into a real panel only once opened.
+   Also used by the (unrelated) Task Row Templates disclosure in StepWork,
+   which gets the same compact-trigger treatment for free. */
 .quickPanel {
   min-width: 0;
-  width: 100%;
-  border: none;
+  width: auto;
+  display: inline-block;
+  /* Several hosting contexts (.fieldWithQuick, .detailedRowsBody in
+     StepWork) are CSS grids, whose items default to justify-self:stretch
+     — that default is what silently turned this into a full-width bar
+     regardless of display:inline-block/width:auto, which only govern the
+     element's own content, not whether its outer box stretches to fill a
+     grid cell. justify-self:start is the actual fix. */
+  justify-self: start;
+  border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  background: var(--surface-2);
+  background: var(--surface-3);
   overflow: clip;
 }
 .quickPanel summary {
   list-style: none;
   cursor: pointer;
-  padding: 9px 12px;
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--text);
+  padding: 8px 14px;
+  min-height: 38px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--accent);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 6px;
+  white-space: nowrap;
   user-select: none;
 }
 .quickPanel summary::-webkit-details-marker { display: none; }
-.quickPanel summary::after {
-  content: 'Show';
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .6px;
-  color: var(--accent);
-  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line) 60%);
-  border-radius: 999px;
-  padding: 3px 8px;
-  flex-shrink: 0;
+.quickPanel summary::before {
+  content: '›';
+  font-size: 15px;
+  line-height: 1;
+  transition: transform .16s;
 }
-.quickPanel[open] summary { border-bottom: 1px solid var(--line); }
-.quickPanel[open] summary::after { content: 'Hide'; }
+.quickPanel[open] summary::before { transform: rotate(90deg); }
+.quickPanel[open] {
+  display: block;
+  width: 100%;
+  max-width: 420px;
+  background: var(--surface-2);
+}
+.quickPanel[open] summary { border-bottom: 1px solid var(--line); color: var(--text); }
 .quickPickerInner {
   display: grid;
   gap: 10px;
@@ -1158,23 +1410,25 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  padding: 14px 16px;
+  padding: 16px 18px;
   border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
 }
-.listItem .itemInfo { display: grid; gap: 2px; }
-.listItem .itemInfo strong { font-weight: 700; font-size: 14.5px; }
+.listItem .itemInfo { display: grid; gap: 4px; min-width: 0; }
+.itemInfoTitleRow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.listItem .itemInfo strong { font-weight: 700; font-size: 14.5px; color: var(--text); }
 .listItem .itemInfo p { color: var(--muted); font-size: 13px; margin: 0; }
-.itemActions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.itemActions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; flex-shrink: 0; }
 .emptyState {
-  padding: 24px;
-  border: 1px dashed var(--line);
-  border-radius: var(--radius-sm);
+  padding: 28px 24px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
   color: var(--muted);
   text-align: center;
   font-size: 14px;
-  background: var(--surface-2);
+  background: var(--surface);
   display: grid;
   gap: 12px;
   justify-items: center;
@@ -1240,10 +1494,6 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 }
 
 @media (max-width: 680px) {
-  .topbar { height: auto; padding: 10px 14px; flex-wrap: wrap; }
-  .topActions { width: 100%; margin-top: 4px; }
-  .saveStatus { display: none; }
-  .appNav { top: 0; }
   .moduleGrid { grid-template-columns: 1fr; }
   .docGrid { grid-template-columns: 1fr; }
   .stepFooter { flex-direction: column; gap: 8px; }
