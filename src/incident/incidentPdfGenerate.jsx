@@ -6,9 +6,10 @@ import {
   IncidentPageShell, Page1Content, Page2Content, Page3Content, Page4Content, Page5Content, Page6Content, ContinuationPage,
 } from './IncidentPdf';
 import {
-  textBlockMeasureStyle, DESCRIPTION_FIRST_HEIGHT_PX, STATEMENT_FIRST_HEIGHT_PX, NOTES_FIRST_HEIGHT_PX, CONTINUATION_BODY_HEIGHT_PX,
+  textBlockMeasureStyle, DESCRIPTION_FIRST_HEIGHT_PX, STATEMENT_FIRST_HEIGHT_PX, MIN_NOTE_BOX_HEIGHT_PX, CONTINUATION_BODY_HEIGHT_PX,
 } from './incidentPdfLayout';
-import { paginateText } from './textFit';
+import { paginateText, measureNaturalHeight } from './textFit';
+import { measurePage6NotesBudget } from './incidentPdfMeasure';
 
 function paginateField(text) {
   return paginateText(text, {
@@ -26,13 +27,34 @@ function paginateStatement(text) {
     continuationStyle: textBlockMeasureStyle(),
   });
 }
-function paginateNotes(text) {
+function paginateNotesField(text, firstMaxHeightPx) {
   return paginateText(text, {
-    firstMaxHeightPx: NOTES_FIRST_HEIGHT_PX,
+    firstMaxHeightPx,
     firstStyle: textBlockMeasureStyle(),
     continuationMaxHeightPx: CONTINUATION_BODY_HEIGHT_PX,
     continuationStyle: textBlockMeasureStyle(),
   });
+}
+
+/* Splits a shared px budget between two competing boxes: if both fit at
+   their full natural size, give each exactly that (this is the common case
+   that used to force a wasted page 7 -- see MIN_NOTE_BOX_HEIGHT_PX). If not,
+   each gets at least `minEach`, and whatever's left is divided in
+   proportion to how much more than the floor each one actually needs. */
+function allocateSharedHeight(need1, need2, budget, minEach) {
+  const safeBudget = Math.max(0, budget);
+  if (need1 + need2 <= safeBudget) {
+    return { h1: Math.max(need1, Math.min(minEach, safeBudget)), h2: Math.max(need2, Math.min(minEach, safeBudget)) };
+  }
+  const floor = Math.min(minEach, safeBudget / 2);
+  const remaining = Math.max(0, safeBudget - floor * 2);
+  const extra1 = Math.max(0, need1 - floor);
+  const extra2 = Math.max(0, need2 - floor);
+  const totalExtra = extra1 + extra2;
+  if (totalExtra <= 0) return { h1: floor, h2: floor };
+  const share1 = totalExtra <= remaining ? extra1 : remaining * (extra1 / totalExtra);
+  const share2 = totalExtra <= remaining ? extra2 : remaining * (extra2 / totalExtra);
+  return { h1: floor + share1, h2: floor + share2 };
 }
 
 /* Builds the ordered list of logical pages (base pages + any continuation
@@ -45,8 +67,23 @@ export function buildIncidentPagePlan(incident) {
   const description = paginateField(incident.detailedIncidentDescription);
   const witnesses = incident.witnesses || [];
   const statements = witnesses.map(w => paginateStatement(w.statement));
-  const supervisorNotes = paginateNotes(incident.supervisorNotes);
-  const safetyConsultantNotes = paginateNotes(incident.safetyConsultantNotes);
+
+  // Page 6's two notes boxes share whatever space is actually left after
+  // the gray bars and investigation-team table (measured for real -- see
+  // incidentPdfMeasure.js) instead of each getting a fixed box regardless
+  // of what's really available. Short notes no longer waste page-6 space,
+  // and a note that would have overflowed a fixed box now gets the real
+  // remaining room before spilling to a continuation page.
+  const supervisorText = incident.supervisorNotes;
+  const safetyConsultantText = incident.safetyConsultantNotes;
+  const notesBudgetPx = measurePage6NotesBudget(incident.investigationTeam);
+  const supervisorNeed = measureNaturalHeight(supervisorText, textBlockMeasureStyle());
+  const safetyConsultantNeed = measureNaturalHeight(safetyConsultantText, textBlockMeasureStyle());
+  const { h1: supervisorBoxHeight, h2: safetyConsultantBoxHeight } = allocateSharedHeight(
+    supervisorNeed, safetyConsultantNeed, notesBudgetPx, MIN_NOTE_BOX_HEIGHT_PX,
+  );
+  const supervisorNotes = paginateNotesField(supervisorText, supervisorBoxHeight);
+  const safetyConsultantNotes = paginateNotesField(safetyConsultantText, safetyConsultantBoxHeight);
 
   const overflowFields = [];
   if (description.overflow) overflowFields.push('Detailed Description of the Incident');
@@ -81,7 +118,16 @@ export function buildIncidentPagePlan(incident) {
 
   pages.push({ key: 'p5', type: 'page5', props: {} });
 
-  pages.push({ key: 'p6', type: 'page6', props: { supervisorNotesChunk: supervisorNotesChunks[0], safetyConsultantNotesChunk: safetyConsultantNotesChunks[0] } });
+  pages.push({
+    key: 'p6',
+    type: 'page6',
+    props: {
+      supervisorNotesChunk: supervisorNotesChunks[0],
+      safetyConsultantNotesChunk: safetyConsultantNotesChunks[0],
+      supervisorNotesBoxHeight: supervisorBoxHeight,
+      safetyConsultantNotesBoxHeight: safetyConsultantBoxHeight,
+    },
+  });
   supervisorNotesChunks.slice(1).forEach((chunk, i) => {
     pages.push({ key: `p6sc${i}`, type: 'continuation', props: { sectionLabel: 'Superintendent/Supervisor Notes & Summary', text: chunk } });
   });

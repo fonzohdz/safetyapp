@@ -1,0 +1,91 @@
+{
+  "id": "fixture-user-draft-0001",
+  "schemaVersion": 1,
+  "status": "draft",
+  "createdAt": "2026-08-06T08:00:00.000Z",
+  "lastSavedAt": "",
+  "completedAt": "",
+  "reportNumber": "",
+
+  "workplaceLocation": "Entergy TAPS Yard",
+  "incidentDate": "2026-08-06",
+  "incidentTime": "10:00",
+  "writtenReportDateTime": "2026-08-06T15:11",
+  "reportedToSupervisorDateTime": "2026-08-06T15:30",
+  "investigatorName": "Jake Lytle",
+  "investigatorTitle": "Foreman",
+  "investigatorPhone": "601-555-0100",
+  "investigatorEmail": "jake@shackelfordconst.com",
+  "incidentSpecificLocation": "Area 4",
+  "detailedIncidentDescription": "A near-miss occurred near the equipment staging area when a piece of material shifted unexpectedly while being repositioned. No injuries were reported and no equipment was damaged during the shift itself, though a nearby hose coupling was later found cracked during the post-incident walk-through.",
+
+  "injuryOccurred": "no",
+  "injuredPartyName": "",
+  "injuredPartyTitle": "",
+  "injuredPartyYearsWithCompany": "",
+  "injuredPartyCurrentTrade": "",
+  "injuredPartyPhone": "",
+  "injuredPartyEmail": "",
+  "injuryNature": [],
+  "injuryNatureOther": "",
+  "bodyPartsAffectedText": "",
+  "treatmentLevel": "unselected",
+  "treatingPhysicianOrClinic": "",
+  "injuryRemarks": "",
+  "bodyDiagramMarks": [],
+
+  "witnesses": [
+    {
+      "id": "w1",
+      "name": "Kris Taute",
+      "company": "Shackelford Construction and Hauling",
+      "supervisor": "Jake Lytle",
+      "phone": "601-555-0111",
+      "email": "ktaute@example.com",
+      "statement": "I saw the material shift while it was being repositioned. Nobody was in the immediate area and no one was hurt.",
+      "signatureData": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      "signatureDate": "2026-08-06"
+    },
+    {
+      "id": "w2",
+      "name": "",
+      "company": "",
+      "supervisor": "",
+      "phone": "",
+      "email": "",
+      "statement": "",
+      "signatureData": null,
+      "signatureDate": ""
+    }
+  ],
+
+  "propertyDamageOccurred": "yes",
+  "propertyOrMaterialDamaged": "Water pull hose coupling",
+  "natureOfDamage": "Coupling cracked when dropped during the incident",
+  "objectMachineToolOrSubstance": "2-inch camlock hose coupling",
+  "approximateDamageCost": "$85",
+
+  "selectedCauses": [
+    "unsafeActs::Improper type PPE or use of it",
+    "unsafeActs::Safety rule violation",
+    "unsafeConditions::Congested work area",
+    "unsafeConditions::Slippery conditions",
+    "unsafeConditions::Poor housekeeping",
+    "unsafeConditions::Excessive noise",
+    "managementDeficiencies::Safety rules not enforced",
+    "managementDeficiencies::Inadequate supervision",
+    "managementDeficiencies::Other"
+  ],
+  "primaryCause": "unsafeActs::Safety rule violation",
+  "unsafeActsOther": "",
+  "unsafeConditionsOther": "",
+  "managementDeficienciesOther": "Site-specific staging procedure not documented for this work area",
+
+  "supervisorNotes": "Area has been flagged for review. Toolbox talk held with crew on proper material staging and securing before repositioning.\n\n- Reinforce spotter requirement\n- Inspect staging area weekly\n- Re-brief crew on housekeeping standards",
+  "safetyConsultantNotes": "Recommend adding a documented staging procedure for this yard and a weekly housekeeping inspection. Coupling failure appears unrelated to the near-miss itself but should be tracked separately as a maintenance item. Suggest reviewing similar yards for the same gap before the next audit cycle. No further investigation action needed beyond the above -- this can close out once the staging procedure is published.",
+  "investigationTeam": [
+    { "id": "t1", "name": "Riley Ashworth", "title": "Safety Coordinator", "signatureData": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "date": "2026-08-06" }
+  ],
+
+  "notes": ""
+}

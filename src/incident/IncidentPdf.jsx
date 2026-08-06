@@ -1,5 +1,6 @@
 import { CAUSE_CATEGORIES, causeKey } from './incidentModel';
 import { BODY_DIAGRAM_SRC, BODY_DIAGRAM_ASPECT } from './BodyDiagram';
+import { SUPERVISOR_NOTES_HELP, MIN_NOTE_BOX_HEIGHT_PX } from './incidentPdfLayout';
 
 /* Print/PDF rendering for the Incident Report. Mirrors the reference
    document ("SCH Blank incident report (1).docx") section-for-section:
@@ -80,8 +81,8 @@ export function InfoTable({ rows }) {
           <tr key={i}>
             {row.map((cell, j) => (
               cell.isLabel
-                ? <th key={j} style={cell.width ? { width: cell.width } : undefined}>{cell.text}</th>
-                : <td key={j}>{cell.text}</td>
+                ? <th key={j} style={cell.width ? { width: cell.width } : undefined} colSpan={cell.colSpan}>{cell.text}</th>
+                : <td key={j} colSpan={cell.colSpan}>{cell.text}</td>
             ))}
           </tr>
         ))}
@@ -90,8 +91,8 @@ export function InfoTable({ rows }) {
   );
 }
 
-export function label(text, width) { return { isLabel: true, text, width }; }
-export function value(text) { return { isLabel: false, text: text || '' }; }
+export function label(text, width, colSpan) { return { isLabel: true, text, width, colSpan }; }
+export function value(text, colSpan) { return { isLabel: false, text: text || '', colSpan }; }
 
 export function TextBlock({ title, help, text, minHeightPx }) {
   return (
@@ -115,15 +116,22 @@ function YesNoLine({ label: lbl, val, note }) {
   );
 }
 
-/* ── PAGE 1 ── */
+/* ── PAGE 1 ──
+   The top table is a single deliberate 4-column (25% each) grid: rows that
+   only need one label/value pair span the value cell across the remaining
+   3 columns (colSpan=3) instead of leaving the other 2 columns of that row
+   blank -- only the Date/Time-of-Incident row actually uses all 4 columns
+   individually. This replaced a mixed 2-column/4-column table that left an
+   unexplained blank block on the right of every other row (see v0.1.1
+   polish pass). */
 export function Page1Content({ incident, descriptionText }) {
   return (
     <>
       <InfoTable rows={[
-        [label('Workplace Location', '32%'), value(incident.workplaceLocation)],
-        [label('Date of Incident', '20%'), value(fmtDate(incident.incidentDate)), label('Time of Incident', '20%'), value(fmtTime(incident.incidentTime))],
-        [label('Date/Time of Written Report', '32%'), value(fmtDateTime(incident.writtenReportDateTime))],
-        [label('Date/Time Reported to Supervisor', '32%'), value(fmtDateTime(incident.reportedToSupervisorDateTime))],
+        [label('Workplace Location', '25%'), value(incident.workplaceLocation, 3)],
+        [label('Date of Incident', '25%'), value(fmtDate(incident.incidentDate)), label('Time of Incident', '25%'), value(fmtTime(incident.incidentTime))],
+        [label('Date/Time of Written Report', '25%'), value(fmtDateTime(incident.writtenReportDateTime), 3)],
+        [label('Date/Time Reported to Supervisor', '25%'), value(fmtDateTime(incident.reportedToSupervisorDateTime), 3)],
       ]} />
       <GrayBar>SUPERINTENDENT/SUPERVISOR CONTACT INFORMATION</GrayBar>
       <InfoTable rows={[
@@ -135,7 +143,7 @@ export function Page1Content({ incident, descriptionText }) {
       <InfoTable rows={[
         [label('Where the Incident Occurred (specify)', '32%'), value(incident.incidentSpecificLocation)],
       ]} />
-      <TextBlock title="DETAILED DESCRIPTION OF THE INCIDENT" text={descriptionText} minHeightPx={140} />
+      <TextBlock title="DETAILED DESCRIPTION OF THE INCIDENT" text={descriptionText} minHeightPx={180} />
     </>
   );
 }
@@ -164,7 +172,7 @@ export function Page2Content({ incident }) {
       ]} />
       <TextBlock title="Remarks/Comments" text={injured ? (incident.injuryRemarks || '') : 'N/A'} minHeightPx={40} />
       <div className="incBodyDiagramSection">
-        <div className="incTextBlockTitle">PART OF BODY AFFECTED (shade all areas that apply)</div>
+        <div className="incTextBlockTitle">PART OF BODY AFFECTED (MARK ALL AREAS THAT APPLY)</div>
         <div className="incidentBodyDiagramPrint">
           <div className="incidentBodyDiagramImageWrap" style={{ aspectRatio: BODY_DIAGRAM_ASPECT }}>
             <img src={BODY_DIAGRAM_SRC} alt="Body diagram" className="incidentBodyDiagramImage" />
@@ -194,13 +202,21 @@ export function WitnessBlock({ index, witness, statementText }) {
         [label('Supervisor', '22%'), value(na(w.supervisor)), label('Phone', '22%'), value(na(w.phone))],
         [label('Email', '22%'), value(na(w.email)), label('Date', '22%'), value(witness && w.signatureDate ? fmtDate(w.signatureDate) : 'N/A')],
       ]} />
-      <TextBlock title="Statement" text={witness ? (statementText || '') : 'N/A'} minHeightPx={55} />
-      <div className="incSignatureRow">
-        <span className="incSignatureRowLabel">Signature:</span>
-        {w.signatureData
-          ? <img src={w.signatureData} alt="Witness signature" className="incSignatureImage" />
-          : <span className="incNotApplicableInline">{witness ? 'Not signed' : 'N/A'}</span>}
-      </div>
+      <TextBlock title="Statement" text={witness ? (statementText || '') : 'N/A'} minHeightPx={70} />
+      <table className="incInfoTable incSignatureTable">
+        <tbody>
+          <tr>
+            <th style={{ width: '18%' }}>Signature</th>
+            <td className="incSignatureCell">
+              {w.signatureData
+                ? <img src={w.signatureData} alt="Witness signature" className="incSignatureImage" />
+                : <span className="incNotApplicableInline">{witness ? 'Not signed' : 'N/A'}</span>}
+            </td>
+            <th style={{ width: '14%' }}>Date</th>
+            <td>{witness && w.signatureDate ? fmtDate(w.signatureDate) : 'N/A'}</td>
+          </tr>
+        </tbody>
+      </table>
     </>
   );
 }
@@ -288,15 +304,18 @@ export function Page5Content({ incident }) {
    Existing members populate rows in order; unused rows print blank (not an
    N/A box) -- an incomplete team just hasn't been filled in yet, which is
    different from a deliberate "not applicable" answer. */
-export function Page6Content({ incident, supervisorNotesChunk, safetyConsultantNotesChunk }) {
+export function Page6Content({
+  incident, supervisorNotesChunk, safetyConsultantNotesChunk,
+  supervisorNotesBoxHeight, safetyConsultantNotesBoxHeight,
+}) {
   const team = incident.investigationTeam || [];
   const rows = Array.from({ length: 4 }).map((_, i) => team[i] || null);
   return (
     <>
       <GrayBar>SUPERINTENDENT/SUPERVISOR NOTES &amp; SUMMARY</GrayBar>
-      <TextBlock help="List immediate actions to be taken & what should be done to help prevent a recurrence of this type of incident." text={supervisorNotesChunk} minHeightPx={95} />
+      <TextBlock help={SUPERVISOR_NOTES_HELP} text={supervisorNotesChunk} minHeightPx={supervisorNotesBoxHeight || MIN_NOTE_BOX_HEIGHT_PX} />
       <GrayBar>SAFETY CONSULTANT NOTES &amp; SUMMARY</GrayBar>
-      <TextBlock text={safetyConsultantNotesChunk} minHeightPx={95} />
+      <TextBlock text={safetyConsultantNotesChunk} minHeightPx={safetyConsultantNotesBoxHeight || MIN_NOTE_BOX_HEIGHT_PX} />
       <GrayBar>INVESTIGATION TEAM</GrayBar>
       <table className="incInfoTable incTeamTable">
         <thead>
@@ -334,8 +353,9 @@ export function ContinuationPage({ sectionLabel, text, pageNumber, totalPages, d
       </header>
       <div className="incidentPageBody">
         <div className="incContinuationMeta">
-          <span>{incident.workplaceLocation || '\u2014'}</span>
-          <span>{fmtDate(incident.incidentDate) || '\u2014'}</span>
+          <span><strong>Workplace Location:</strong> {incident.workplaceLocation || '\u2014'}</span>
+          <span><strong>Incident Date:</strong> {fmtDate(incident.incidentDate) || '\u2014'}</span>
+          <span><strong>Continued Section:</strong> {sectionLabel}</span>
         </div>
         <div className="incTextBlock incTextBlockContinuation">{text}</div>
       </div>

@@ -43,7 +43,20 @@ mkdirSync(outRoot, { recursive: true });
 const FIXTURES = [
   { name: 'full', file: 'incident-full-fixture.json', expectedPageCount: 6, expectFinal: true },
   { name: 'na', file: 'incident-na-fixture.json', expectedPageCount: 6, expectFinal: false },
-  { name: 'overflow', file: 'incident-overflow-fixture.json', expectedPageCount: 12, expectFinal: false },
+  // Was 12 pages before the v0.1.1 polish pass raised the description/
+  // statement base-page capacities (DESCRIPTION_FIRST_HEIGHT_PX/
+  // STATEMENT_FIRST_HEIGHT_PX in incidentPdfLayout.js) to use more of page
+  // 1/3/4's real available space -- this fixture's deliberately very long
+  // text now legitimately needs fewer continuation pages, not the same
+  // count forced by an artificially small box. See page-by-page screenshots
+  // in tools/testing/output/incident/overflow/ to confirm nothing clipped.
+  { name: 'overflow', file: 'incident-overflow-fixture.json', expectedPageCount: 10, expectFinal: false },
+  // Reproduces the actual user-reported draft (Entergy_TAPS_IncidentReport_2026-08-06_DRAFT.pdf)
+  // that generated a wasted, nearly-empty page 7 before the v0.1.1 PDF polish
+  // pass -- see incidentPdfMeasure.js / allocateSharedHeight in
+  // incidentPdfGenerate.jsx. Must render as exactly 6 pages with no
+  // continuation page now that page 6's notes boxes share real leftover space.
+  { name: 'userDraft', file: 'incident-user-draft-fixture.json', expectedPageCount: 6, expectFinal: false },
 ];
 
 const PORT = 4320;
@@ -178,6 +191,59 @@ async function runFixture(browser, fixture) {
 
     const page6TeamRows = await page.locator('.incidentPage').nth(5).locator('.incTeamTable tbody tr').count();
     a.check(page6TeamRows === 4, `expected 4 investigation-team rows on page 6, found ${page6TeamRows}`);
+  }
+
+  if (fixture.name === 'userDraft') {
+    // The core v0.1.1 bug: this exact report used to produce a wasted,
+    // nearly-empty page 7 for a few leftover Safety Consultant Notes lines.
+    const continuationCount = await page.locator('.incidentPage.incidentContinuationPage').count();
+    a.check(continuationCount === 0, `expected no continuation page for the user-draft fixture, found ${continuationCount}`);
+
+    // Four equal investigation-team rows (page 6, last table) -- no
+    // collapsed/blank rows next to the one populated row.
+    const teamRowHeights = await page.locator('.incTeamTable tbody tr').evaluateAll(
+      (rows) => rows.map((r) => r.getBoundingClientRect().height),
+    );
+    a.check(teamRowHeights.length === 4, `expected 4 investigation-team rows, found ${teamRowHeights.length}`);
+    if (teamRowHeights.length === 4) {
+      const maxH = Math.max(...teamRowHeights);
+      const minH = Math.min(...teamRowHeights);
+      a.check(maxH - minH < 3, `expected all 4 investigation-team rows to have consistent height, got heights ${JSON.stringify(teamRowHeights)}`);
+      a.check(minH >= 38, `expected investigation-team rows to be at least ~40px tall, smallest was ${minH}px`);
+    }
+
+    // Witness 1 has an intentional bordered signature+date row, not a bare
+    // floating image.
+    const witness1SigCell = page.locator('.incidentPage').nth(2).locator('.incSignatureTable .incSignatureCell').first();
+    const witness1SigCellBox = await witness1SigCell.boundingBox();
+    a.check(Boolean(witness1SigCellBox && witness1SigCellBox.height >= 30), 'expected witness 1 signature cell to be a properly sized bordered cell (>=30px tall)');
+    const witness1SigImgCount = await witness1SigCell.locator('.incSignatureImage').count();
+    a.check(witness1SigImgCount === 1, `expected exactly 1 signature image in witness 1's signature cell, found ${witness1SigImgCount}`);
+
+    // Page 1's top information grid: the Workplace Location value spans 3
+    // of the table's 4 equal columns (colSpan=3, ~75% of the table width),
+    // not a narrow single column with unexplained blank cells beside it.
+    const page1Table = page.locator('.incidentPage').first().locator('.incInfoTable').first();
+    const tableBox = await page1Table.boundingBox();
+    const workplaceValueCell = page1Table.locator('tbody tr').first().locator('td').first();
+    const valueCellBox = await workplaceValueCell.boundingBox();
+    a.check(
+      Boolean(tableBox && valueCellBox && valueCellBox.width > tableBox.width * 0.6),
+      `expected the Workplace Location value cell to span most of the table width (colSpan=3), got ${valueCellBox?.width} of ${tableBox?.width}`,
+    );
+
+    // Body-diagram wording updated from "SHADE" to "MARK".
+    const page2Text = await page.locator('.incidentPage').nth(1).innerText();
+    a.check(/MARK ALL AREAS THAT APPLY/.test(page2Text), 'expected updated body-diagram wording "MARK ALL AREAS THAT APPLY"');
+    a.check(!/SHADE ALL AREAS/.test(page2Text), 'expected old "SHADE ALL AREAS" wording to be gone');
+
+    // Watermark reduced from the original 72pt/0.16-alpha and rendered
+    // behind content (z-index below the header/body's stacking level).
+    const wmFontPx = await page.locator('.incidentWatermark').first().evaluate((elWm) => parseFloat(getComputedStyle(elWm).fontSize));
+    a.check(wmFontPx < 72 * (96 / 72), `expected watermark font-size smaller than the original 72pt (96px), computed ${wmFontPx}px`);
+    const bodyZ = await page.locator('.incidentPage').first().locator('.incidentPageBody').evaluate((elBody) => getComputedStyle(elBody).zIndex);
+    const wmZ = await page.locator('.incidentWatermark').first().evaluate((elWm) => getComputedStyle(elWm).zIndex);
+    a.check(Number(bodyZ) > Number(wmZ), `expected page body z-index (${bodyZ}) above watermark z-index (${wmZ}) so content paints on top`);
   }
 
   // Cause-analysis page assertions apply to every fixture (page 5 is always

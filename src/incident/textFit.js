@@ -78,6 +78,31 @@ export function fitTextToHeight(text, maxHeightPx, style) {
   }
 }
 
+/* The natural (unconstrained) rendered height of `text` in a box using
+   `style` -- i.e. how tall the box would be if nothing capped it. Used to
+   decide how to split a shared height budget between two competing fields
+   (see incidentPdfGenerate.js's allocateSharedNotesHeight) before actually
+   pagin­ating either one. */
+export function measureNaturalHeight(text, style) {
+  const host = getMeasureHost();
+  const el = document.createElement('div');
+  Object.assign(el.style, {
+    boxSizing: 'border-box',
+    whiteSpace: 'pre-wrap',
+    wordWrap: 'break-word',
+    overflowWrap: 'break-word',
+    height: 'auto',
+    ...style,
+  });
+  host.appendChild(el);
+  try {
+    el.textContent = String(text || '');
+    return el.scrollHeight;
+  } finally {
+    host.removeChild(el);
+  }
+}
+
 /* Splits `text` into an array of chunks: chunks[0] fits `firstStyle`/
    `firstMaxHeightPx` (the base page's box), every subsequent chunk fits
    `continuationStyle`/`continuationMaxHeightPx` (a full continuation-page

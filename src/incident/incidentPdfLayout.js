@@ -43,12 +43,33 @@ export function textBlockMeasureStyle() {
   };
 }
 
-// Base-page box heights (in px) for each of the four overflow-prone
-// fields -- generous enough for normal use, but any excess reliably
-// flows to a continuation page instead of being clipped.
-export const DESCRIPTION_FIRST_HEIGHT_PX = 210;
-export const STATEMENT_FIRST_HEIGHT_PX = 95;
-export const NOTES_FIRST_HEIGHT_PX = 110;
+// Base-page box heights (in px) for the description and witness-statement
+// fields -- generous enough for normal use (deliberately larger than the
+// v0.1.1 originals of 210/95 so page 1/3/4 use more of their real available
+// space -- see the v0.1.1 polish pass), but any excess reliably flows to a
+// continuation page instead of being clipped.
+export const DESCRIPTION_FIRST_HEIGHT_PX = 300;
+export const STATEMENT_FIRST_HEIGHT_PX = 130;
+
+// Page 6's two notes boxes do NOT use a fixed height like the fields above.
+// A fixed box (v0.1.1's now-removed NOTES_FIRST_HEIGHT_PX = 110) starved
+// both boxes even when the investigation-team table left hundreds of px of
+// genuinely free space below it, forcing a nearly-empty continuation page 7
+// for just a few leftover lines. Instead, buildIncidentPagePlan() measures
+// page 6's REAL remaining space (measurePage6NotesBudget in
+// incidentPdfMeasure.js) and splits it between the two notes fields based on
+// how much each actually needs (see allocateSharedNotesHeight). This is the
+// floor per box in that split -- small enough to never waste space forcing
+// a short note artificially tall, large enough that a note box never
+// collapses to an unreadable sliver when the other note needs most of the
+// shared budget.
+export const MIN_NOTE_BOX_HEIGHT_PX = 40;
 
 // Continuation pages have a much larger, mostly-empty page to work with.
 export const CONTINUATION_BODY_HEIGHT_PX = 760;
+
+// Shared with Page6Content (IncidentPdf.jsx) and measurePage6NotesBudget
+// (incidentPdfMeasure.js) so both always render/measure the exact same
+// help text -- if this ever changes, both the printed page and the
+// available-space measurement stay in sync automatically.
+export const SUPERVISOR_NOTES_HELP = 'List immediate actions to be taken & what should be done to help prevent a recurrence of this type of incident.';
