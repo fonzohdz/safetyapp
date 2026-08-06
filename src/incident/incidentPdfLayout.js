@@ -43,27 +43,44 @@ export function textBlockMeasureStyle() {
   };
 }
 
-// Base-page box heights (in px) for the description and witness-statement
-// fields -- generous enough for normal use (deliberately larger than the
-// v0.1.1 originals of 210/95 so page 1/3/4 use more of their real available
-// space -- see the v0.1.1 polish pass), but any excess reliably flows to a
-// continuation page instead of being clipped.
-export const DESCRIPTION_FIRST_HEIGHT_PX = 300;
-export const STATEMENT_FIRST_HEIGHT_PX = 130;
-
-// Page 6's two notes boxes do NOT use a fixed height like the fields above.
-// A fixed box (v0.1.1's now-removed NOTES_FIRST_HEIGHT_PX = 110) starved
-// both boxes even when the investigation-team table left hundreds of px of
-// genuinely free space below it, forcing a nearly-empty continuation page 7
-// for just a few leftover lines. Instead, buildIncidentPagePlan() measures
-// page 6's REAL remaining space (measurePage6NotesBudget in
-// incidentPdfMeasure.js) and splits it between the two notes fields based on
-// how much each actually needs (see allocateSharedNotesHeight). This is the
-// floor per box in that split -- small enough to never waste space forcing
-// a short note artificially tall, large enough that a note box never
-// collapses to an unreadable sliver when the other note needs most of the
-// shared budget.
+// None of the base-page flexible boxes below (description, witness
+// statements, notes) use a fixed height anymore -- see incidentPdfMeasure.js.
+// A fixed box (this module's own now-removed v0.1.1 DESCRIPTION_FIRST_HEIGHT_PX
+// / STATEMENT_FIRST_HEIGHT_PX / NOTES_FIRST_HEIGHT_PX) always left whatever
+// gap existed between that guess and the page's true remaining space unused
+// -- sometimes a lot of it (v0.1.2's "pages end halfway down the sheet"
+// report), sometimes too little (forcing an unnecessary continuation page,
+// v0.1.1's page-7 bug). Instead, buildIncidentPagePlan() measures each base
+// page's REAL remaining space with the real (data-dependent) content above
+// it already rendered (measurePage1Budget/measurePage3Budget/
+// measurePage4Budget/measurePage6NotesBudget in incidentPdfMeasure.js) and
+// allocates it to that page's flexible box(es) -- see
+// allocateFlexibleSections / allocateAndFillFlexibleSections in
+// incidentPdfGenerate.jsx. These constants are now only the FLOOR each
+// flexible box is guaranteed even if a page's real content leaves very
+// little room (e.g. an unusually long workplace-location value) -- large
+// enough to stay usable, small enough to never be the reason a short field
+// looks artificially padded.
+export const MIN_DESCRIPTION_HEIGHT_PX = 300;
+export const MIN_STATEMENT_HEIGHT_PX = 130;
 export const MIN_NOTE_BOX_HEIGHT_PX = 40;
+
+// Page 6's investigation-team rows: MIN matches the table's own long-standing
+// CSS default (enough for a normal signature image), MAX caps how much of
+// page 6's genuine leftover space (after notes get what they actually need)
+// can go into taller rows -- generous enough to visibly use the space
+// (v0.1.2's "ends halfway down the sheet" report) without rows growing
+// "absurdly tall" for a 4-row name/title/signature/date table.
+export const MIN_TEAM_ROW_HEIGHT_PX = 40;
+export const MAX_TEAM_ROW_HEIGHT_PX = 90;
+
+// Small buffer subtracted from every measured budget before it's handed to a
+// flexible box. The measurement skeleton (incidentPdfMeasure.js) and the
+// real rendered page use the same CSS classes/text, so they should measure
+// identically, but this protects against a 1-2px browser rounding drift
+// between the two passes turning into a clipped page (.incidentPage has
+// `overflow: hidden`) instead of just an imperceptibly smaller box.
+export const PAGE_BOTTOM_SAFETY_PX = 3;
 
 // Continuation pages have a much larger, mostly-empty page to work with.
 export const CONTINUATION_BODY_HEIGHT_PX = 760;

@@ -1,6 +1,6 @@
 import { CAUSE_CATEGORIES, causeKey } from './incidentModel';
 import { BODY_DIAGRAM_SRC, BODY_DIAGRAM_ASPECT } from './BodyDiagram';
-import { SUPERVISOR_NOTES_HELP, MIN_NOTE_BOX_HEIGHT_PX } from './incidentPdfLayout';
+import { SUPERVISOR_NOTES_HELP, MIN_NOTE_BOX_HEIGHT_PX, MIN_TEAM_ROW_HEIGHT_PX } from './incidentPdfLayout';
 
 /* Print/PDF rendering for the Incident Report. Mirrors the reference
    document ("SCH Blank incident report (1).docx") section-for-section:
@@ -13,7 +13,7 @@ import { SUPERVISOR_NOTES_HELP, MIN_NOTE_BOX_HEIGHT_PX } from './incidentPdfLayo
 const SHACKELFORD_LOGO = `${import.meta.env.BASE_URL}icons/shackelford-logo.webp`;
 const FORM_TITLE = 'INCIDENT REPORTING AND INVESTIGATION FORM';
 
-function fmtDate(v) {
+export function fmtDate(v) {
   if (!v) return '';
   // Accepts YYYY-MM-DD (native date input) -- render as MM/DD/YYYY to match
   // the reference document's own "(MM/DD/YY)" convention.
@@ -22,7 +22,7 @@ function fmtDate(v) {
   return `${m[2]}/${m[3]}/${m[1]}`;
 }
 
-function fmtDateTime(v) {
+export function fmtDateTime(v) {
   if (!v) return '';
   const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(v);
   if (!m) return v;
@@ -33,7 +33,7 @@ function fmtDateTime(v) {
   return `${mo}/${d}/${y} ${h12}:${mi} ${ampm}`;
 }
 
-function fmtTime(v) {
+export function fmtTime(v) {
   if (!v) return '';
   const m = /^(\d{2}):(\d{2})/.exec(v);
   if (!m) return v;
@@ -123,8 +123,15 @@ function YesNoLine({ label: lbl, val, note }) {
    blank -- only the Date/Time-of-Incident row actually uses all 4 columns
    individually. This replaced a mixed 2-column/4-column table that left an
    unexplained blank block on the right of every other row (see v0.1.1
-   polish pass). */
-export function Page1Content({ incident, descriptionText }) {
+   polish pass).
+
+   descriptionBoxHeightPx is computed by buildIncidentPagePlan() from a real
+   measurement of everything above this box (measurePage1Budget in
+   incidentPdfMeasure.js) -- it is whatever's actually left of the page, not
+   a guess, so the box reaches the bottom margin regardless of how much (or
+   little) room the tables above it take up (see v0.1.2 full-page-utilization
+   pass). */
+export function Page1Content({ incident, descriptionText, descriptionBoxHeightPx }) {
   return (
     <>
       <InfoTable rows={[
@@ -143,7 +150,7 @@ export function Page1Content({ incident, descriptionText }) {
       <InfoTable rows={[
         [label('Where the Incident Occurred (specify)', '32%'), value(incident.incidentSpecificLocation)],
       ]} />
-      <TextBlock title="DETAILED DESCRIPTION OF THE INCIDENT" text={descriptionText} minHeightPx={180} />
+      <TextBlock title="DETAILED DESCRIPTION OF THE INCIDENT" text={descriptionText} minHeightPx={descriptionBoxHeightPx} />
     </>
   );
 }
@@ -190,8 +197,14 @@ export function Page2Content({ incident }) {
    Always renders the full name/contact/statement/signature structure --
    for an unused witness slot (witness == null), every field prints "N/A"
    instead of collapsing the block to a single N/A box, so pages 3-4 always
-   match the reference form's three-witness layout. */
-export function WitnessBlock({ index, witness, statementText }) {
+   match the reference form's three-witness layout.
+
+   statementBoxHeightPx is computed per-page by buildIncidentPagePlan() from
+   a real measurement of that page's remaining space (measurePage3Budget /
+   measurePage4Budget in incidentPdfMeasure.js), shared fairly between
+   whichever witness blocks appear on that page -- see v0.1.2
+   full-page-utilization pass. */
+export function WitnessBlock({ index, witness, statementText, statementBoxHeightPx }) {
   const w = witness || {};
   const na = v => (witness ? (v || 'N/A') : 'N/A');
   return (
@@ -202,7 +215,7 @@ export function WitnessBlock({ index, witness, statementText }) {
         [label('Supervisor', '22%'), value(na(w.supervisor)), label('Phone', '22%'), value(na(w.phone))],
         [label('Email', '22%'), value(na(w.email)), label('Date', '22%'), value(witness && w.signatureDate ? fmtDate(w.signatureDate) : 'N/A')],
       ]} />
-      <TextBlock title="Statement" text={witness ? (statementText || '') : 'N/A'} minHeightPx={70} />
+      <TextBlock title="Statement" text={witness ? (statementText || '') : 'N/A'} minHeightPx={statementBoxHeightPx} />
       <table className="incInfoTable incSignatureTable">
         <tbody>
           <tr>
@@ -221,26 +234,35 @@ export function WitnessBlock({ index, witness, statementText }) {
   );
 }
 
-/* ── PAGE 3 ── */
-export function Page3Content({ incident, statementChunks }) {
+/* ── PAGE 3 ──
+   statementBoxHeights is [witness1Height, witness2Height] from
+   measurePage3Budget -- the two boxes share whatever's genuinely left on
+   the page after both witnesses' real contact/signature chrome, in
+   proportion to how much each statement actually needs (see
+   allocateAndFillFlexibleSections in incidentPdfGenerate.jsx). */
+export function Page3Content({ incident, statementChunks, statementBoxHeights }) {
   return (
     <>
       <GrayBar>WITNESS AND/OR WITNESS STATEMENT</GrayBar>
-      <WitnessBlock index={1} witness={incident.witnesses[0]} statementText={statementChunks[0]?.[0]} />
-      <WitnessBlock index={2} witness={incident.witnesses[1]} statementText={statementChunks[1]?.[0]} />
+      <WitnessBlock index={1} witness={incident.witnesses[0]} statementText={statementChunks[0]?.[0]} statementBoxHeightPx={statementBoxHeights?.[0]} />
+      <WitnessBlock index={2} witness={incident.witnesses[1]} statementText={statementChunks[1]?.[0]} statementBoxHeightPx={statementBoxHeights?.[1]} />
     </>
   );
 }
 
 /* ── PAGE 4 ──
    The four-row property-damage table always renders; when Property Damage
-   is No, every detail field prints "N/A" instead of the table disappearing. */
-export function Page4Content({ incident, statementChunks }) {
+   is No, every detail field prints "N/A" instead of the table disappearing.
+   witness3BoxHeightPx (from measurePage4Budget) is whatever's left after the
+   property-damage table's own real (data-dependent) height -- the
+   property-damage section stays fixed/complete and Witness 3's statement
+   expands to fill the rest, so it never gets pushed off or clipped. */
+export function Page4Content({ incident, statementChunks, witness3BoxHeightPx }) {
   const damaged = incident.propertyDamageOccurred === 'yes';
   const na = v => (damaged ? (v || 'N/A') : 'N/A');
   return (
     <>
-      <WitnessBlock index={3} witness={incident.witnesses[2]} statementText={statementChunks[2]?.[0]} />
+      <WitnessBlock index={3} witness={incident.witnesses[2]} statementText={statementChunks[2]?.[0]} statementBoxHeightPx={witness3BoxHeightPx} />
       <YesNoLine label="PROPERTY DAMAGE" val={incident.propertyDamageOccurred} note="(see details below)" />
       <InfoTable rows={[
         [label('List Property/Material Damaged', '38%'), value(na(incident.propertyOrMaterialDamaged))],
@@ -303,10 +325,18 @@ export function Page5Content({ incident }) {
    The investigation-team table always renders all 4 reference-form rows.
    Existing members populate rows in order; unused rows print blank (not an
    N/A box) -- an incomplete team just hasn't been filled in yet, which is
-   different from a deliberate "not applicable" answer. */
+   different from a deliberate "not applicable" answer.
+
+   teamRowHeightPx (from buildIncidentPagePlan's page-6 allocation) grows the
+   table's rows beyond their CSS-default minimum with whatever genuine
+   leftover space remains after the two notes boxes get what they actually
+   need, so the table -- not empty space below it -- reaches the bottom
+   margin (see v0.1.2 full-page-utilization pass). Applied as a CSS custom
+   property so incident.css's own rule stays the single source of the
+   default (40px) if this prop is ever omitted. */
 export function Page6Content({
   incident, supervisorNotesChunk, safetyConsultantNotesChunk,
-  supervisorNotesBoxHeight, safetyConsultantNotesBoxHeight,
+  supervisorNotesBoxHeight, safetyConsultantNotesBoxHeight, teamRowHeightPx,
 }) {
   const team = incident.investigationTeam || [];
   const rows = Array.from({ length: 4 }).map((_, i) => team[i] || null);
@@ -317,7 +347,7 @@ export function Page6Content({
       <GrayBar>SAFETY CONSULTANT NOTES &amp; SUMMARY</GrayBar>
       <TextBlock text={safetyConsultantNotesChunk} minHeightPx={safetyConsultantNotesBoxHeight || MIN_NOTE_BOX_HEIGHT_PX} />
       <GrayBar>INVESTIGATION TEAM</GrayBar>
-      <table className="incInfoTable incTeamTable">
+      <table className="incInfoTable incTeamTable" style={{ '--incTeamRowHeight': `${teamRowHeightPx || MIN_TEAM_ROW_HEIGHT_PX}px` }}>
         <thead>
           <tr><th>Name</th><th>Title</th><th>Signature</th><th>Date</th></tr>
         </thead>

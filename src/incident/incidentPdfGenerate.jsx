@@ -6,28 +6,18 @@ import {
   IncidentPageShell, Page1Content, Page2Content, Page3Content, Page4Content, Page5Content, Page6Content, ContinuationPage,
 } from './IncidentPdf';
 import {
-  textBlockMeasureStyle, DESCRIPTION_FIRST_HEIGHT_PX, STATEMENT_FIRST_HEIGHT_PX, MIN_NOTE_BOX_HEIGHT_PX, CONTINUATION_BODY_HEIGHT_PX,
+  textBlockMeasureStyle, MIN_DESCRIPTION_HEIGHT_PX, MIN_STATEMENT_HEIGHT_PX, MIN_NOTE_BOX_HEIGHT_PX,
+  MIN_TEAM_ROW_HEIGHT_PX, MAX_TEAM_ROW_HEIGHT_PX, PAGE_BOTTOM_SAFETY_PX, CONTINUATION_BODY_HEIGHT_PX,
 } from './incidentPdfLayout';
 import { paginateText, measureNaturalHeight } from './textFit';
-import { measurePage6NotesBudget } from './incidentPdfMeasure';
+import { measurePage1Budget, measurePage3Budget, measurePage4Budget, measurePage6NotesBudget } from './incidentPdfMeasure';
 
-function paginateField(text) {
-  return paginateText(text, {
-    firstMaxHeightPx: DESCRIPTION_FIRST_HEIGHT_PX,
-    firstStyle: textBlockMeasureStyle(),
-    continuationMaxHeightPx: CONTINUATION_BODY_HEIGHT_PX,
-    continuationStyle: textBlockMeasureStyle(),
-  });
-}
-function paginateStatement(text) {
-  return paginateText(text, {
-    firstMaxHeightPx: STATEMENT_FIRST_HEIGHT_PX,
-    firstStyle: textBlockMeasureStyle(),
-    continuationMaxHeightPx: CONTINUATION_BODY_HEIGHT_PX,
-    continuationStyle: textBlockMeasureStyle(),
-  });
-}
-function paginateNotesField(text, firstMaxHeightPx) {
+/* Every base-page flexible box (description, witness statements, page-6
+   notes) is paginated the same way: fit as much as possible into the box
+   height buildIncidentPagePlan() computed for it from a real measurement of
+   that page's remaining space, and spill anything left to continuation
+   page(s) sized for CONTINUATION_BODY_HEIGHT_PX. */
+function paginateBoxText(text, firstMaxHeightPx) {
   return paginateText(text, {
     firstMaxHeightPx,
     firstStyle: textBlockMeasureStyle(),
@@ -36,25 +26,49 @@ function paginateNotesField(text, firstMaxHeightPx) {
   });
 }
 
-/* Splits a shared px budget between two competing boxes: if both fit at
-   their full natural size, give each exactly that (this is the common case
+/* Splits a shared px budget between N competing boxes: if all fit at their
+   full natural size, each gets at least `minEach` (this is the common case
    that used to force a wasted page 7 -- see MIN_NOTE_BOX_HEIGHT_PX). If not,
    each gets at least `minEach`, and whatever's left is divided in
-   proportion to how much more than the floor each one actually needs. */
-function allocateSharedHeight(need1, need2, budget, minEach) {
+   proportion to how much more than the floor each one actually needs.
+   Generalizes what was previously a hand-written 2-box version (page 6's
+   notes) to any number of competing boxes (also used by page 3's two
+   witness statements) -- see the v0.1.2 full-page-utilization pass. */
+export function allocateFlexibleSections(needs, budget, minEach) {
   const safeBudget = Math.max(0, budget);
-  if (need1 + need2 <= safeBudget) {
-    return { h1: Math.max(need1, Math.min(minEach, safeBudget)), h2: Math.max(need2, Math.min(minEach, safeBudget)) };
+  const totalNeed = needs.reduce((a, b) => a + b, 0);
+  if (totalNeed <= safeBudget) {
+    return needs.map((need) => Math.max(need, Math.min(minEach, safeBudget)));
   }
-  const floor = Math.min(minEach, safeBudget / 2);
-  const remaining = Math.max(0, safeBudget - floor * 2);
-  const extra1 = Math.max(0, need1 - floor);
-  const extra2 = Math.max(0, need2 - floor);
-  const totalExtra = extra1 + extra2;
-  if (totalExtra <= 0) return { h1: floor, h2: floor };
-  const share1 = totalExtra <= remaining ? extra1 : remaining * (extra1 / totalExtra);
-  const share2 = totalExtra <= remaining ? extra2 : remaining * (extra2 / totalExtra);
-  return { h1: floor + share1, h2: floor + share2 };
+  const floor = Math.min(minEach, safeBudget / needs.length);
+  const remaining = Math.max(0, safeBudget - floor * needs.length);
+  const extras = needs.map((need) => Math.max(0, need - floor));
+  const totalExtra = extras.reduce((a, b) => a + b, 0);
+  if (totalExtra <= 0) return needs.map(() => floor);
+  return extras.map((extra) => floor + (totalExtra <= remaining ? extra : remaining * (extra / totalExtra)));
+}
+
+/* Same as allocateFlexibleSections, but afterwards gives away ANY leftover
+   budget (the common case where every box's actual content need is smaller
+   than the floor/available space) back to the same boxes -- proportionally
+   to need, so a longer statement gets more of the bonus too -- instead of
+   leaving it unused. This is what makes pages 1/3/4's flexible box(es)
+   stretch all the way to the page's bottom margin instead of stopping at
+   whatever their own text needs (the exact "pages end halfway down the
+   sheet" problem this pass fixes). Page 6 deliberately does NOT use this --
+   its leftover is intentionally prioritized into growing the
+   investigation-team rows first (see buildIncidentPagePlan). */
+function allocateAndFillFlexibleSections(needs, budget, minEach) {
+  const base = allocateFlexibleSections(needs, budget, minEach);
+  const used = base.reduce((a, b) => a + b, 0);
+  const leftover = Math.max(0, budget - used);
+  if (leftover <= 0) return base;
+  const totalNeed = needs.reduce((a, b) => a + b, 0);
+  if (totalNeed <= 0) {
+    const share = leftover / needs.length;
+    return base.map((h) => h + share);
+  }
+  return base.map((h, i) => h + leftover * (needs[i] / totalNeed));
 }
 
 /* Builds the ordered list of logical pages (base pages + any continuation
@@ -64,26 +78,72 @@ function allocateSharedHeight(need1, need2, budget, minEach) {
    (always-mounted, off-screen) export DOM on every relevant keystroke and,
    via getIncidentPdfOverflowFields(), as an export preflight check. */
 export function buildIncidentPagePlan(incident) {
-  const description = paginateField(incident.detailedIncidentDescription);
   const witnesses = incident.witnesses || [];
-  const statements = witnesses.map(w => paginateStatement(w.statement));
+  const textStyle = textBlockMeasureStyle();
 
-  // Page 6's two notes boxes share whatever space is actually left after
-  // the gray bars and investigation-team table (measured for real -- see
-  // incidentPdfMeasure.js) instead of each getting a fixed box regardless
-  // of what's really available. Short notes no longer waste page-6 space,
-  // and a note that would have overflowed a fixed box now gets the real
-  // remaining room before spilling to a continuation page.
+  // PAGE 1 -- the description box gets 100% of whatever real space is left
+  // after the top info table, supervisor-contact table, and location field
+  // (all data-dependent -- a long value can wrap and shrink this) render
+  // with the incident's actual values (measurePage1Budget in
+  // incidentPdfMeasure.js). No fixed guess: a short report leaves a large
+  // blank writing box that still reaches the bottom margin; a long one uses
+  // the entire real box before spilling to a continuation page.
+  const page1Budget = Math.max(MIN_DESCRIPTION_HEIGHT_PX, measurePage1Budget(incident) - PAGE_BOTTOM_SAFETY_PX);
+  const description = paginateBoxText(incident.detailedIncidentDescription, page1Budget);
+
+  // PAGE 3 -- Witness 1 and Witness 2's statement boxes share whatever's
+  // genuinely left after both witnesses' real contact/signature chrome
+  // (measurePage3Budget), split by actual need and then stretched with any
+  // remaining leftover so the two boxes together reach the bottom margin
+  // (allocateAndFillFlexibleSections) instead of stopping wherever their
+  // own text ends.
+  const page3Budget = Math.max(0, measurePage3Budget(incident) - PAGE_BOTTOM_SAFETY_PX);
+  const w1Raw = witnesses[0] ? (witnesses[0].statement || '') : 'N/A';
+  const w2Raw = witnesses[1] ? (witnesses[1].statement || '') : 'N/A';
+  const w1Need = measureNaturalHeight(w1Raw, textStyle);
+  const w2Need = measureNaturalHeight(w2Raw, textStyle);
+  const [w1BoxHeight, w2BoxHeight] = allocateAndFillFlexibleSections([w1Need, w2Need], page3Budget, MIN_STATEMENT_HEIGHT_PX);
+
+  // PAGE 4 -- Witness 3's statement is the page's only flexible box; the
+  // property-damage table (also real, data-dependent) is fixed content
+  // that always renders complete. Witness 3 expands to consume whatever's
+  // left above it (measurePage4Budget).
+  const page4Budget = Math.max(0, measurePage4Budget(incident) - PAGE_BOTTOM_SAFETY_PX);
+  const w3BoxHeight = Math.max(MIN_STATEMENT_HEIGHT_PX, page4Budget);
+
+  const statements = [
+    paginateBoxText(witnesses[0]?.statement, w1BoxHeight),
+    paginateBoxText(witnesses[1]?.statement, w2BoxHeight),
+    paginateBoxText(witnesses[2]?.statement, w3BoxHeight),
+  ];
+
+  // PAGE 6 -- notes get whatever they actually need first (same
+  // need-based split as before -- short notes are never forced
+  // artificially tall), THEN any genuine leftover is prioritized into
+  // growing the investigation-team's rows (up to MAX_TEAM_ROW_HEIGHT_PX, so
+  // rows never get "absurdly tall"), and only whatever the table can't use
+  // goes back into the notes boxes as extra blank writing room. This is
+  // what makes the table -- not empty space below it -- reach page 6's
+  // bottom margin. If the notes need MORE than the budget allows, team rows
+  // stay at their floor and the excess spills to a continuation page, same
+  // as before.
   const supervisorText = incident.supervisorNotes;
   const safetyConsultantText = incident.safetyConsultantNotes;
-  const notesBudgetPx = measurePage6NotesBudget(incident.investigationTeam);
-  const supervisorNeed = measureNaturalHeight(supervisorText, textBlockMeasureStyle());
-  const safetyConsultantNeed = measureNaturalHeight(safetyConsultantText, textBlockMeasureStyle());
-  const { h1: supervisorBoxHeight, h2: safetyConsultantBoxHeight } = allocateSharedHeight(
-    supervisorNeed, safetyConsultantNeed, notesBudgetPx, MIN_NOTE_BOX_HEIGHT_PX,
+  const notesBudgetPx = Math.max(0, measurePage6NotesBudget(incident.investigationTeam) - PAGE_BOTTOM_SAFETY_PX);
+  const supervisorNeed = measureNaturalHeight(supervisorText, textStyle);
+  const safetyConsultantNeed = measureNaturalHeight(safetyConsultantText, textStyle);
+  const [baseSupervisorHeight, baseSafetyConsultantHeight] = allocateFlexibleSections(
+    [supervisorNeed, safetyConsultantNeed], notesBudgetPx, MIN_NOTE_BOX_HEIGHT_PX,
   );
-  const supervisorNotes = paginateNotesField(supervisorText, supervisorBoxHeight);
-  const safetyConsultantNotes = paginateNotesField(safetyConsultantText, safetyConsultantBoxHeight);
+  const leftoverAfterNotes = Math.max(0, notesBudgetPx - (baseSupervisorHeight + baseSafetyConsultantHeight));
+  const maxTeamBonusTotal = (MAX_TEAM_ROW_HEIGHT_PX - MIN_TEAM_ROW_HEIGHT_PX) * 4;
+  const teamBonusTotal = Math.min(leftoverAfterNotes, maxTeamBonusTotal);
+  const teamRowHeight = MIN_TEAM_ROW_HEIGHT_PX + teamBonusTotal / 4;
+  const remainingAfterTeam = leftoverAfterNotes - teamBonusTotal;
+  const supervisorBoxHeight = baseSupervisorHeight + remainingAfterTeam / 2;
+  const safetyConsultantBoxHeight = baseSafetyConsultantHeight + remainingAfterTeam / 2;
+  const supervisorNotes = paginateBoxText(supervisorText, supervisorBoxHeight);
+  const safetyConsultantNotes = paginateBoxText(safetyConsultantText, safetyConsultantBoxHeight);
 
   const overflowFields = [];
   if (description.overflow) overflowFields.push('Detailed Description of the Incident');
@@ -97,21 +157,21 @@ export function buildIncidentPagePlan(incident) {
   const safetyConsultantNotesChunks = safetyConsultantNotes.chunks;
 
   const pages = [];
-  pages.push({ key: 'p1', type: 'page1', props: { descriptionText: descriptionChunks[0] } });
+  pages.push({ key: 'p1', type: 'page1', props: { descriptionText: descriptionChunks[0], descriptionBoxHeightPx: page1Budget } });
   descriptionChunks.slice(1).forEach((chunk, i) => {
     pages.push({ key: `p1c${i}`, type: 'continuation', props: { sectionLabel: 'Detailed Description of the Incident', text: chunk } });
   });
 
   pages.push({ key: 'p2', type: 'page2', props: {} });
 
-  pages.push({ key: 'p3', type: 'page3', props: { statementChunks } });
+  pages.push({ key: 'p3', type: 'page3', props: { statementChunks, statementBoxHeights: [w1BoxHeight, w2BoxHeight] } });
   [0, 1].forEach(wIdx => {
     (statementChunks[wIdx] || []).slice(1).forEach((chunk, i) => {
       pages.push({ key: `p3c${wIdx}_${i}`, type: 'continuation', props: { sectionLabel: `Witness ${wIdx + 1} Statement`, text: chunk } });
     });
   });
 
-  pages.push({ key: 'p4', type: 'page4', props: { statementChunks } });
+  pages.push({ key: 'p4', type: 'page4', props: { statementChunks, witness3BoxHeightPx: w3BoxHeight } });
   (statementChunks[2] || []).slice(1).forEach((chunk, i) => {
     pages.push({ key: `p4c${i}`, type: 'continuation', props: { sectionLabel: 'Witness 3 Statement', text: chunk } });
   });
@@ -126,6 +186,7 @@ export function buildIncidentPagePlan(incident) {
       safetyConsultantNotesChunk: safetyConsultantNotesChunks[0],
       supervisorNotesBoxHeight: supervisorBoxHeight,
       safetyConsultantNotesBoxHeight: safetyConsultantBoxHeight,
+      teamRowHeightPx: teamRowHeight,
     },
   });
   supervisorNotesChunks.slice(1).forEach((chunk, i) => {

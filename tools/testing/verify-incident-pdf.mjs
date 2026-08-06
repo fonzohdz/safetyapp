@@ -43,24 +43,39 @@ mkdirSync(outRoot, { recursive: true });
 const FIXTURES = [
   { name: 'full', file: 'incident-full-fixture.json', expectedPageCount: 6, expectFinal: true },
   { name: 'na', file: 'incident-na-fixture.json', expectedPageCount: 6, expectFinal: false },
-  // Was 12 pages before the v0.1.1 polish pass raised the description/
-  // statement base-page capacities (DESCRIPTION_FIRST_HEIGHT_PX/
-  // STATEMENT_FIRST_HEIGHT_PX in incidentPdfLayout.js) to use more of page
-  // 1/3/4's real available space -- this fixture's deliberately very long
-  // text now legitimately needs fewer continuation pages, not the same
-  // count forced by an artificially small box. See page-by-page screenshots
-  // in tools/testing/output/incident/overflow/ to confirm nothing clipped.
-  { name: 'overflow', file: 'incident-overflow-fixture.json', expectedPageCount: 10, expectFinal: false },
+  // Was 12 pages pre-v0.1.1, then 10 after the v0.1.1 polish pass raised the
+  // description/statement base-page capacities to fixed-but-larger guesses.
+  // The v0.1.2 full-page-utilization pass replaced those fixed guesses with
+  // real per-page measurement (measurePage1Budget/measurePage3Budget/
+  // measurePage4Budget/measurePage6NotesBudget in incidentPdfMeasure.js),
+  // which for THIS fixture's real content legitimately leaves more usable
+  // room on pages 1, 3, 4, and 6 than the old fixed numbers did (e.g. page
+  // 1's description box alone grew from a flat 300px to ~640px of real
+  // measured leftover) -- so the same deliberately-long overflow text now
+  // needs 8 pages, not 10. Confirmed via page-by-page screenshots in
+  // tools/testing/output/incident/overflow/ that nothing is clipped; see
+  // also the generic per-page scrollHeight<=clientHeight check below, which
+  // runs for every page of every fixture including this one.
+  { name: 'overflow', file: 'incident-overflow-fixture.json', expectedPageCount: 8, expectFinal: false },
   // Reproduces the actual user-reported draft (Entergy_TAPS_IncidentReport_2026-08-06_DRAFT.pdf)
   // that generated a wasted, nearly-empty page 7 before the v0.1.1 PDF polish
-  // pass -- see incidentPdfMeasure.js / allocateSharedHeight in
+  // pass -- see incidentPdfMeasure.js / allocateFlexibleSections in
   // incidentPdfGenerate.jsx. Must render as exactly 6 pages with no
-  // continuation page now that page 6's notes boxes share real leftover space.
+  // continuation page, AND (v0.1.2) with pages 1, 3, 4, and 6 using their
+  // full printable height instead of ending halfway down the sheet.
   { name: 'userDraft', file: 'incident-user-draft-fixture.json', expectedPageCount: 6, expectFinal: false },
 ];
 
 const PORT = 4320;
 const BASE_URL = `http://localhost:${PORT}`;
+
+// How close a page's last real form element is expected to land to its
+// .incidentPageBody's own bottom edge, now that v0.1.2 fills each base
+// page's genuine remaining space instead of leaving it unused. Generous
+// enough to tolerate the small, expected differences between pages (a fixed
+// diagram/table vs. a stretched text box), tight enough to catch a
+// regression back to "ends halfway down the sheet".
+const BOTTOM_MARGIN_TOLERANCE_PX = 45;
 
 function waitForServer(url, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
@@ -155,6 +170,21 @@ async function runFixture(browser, fixture) {
   a.check(pageEls.length === fixture.expectedPageCount,
     `expected exactly ${fixture.expectedPageCount} pages, got ${pageEls.length}`);
 
+  // Generic clipping guard for EVERY page of EVERY fixture (not just
+  // userDraft): .incidentPage has `overflow: hidden`, so if a page's real
+  // content ever exceeds its .incidentPageBody's own height, the browser
+  // silently clips it instead of erroring -- scrollHeight growing past
+  // clientHeight is the one reliable DOM signal that happened. A small
+  // rounding tolerance absorbs sub-pixel layout rounding, not real overflow.
+  for (let i = 0; i < pageEls.length; i += 1) {
+    const bodyMetrics = await pageEls[i].locator('.incidentPageBody').first().evaluate((elBody) => ({
+      scrollHeight: elBody.scrollHeight,
+      clientHeight: elBody.clientHeight,
+    }));
+    a.check(bodyMetrics.scrollHeight <= bodyMetrics.clientHeight + 2,
+      `page ${i + 1}: expected no clipped content (body scrollHeight ${bodyMetrics.scrollHeight}px should be <= clientHeight ${bodyMetrics.clientHeight}px, +2px rounding tolerance)`);
+  }
+
   const isDraftFilename = /_DRAFT/.test(readyFilename);
   const watermarkCount = await root.locator('.incidentWatermark').count();
   if (fixture.expectFinal) {
@@ -211,6 +241,70 @@ async function runFixture(browser, fixture) {
       a.check(maxH - minH < 3, `expected all 4 investigation-team rows to have consistent height, got heights ${JSON.stringify(teamRowHeights)}`);
       a.check(minH >= 38, `expected investigation-team rows to be at least ~40px tall, smallest was ${minH}px`);
     }
+
+    // ── v0.1.2 full-page-utilization: pages 1, 3, 4, 6 must reach the
+    // bottom margin instead of ending halfway down the sheet. ──
+
+    // PAGE 1 -- the description box (the page's only flexible area) should
+    // be the last element and its bottom should land close to the page
+    // body's own bottom edge.
+    const page1El = page.locator('.incidentPage').first();
+    const page1BodyBox = await page1El.locator('.incidentPageBody').boundingBox();
+    const descriptionBox = await page1El.locator('.incTextBlock').first().boundingBox();
+    a.check(
+      Boolean(page1BodyBox && descriptionBox && (page1BodyBox.y + page1BodyBox.height) - (descriptionBox.y + descriptionBox.height) <= BOTTOM_MARGIN_TOLERANCE_PX),
+      `expected page 1's description box to reach near the page body's bottom (within ${BOTTOM_MARGIN_TOLERANCE_PX}px), gap was ${page1BodyBox && descriptionBox ? (page1BodyBox.y + page1BodyBox.height) - (descriptionBox.y + descriptionBox.height) : 'N/A'}px`,
+    );
+
+    // PAGE 3 -- Witness 1 and Witness 2 statement boxes should have
+    // meaningful height, not overlap each other, and Witness 2's signature
+    // row (the page's last element) should reach near the bottom margin.
+    const page3El = page.locator('.incidentPage').nth(2);
+    const page3BodyBox = await page3El.locator('.incidentPageBody').boundingBox();
+    const w1StatementBox = await page3El.locator('.incTextBlock').nth(0).boundingBox();
+    const w2StatementBox = await page3El.locator('.incTextBlock').nth(1).boundingBox();
+    const w1SignatureBox = await page3El.locator('.incSignatureTable').nth(0).boundingBox();
+    const w2SignatureBox = await page3El.locator('.incSignatureTable').nth(1).boundingBox();
+    a.check(Boolean(w1StatementBox && w1StatementBox.height >= 100), `expected Witness 1's statement area to have meaningful height (>=100px), got ${w1StatementBox?.height}px`);
+    a.check(Boolean(w2StatementBox && w2StatementBox.height >= 100), `expected Witness 2's statement area to have meaningful height (>=100px), got ${w2StatementBox?.height}px`);
+    a.check(
+      Boolean(w1SignatureBox && w2StatementBox && w2StatementBox.y >= w1SignatureBox.y + w1SignatureBox.height - 1),
+      'expected no overlap between Witness 1 and Witness 2 blocks on page 3',
+    );
+    a.check(
+      Boolean(page3BodyBox && w2SignatureBox && (page3BodyBox.y + page3BodyBox.height) - (w2SignatureBox.y + w2SignatureBox.height) <= BOTTOM_MARGIN_TOLERANCE_PX),
+      `expected Witness 2's signature row to reach near page 3's bottom margin (within ${BOTTOM_MARGIN_TOLERANCE_PX}px), gap was ${page3BodyBox && w2SignatureBox ? (page3BodyBox.y + page3BodyBox.height) - (w2SignatureBox.y + w2SignatureBox.height) : 'N/A'}px`,
+    );
+
+    // PAGE 4 -- Witness 3's statement box should expand substantially
+    // beyond the old fixed 130px box, and the property-damage table (the
+    // page's last, fixed element) should reach near the bottom margin.
+    const page4El = page.locator('.incidentPage').nth(3);
+    const page4BodyBox = await page4El.locator('.incidentPageBody').boundingBox();
+    const w3StatementBox = await page4El.locator('.incTextBlock').first().boundingBox();
+    const propertyDamageTable = page4El.locator('.incInfoTable:not(.incSignatureTable):not(.incTeamTable)').last();
+    const propertyDamageBox = await propertyDamageTable.boundingBox();
+    a.check(Boolean(w3StatementBox && w3StatementBox.height >= 250), `expected Witness 3's statement area to expand substantially beyond the old ~130px box (>=250px), got ${w3StatementBox?.height}px`);
+    a.check(
+      Boolean(page4BodyBox && propertyDamageBox && (page4BodyBox.y + page4BodyBox.height) - (propertyDamageBox.y + propertyDamageBox.height) <= BOTTOM_MARGIN_TOLERANCE_PX),
+      `expected the property-damage table to reach near page 4's bottom margin (within ${BOTTOM_MARGIN_TOLERANCE_PX}px), gap was ${page4BodyBox && propertyDamageBox ? (page4BodyBox.y + page4BodyBox.height) - (propertyDamageBox.y + propertyDamageBox.height) : 'N/A'}px`,
+    );
+
+    // PAGE 6 -- the investigation-team table (the page's last element)
+    // should reach near the bottom margin and must not overlap the notes
+    // boxes above it.
+    const page6El = page.locator('.incidentPage').nth(5);
+    const page6BodyBox = await page6El.locator('.incidentPageBody').boundingBox();
+    const safetyConsultantBox = await page6El.locator('.incTextBlock').nth(1).boundingBox();
+    const teamTableBox = await page6El.locator('.incTeamTable').boundingBox();
+    a.check(
+      Boolean(safetyConsultantBox && teamTableBox && teamTableBox.y >= safetyConsultantBox.y + safetyConsultantBox.height - 1),
+      'expected no overlap between page 6\'s Safety Consultant Notes box and the investigation-team table',
+    );
+    a.check(
+      Boolean(page6BodyBox && teamTableBox && (page6BodyBox.y + page6BodyBox.height) - (teamTableBox.y + teamTableBox.height) <= BOTTOM_MARGIN_TOLERANCE_PX),
+      `expected the investigation-team table to reach near page 6's bottom margin (within ${BOTTOM_MARGIN_TOLERANCE_PX}px), gap was ${page6BodyBox && teamTableBox ? (page6BodyBox.y + page6BodyBox.height) - (teamTableBox.y + teamTableBox.height) : 'N/A'}px`,
+    );
 
     // Witness 1 has an intentional bordered signature+date row, not a bare
     // floating image.

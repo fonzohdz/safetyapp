@@ -272,12 +272,17 @@ html[data-theme='dark'] .incidentReadinessItem.ok .checkIcon { color: #8bd48f; }
 .incCheckbox.checked { background: #000; color: #fff; }
 .incCauseItemText { vertical-align: middle; }
 
-/* All 4 rows get the same minimum height (enough for a normal signature
-   image at .incSignatureImage's 34px height plus padding) whether or not
-   they're populated, so an empty team slot doesn't visually collapse next
-   to a signed one -- see the v0.1.1 polish pass. */
+/* All 4 rows get the same height (enough for a normal signature image at
+   .incSignatureImage's 34px height plus padding) whether or not they're
+   populated, so an empty team slot doesn't visually collapse next to a
+   signed one -- see the v0.1.1 polish pass. The custom property (set inline
+   per-render by Page6Content from a real measurement of page 6's leftover
+   space, see incidentPdfMeasure.js) lets rows grow evenly beyond the 40px
+   default when there's genuine room, instead of the table ending well
+   short of the page's bottom margin -- see the v0.1.2 full-page-utilization
+   pass. 40px remains the default/floor if the property is ever omitted. */
 .incTeamTable th, .incTeamTable td { width: 25%; }
-.incTeamTable td { height: 40px; vertical-align: middle; }
+.incTeamTable td { height: var(--incTeamRowHeight, 40px); vertical-align: middle; }
 
 .incContinuationMeta { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 8.5pt; color: #333; border-bottom: 1px solid #999; padding-bottom: 3px; margin-bottom: 4px; }
 
