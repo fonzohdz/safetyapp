@@ -1,7 +1,7 @@
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import html2canvas from 'html2canvas';
 import { PDFDocument } from 'pdf-lib';
-import { isIncidentReady } from './incidentModel';
+import { isIncidentPrintFinal, printedIncidentFingerprint } from './incidentModel';
 import {
   IncidentPageShell, Page1Content, Page2Content, Page3Content, Page4Content, Page5Content, Page6Content, ContinuationPage,
 } from './IncidentPdf';
@@ -36,15 +36,28 @@ function paginateNotes(text) {
 }
 
 /* Builds the ordered list of logical pages (base pages + any continuation
-   pages needed for overflowing long-text fields). Pure function of the
-   incident's text content -- used both to render the export DOM and to
-   compute page numbers/totals up front. */
+   pages needed for overflowing long-text fields), plus the list of any
+   field labels whose text could not be confirmed to fit (see textFit.js).
+   Pure function of the incident's text content -- used both to render the
+   (always-mounted, off-screen) export DOM on every relevant keystroke and,
+   via getIncidentPdfOverflowFields(), as an export preflight check. */
 export function buildIncidentPagePlan(incident) {
-  const descriptionChunks = paginateField(incident.detailedIncidentDescription);
+  const description = paginateField(incident.detailedIncidentDescription);
   const witnesses = incident.witnesses || [];
-  const statementChunks = witnesses.map(w => paginateStatement(w.statement));
-  const supervisorNotesChunks = paginateNotes(incident.supervisorNotes);
-  const safetyConsultantNotesChunks = paginateNotes(incident.safetyConsultantNotes);
+  const statements = witnesses.map(w => paginateStatement(w.statement));
+  const supervisorNotes = paginateNotes(incident.supervisorNotes);
+  const safetyConsultantNotes = paginateNotes(incident.safetyConsultantNotes);
+
+  const overflowFields = [];
+  if (description.overflow) overflowFields.push('Detailed Description of the Incident');
+  statements.forEach((s, i) => { if (s.overflow) overflowFields.push(`Witness ${i + 1} Statement`); });
+  if (supervisorNotes.overflow) overflowFields.push('Superintendent/Supervisor Notes & Summary');
+  if (safetyConsultantNotes.overflow) overflowFields.push('Safety Consultant Notes & Summary');
+
+  const descriptionChunks = description.chunks;
+  const statementChunks = statements.map(s => s.chunks);
+  const supervisorNotesChunks = supervisorNotes.chunks;
+  const safetyConsultantNotesChunks = safetyConsultantNotes.chunks;
 
   const pages = [];
   pages.push({ key: 'p1', type: 'page1', props: { descriptionText: descriptionChunks[0] } });
@@ -76,7 +89,16 @@ export function buildIncidentPagePlan(incident) {
     pages.push({ key: `p6cc${i}`, type: 'continuation', props: { sectionLabel: 'Safety Consultant Notes & Summary', text: chunk } });
   });
 
-  return pages;
+  return { pages, overflowFields };
+}
+
+/* Export preflight check: which (if any) long-text fields could not be
+   confirmed to fit within their base box + continuation pages. Call this
+   before generateIncidentPdf() and abort with a clear message if it
+   returns anything -- never generate (or silently accept) a PDF that may
+   have clipped content. */
+export function getIncidentPdfOverflowFields(incident) {
+  return buildIncidentPagePlan(incident).overflowFields;
 }
 
 const PAGE_COMPONENTS = {
@@ -90,9 +112,9 @@ const PAGE_COMPONENTS = {
 
 export function IncidentPdfExportRoot({ incident, pageRefsRef }) {
   const elRefs = useRef({});
-  const draft = !isIncidentReady(incident);
+  const draft = !isIncidentPrintFinal(incident);
 
-  const pages = useMemo(() => buildIncidentPagePlan(incident), [
+  const { pages } = useMemo(() => buildIncidentPagePlan(incident), [
     incident.detailedIncidentDescription,
     incident.witnesses,
     incident.supervisorNotes,
@@ -237,21 +259,21 @@ export async function generateIncidentPdf(pageRefsRef, onProgress) {
   return { blob: new Blob([pdfBytes], { type: 'application/pdf' }), pageCount };
 }
 
-/* Deliberately excludes bookkeeping fields that never appear on a printed
-   page (id, status, createdAt/lastSavedAt/completedAt, reportNumber,
-   internal notes) -- otherwise marking a report "completed" right after a
-   successful generation (which updates status/completedAt/lastSavedAt)
-   would immediately flip isPdfStale to true even though nothing the PDF
-   actually shows has changed. Mirrors the JSA's fingerprintPaginationInput,
-   which excludes the same category of non-printed fields for the same
-   reason. */
+/* Combines the printed-content fingerprint with whether the report would
+   currently print as a final (no watermark) or draft (watermarked) document.
+   Deliberately does NOT use the raw status string here: "ready" and
+   "completed" print identically (isIncidentPrintFinal is true for both), so
+   using status directly would falsely mark an already-generated final PDF
+   as stale the instant exportIncidentPdf() flips ready -> completed after a
+   successful export, even though nothing the PDF actually shows changed.
+   Mirrors the JSA's fingerprintPaginationInput, which excludes the same
+   category of non-printed fields for the same reason. */
 export function incidentPdfFingerprint(incident) {
-  const { id, status, createdAt, lastSavedAt, completedAt, reportNumber, notes, ...printedFields } = incident;
-  return JSON.stringify(printedFields);
+  return JSON.stringify({ printed: printedIncidentFingerprint(incident), final: isIncidentPrintFinal(incident) });
 }
 
 export function buildIncidentExportName(incident) {
-  const draft = !isIncidentReady(incident);
+  const draft = !isIncidentPrintFinal(incident);
   const raw = [incident.workplaceLocation || 'Shackelford', 'IncidentReport', incident.incidentDate || ''].filter(Boolean).join('_');
   const clean = raw.replace(/[^a-z0-9_-]+/gi, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
   return draft ? `${clean}_DRAFT` : clean;

@@ -1,7 +1,7 @@
 import { useRef, useLayoutEffect, useState } from 'react';
 import {
   INCIDENT_STEPS, incidentStepStatus, INJURY_NATURE_OPTIONS, CAUSE_CATEGORIES, causeKey,
-  emptyWitness, emptyTeamMember, getIncidentReadinessChecks, isIncidentReady,
+  emptyWitness, emptyTeamMember, getIncidentReadinessChecks, isIncidentReady, printedIncidentFingerprint,
 } from './incidentModel';
 import { incidentCopy as t } from './incidentCopy';
 import SignaturePad from './SignaturePad';
@@ -380,20 +380,22 @@ function StepNotes({ incident, upd, prev, next }) {
 }
 
 /* ── Step: Review & Export ── */
-function StepReview({ incident, prev, pdfExportState, isPdfStale, onGeneratePdf, onShare, onDownload, onStartNew }) {
+function StepReview({ incident, prev, pdfExportState, isPdfStale, onGeneratePdf, onShare, onDownload, onMarkReady, onStartNew }) {
   const c = t.review;
   const checks = getIncidentReadinessChecks(incident);
-  const ready = isIncidentReady(incident);
+  const checklistComplete = isIncidentReady(incident);
   const isGenerating = pdfExportState?.phase === 'generating';
   const isReady = pdfExportState?.phase === 'ready';
+  const status = incident.status;
+  const headline = status === 'completed' ? c.completedHeadline : status === 'ready' ? c.readyHeadline : c.draftHeadline;
   return (
     <StepPanel title={c.title}>
       <div className="card">
         <div className="cardHeader">
           <strong>{c.readinessTitle}</strong>
-          <p>{ready ? c.readyHeadline : c.draftHeadline}</p>
+          <p>{headline}</p>
         </div>
-        {!ready && <p className="helperText">{c.draftExplain}</p>}
+        {status === 'draft' && <p className="helperText">{checklistComplete ? c.markReadyHint : c.draftExplain}</p>}
         <div className="incidentReadinessList">
           {checks.map(chk => (
             <div key={chk.key} className={`incidentReadinessItem ${chk.ok ? 'ok' : 'pending'}`}>
@@ -402,6 +404,11 @@ function StepReview({ incident, prev, pdfExportState, isPdfStale, onGeneratePdf,
             </div>
           ))}
         </div>
+        {status === 'draft' && (
+          <div className="reviewPrimaryAction">
+            <button className="btn secondary" onClick={onMarkReady} disabled={!checklistComplete}>{c.markReady}</button>
+          </div>
+        )}
       </div>
 
       <div className="card">
@@ -444,11 +451,25 @@ function StepReview({ incident, prev, pdfExportState, isPdfStale, onGeneratePdf,
 
 /* ── Top-level workflow shell ── */
 export default function IncidentWorkflow({
-  incident, setIncident, step, setStep, goDocs, saveStatus,
-  pdfExportState, isPdfStale, onGeneratePdf, onShare, onDownload, onStartNew,
+  incident, setIncident, step, setStep, goDocs, saveStatus, saveStatusState, onSaveNow,
+  pdfExportState, isPdfStale, onGeneratePdf, onShare, onDownload, onMarkReady, onStartNew,
 }) {
   const idx = INCIDENT_STEPS.findIndex(s => s.id === step);
-  function upd(patch) { setIncident(prev => ({ ...prev, ...patch })); }
+  function upd(patch) {
+    setIncident(prev => {
+      const next = { ...prev, ...patch };
+      // Editing any printed field after the report was marked ready/completed
+      // returns it to draft (and clears completedAt) -- a "final" PDF must
+      // never silently go stale without the user having to notice and
+      // re-confirm readiness. Bookkeeping-only changes (e.g. lastSavedAt)
+      // never reach upd(), so this only fires on genuine content edits.
+      if (prev.status !== 'draft' && printedIncidentFingerprint(next) !== printedIncidentFingerprint(prev)) {
+        next.status = 'draft';
+        next.completedAt = '';
+      }
+      return next;
+    });
+  }
   function prev() { if (idx > 0) setStep(INCIDENT_STEPS[idx - 1].id); }
   function next() { if (idx < INCIDENT_STEPS.length - 1) setStep(INCIDENT_STEPS[idx + 1].id); }
 
@@ -465,9 +486,10 @@ export default function IncidentWorkflow({
         <div className="builderHeaderTop">
           <div className="builderHeaderBadges">
             <span className={`badge ${incident.status === 'draft' ? 'draft' : 'avail'}`}>
-              {incident.status === 'completed' ? t.completedBadge : isIncidentReady(incident) ? t.readyBadge : t.draftBadge}
+              {incident.status === 'completed' ? t.completedBadge : incident.status === 'ready' ? t.readyBadge : t.draftBadge}
             </span>
-            <span className="builderHeaderSaved">{saveStatus || (incident.lastSavedAt ? 'Saved' : 'Not saved yet')}</span>
+            <span className={`builderHeaderSaved${saveStatusState === 'error' ? ' error' : ''}`}>{saveStatus}</span>
+            <button type="button" className="btn ghost sm" onClick={onSaveNow} disabled={saveStatusState === 'saving'}>{t.saveNow}</button>
           </div>
         </div>
         <Stepper incident={incident} step={step} onJump={setStep} />
@@ -490,6 +512,7 @@ export default function IncidentWorkflow({
               onGeneratePdf={onGeneratePdf}
               onShare={onShare}
               onDownload={onDownload}
+              onMarkReady={onMarkReady}
               onStartNew={onStartNew}
             />
           )}

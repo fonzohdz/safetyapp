@@ -4,11 +4,11 @@ import html2canvas from 'html2canvas';
 import { PDFDocument } from 'pdf-lib';
 import './styles.css';
 import './incident/incident.css';
-import { emptyIncident, hasMeaningfulIncidentContent, incidentStepProgress, incidentNextStepHint, isIncidentReady } from './incident/incidentModel';
+import { emptyIncident, hasMeaningfulIncidentContent, incidentStepProgress, incidentNextStepHint, isIncidentReady, isIncidentPrintFinal } from './incident/incidentModel';
 import { loadIncidentDraft, saveIncidentDraft, clearIncidentDraft, upsertIncidentRecord } from './incident/incidentStorage';
 import { incidentCopy } from './incident/incidentCopy';
 import IncidentWorkflow from './incident/IncidentWorkflow';
-import { IncidentPdfExportRoot, generateIncidentPdf, incidentPdfFingerprint, buildIncidentExportName } from './incident/incidentPdfGenerate';
+import { IncidentPdfExportRoot, generateIncidentPdf, incidentPdfFingerprint, buildIncidentExportName, getIncidentPdfOverflowFields } from './incident/incidentPdfGenerate';
 
 /* ── Storage keys ── */
 const KEYS = {
@@ -1137,6 +1137,10 @@ function App() {
   const [incidentPdfExportState, setIncidentPdfExportState] = useState(null);
   const incidentPdfPageRefsRef = useRef([]);
   const isIncidentPdfStale = incidentPdfExportState?.phase === 'ready' && incidentPdfExportState.fingerprint !== incidentPdfFingerprint(incident);
+  const incidentSaveStatusLabel = incidentSaveStatus === 'saving' ? incidentCopy.autosaveSaving
+    : incidentSaveStatus === 'error' ? incidentCopy.autosaveError
+    : incidentSaveStatus === 'saved' ? incidentCopy.autosaveSaved
+    : (incident.lastSavedAt ? incidentCopy.autosaveSaved : 'Not saved yet');
   const [templateId, setTemplateId] = useState('blank-jsa');
   const [saveName, setSaveName] = useState('');
   const [toast, setToast] = useState('');
@@ -1243,18 +1247,33 @@ function App() {
   function goDocs() { setTab('documents'); setActiveDoc(null); }
   function goJsaStart() { setTab('documents'); setActiveDoc('jsa-start'); }
   function goJsa(step = 'job') { setTab('documents'); setActiveDoc('jsa'); setJsaStep(step); }
-  function goIncidentStart() { setTab('documents'); setActiveDoc('incident'); setIncidentStep('details'); }
   function goIncident(step = 'details') { setTab('documents'); setActiveDoc('incident'); setIncidentStep(step); }
 
-  function startIncidentBlank() {
+  // Shared reset used by every "start fresh" entry point -- clears BOTH the
+  // persisted draft and the in-memory/autosave-tracking state, so a
+  // subsequent autosave can never silently overwrite the just-discarded
+  // saved report with new blank-report edits.
+  function resetIncidentToBlank() {
+    clearIncidentDraft();
+    setSavedIncidentDraft(null);
     setIncident(emptyIncident());
     setIncidentPdfExportState(null);
+    lastIncidentAutoSaveSnapshot.current = '';
+  }
+  function startIncidentBlank() {
+    resetIncidentToBlank();
     goIncident('details');
   }
+  // Entry point for both "Start Incident Report" (Home) and "Start" under
+  // Documents. Meaningful data can exist either in the in-memory `incident`
+  // (mid-edit, not yet reflected in savedIncidentDraft) or in the persisted
+  // draft (savedIncidentDraft / localStorage) -- checking only one of the
+  // two previously let a real saved report get silently discarded whenever
+  // the in-memory object happened to still be blank.
   function requestStartIncidentBlank() {
-    if (hasMeaningfulIncidentContent(incident) && activeDoc !== 'incident') {
-      if (!confirm(incidentCopy.confirmReplaceDraft)) return;
-    }
+    const persisted = loadIncidentDraft() || savedIncidentDraft;
+    const hasExisting = hasMeaningfulIncidentContent(persisted) || hasMeaningfulIncidentContent(incident);
+    if (hasExisting && !confirm(incidentCopy.confirmReplaceDraft)) return;
     startIncidentBlank();
   }
   function loadSavedIncidentDraft() {
@@ -1269,18 +1288,52 @@ function App() {
   }
   function startNewIncidentReport() {
     if (hasMeaningfulIncidentContent(incident) && !confirm('Start a new incident report? The current one will be cleared from this device.')) return;
-    clearIncidentDraft();
-    setSavedIncidentDraft(null);
-    setIncident(emptyIncident());
-    setIncidentPdfExportState(null);
-    lastIncidentAutoSaveSnapshot.current = '';
+    resetIncidentToBlank();
     goIncident('details');
     showToast('Started a new incident report.');
   }
 
+  // Cancels any pending autosave timer and writes the exact current report
+  // immediately -- used by the always-visible "Save Now" action. Must never
+  // report success ("Saved") when the write actually failed.
+  function saveIncidentNow() {
+    clearTimeout(incidentAutoSaveTimer.current);
+    setIncidentSaveStatus('saving');
+    const next = { ...incident, lastSavedAt: new Date().toISOString() };
+    if (saveIncidentDraft(next)) {
+      lastIncidentAutoSaveSnapshot.current = JSON.stringify({ ...next, lastSavedAt: '' });
+      setIncident(next);
+      setSavedIncidentDraft(next);
+      setIncidentSaveStatus('saved');
+    } else {
+      setIncidentSaveStatus('error');
+    }
+  }
+
+  function markIncidentReady() {
+    if (!isIncidentReady(incident)) { showToast('Complete all required fields before marking ready.'); return; }
+    clearTimeout(incidentAutoSaveTimer.current);
+    const next = { ...incident, status: 'ready', lastSavedAt: new Date().toISOString() };
+    if (saveIncidentDraft(next)) {
+      lastIncidentAutoSaveSnapshot.current = JSON.stringify({ ...next, lastSavedAt: '' });
+      setIncident(next);
+      setSavedIncidentDraft(next);
+      setIncidentSaveStatus('saved');
+      showToast('Marked ready for final export.');
+    } else {
+      setIncidentSaveStatus('error');
+      showToast('Save failed. Check available storage on this device.');
+    }
+  }
+
   async function exportIncidentPdf() {
     if (incidentPdfExportState?.phase === 'generating') return;
-    const draft = !isIncidentReady(incident);
+    const overflowFields = getIncidentPdfOverflowFields(incident);
+    if (overflowFields.length) {
+      showToast(`Too long to export (shorten before exporting): ${overflowFields.join(', ')}`);
+      return;
+    }
+    const draft = !isIncidentPrintFinal(incident);
     const filename = `${buildIncidentExportName(incident)}.pdf`;
     const fingerprint = incidentPdfFingerprint(incident);
     try {
@@ -1605,7 +1658,7 @@ function App() {
               savedIncidentDraft={savedIncidentDraft} startIncidentBlank={requestStartIncidentBlank} loadSavedIncidentDraft={loadSavedIncidentDraft}
             />
           )}
-          {tab === 'documents' && !activeDoc && <DocCenterView goJsaStart={goJsaStart} goIncidentStart={goIncidentStart} />}
+          {tab === 'documents' && !activeDoc && <DocCenterView goJsaStart={goJsaStart} goIncidentStart={requestStartIncidentBlank} />}
           {tab === 'documents' && activeDoc === 'jsa-start' && (
             <JsaStartView allTemplates={allTemplates} selectedTemplate={selectedTemplate} templateId={templateId} setTemplateId={setTemplateId} loadTemplate={requestLoadTemplate} loadSavedDraft={loadSavedDraft} startBlank={requestStartBlank} savedDraft={savedDraft} />
           )}
@@ -1625,10 +1678,10 @@ function App() {
           {tab === 'documents' && activeDoc === 'incident' && (
             <IncidentWorkflow
               incident={incident} setIncident={setIncident} step={incidentStep} setStep={setIncidentStep}
-              goDocs={goDocs} saveStatus={incidentSaveStatus === 'saving' ? incidentCopy.autosaveSaving : incidentSaveStatus === 'saved' ? incidentCopy.autosaveSaved : ''}
+              goDocs={goDocs} saveStatus={incidentSaveStatusLabel} saveStatusState={incidentSaveStatus} onSaveNow={saveIncidentNow}
               pdfExportState={incidentPdfExportState} isPdfStale={isIncidentPdfStale}
               onGeneratePdf={exportIncidentPdf} onShare={shareIncidentPdfClick} onDownload={downloadIncidentPdfClick}
-              onStartNew={startNewIncidentReport}
+              onMarkReady={markIncidentReady} onStartNew={startNewIncidentReport}
             />
           )}
           {tab === 'drafts' && <DraftsView savedDraft={savedDraft} loadSavedDraft={loadSavedDraft} goJsaStart={goJsaStart} clearDraft={() => { if (!savedDraft) return; if (!confirm('Delete this draft?')) return; setJsa(emptyJsa()); localStorage.removeItem(KEYS.draft); setSavedDraft(null); showToast('Draft deleted.'); }} />}

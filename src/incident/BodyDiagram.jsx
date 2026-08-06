@@ -8,6 +8,16 @@ import { useRef } from 'react';
    captured for the PDF. */
 
 const BODY_DIAGRAM_SRC = `${import.meta.env.BASE_URL}icons/body-diagram.jpg`;
+// Intrinsic pixel dimensions of body-diagram.jpg (612x592), exposed as a CSS
+// `aspect-ratio` string (NOT a bare number -- React appends "px" to numeric
+// inline style values for any property outside its hardcoded unitless-property
+// list, which predates `aspect-ratio` and does not include it) so the PDF's
+// positioned wrapper (.incidentBodyDiagramImageWrap) can be given the exact
+// same aspect ratio as the image. That is what guarantees the wrapper's
+// rendered box has zero letterboxing/gap around the image, so marks stored
+// as % of the image line up with marks positioned as % of the wrapper. See
+// incident.css.
+const BODY_DIAGRAM_ASPECT = '612 / 592';
 const MARK_HIT_RADIUS_PCT = 3;
 
 export default function BodyDiagram({ marks, onChange, readOnly }) {
@@ -68,4 +78,4 @@ export default function BodyDiagram({ marks, onChange, readOnly }) {
   );
 }
 
-export { BODY_DIAGRAM_SRC };
+export { BODY_DIAGRAM_SRC, BODY_DIAGRAM_ASPECT };

@@ -236,12 +236,14 @@ export function hasMeaningfulIncidentContent(incident) {
     || (incident.investigationTeam || []).length > 0;
 }
 
-/* Readiness checks for "Ready" / final (non-draft) status and export --
-   exactly the list specified for this module. Safety Consultant Notes and
-   witnesses are intentionally excluded (optional). */
+/* Readiness checks for the "Mark Ready" action and export checklist --
+   general requirements always apply; conditional requirements are added
+   only when the relevant Yes/No question or "Other" option makes them
+   meaningful. Safety Consultant Notes and witnesses are intentionally
+   excluded (optional) -- witnesses are never required. */
 export function getIncidentReadinessChecks(incident) {
   const has = v => String(v || '').trim().length > 0;
-  return [
+  const checks = [
     { key: 'workplaceLocation', label: 'Workplace location', ok: has(incident.workplaceLocation) },
     { key: 'incidentDate', label: 'Incident date', ok: has(incident.incidentDate) },
     { key: 'incidentTime', label: 'Incident time', ok: has(incident.incidentTime) },
@@ -258,10 +260,61 @@ export function getIncidentReadinessChecks(incident) {
     { key: 'supervisorNotes', label: 'Supervisor notes', ok: has(incident.supervisorNotes) },
     { key: 'investigationTeam', label: 'At least one investigation-team member', ok: (incident.investigationTeam || []).some(m => has(m.name)) },
   ];
+
+  if (incident.injuryOccurred === 'yes') {
+    checks.push({ key: 'injuredPartyName', label: 'Injured party name', ok: has(incident.injuredPartyName) });
+    checks.push({ key: 'injuryNature', label: 'At least one nature of injury selected', ok: (incident.injuryNature || []).length > 0 });
+    checks.push({ key: 'bodyPartsAffectedText', label: 'Body part(s) affected', ok: has(incident.bodyPartsAffectedText) });
+    checks.push({ key: 'treatmentLevel', label: 'Treatment level selected', ok: incident.treatmentLevel === 'firstAid' || incident.treatmentLevel === 'beyondFirstAid' });
+    if ((incident.injuryNature || []).includes('Other')) {
+      checks.push({ key: 'injuryNatureOther', label: 'Other injury description (specify)', ok: has(incident.injuryNatureOther) });
+    }
+  }
+
+  if (incident.propertyDamageOccurred === 'yes') {
+    checks.push({ key: 'propertyOrMaterialDamaged', label: 'Property/material damaged', ok: has(incident.propertyOrMaterialDamaged) });
+    checks.push({ key: 'natureOfDamage', label: 'Nature of damage', ok: has(incident.natureOfDamage) });
+    checks.push({ key: 'objectMachineToolOrSubstance', label: 'Object/machine/tool/substance involved', ok: has(incident.objectMachineToolOrSubstance) });
+    checks.push({ key: 'approximateDamageCost', label: 'Approximate cost of damage', ok: has(incident.approximateDamageCost) });
+  }
+
+  CAUSE_CATEGORIES.forEach(cat => {
+    if ((incident.selectedCauses || []).includes(causeKey(cat.id, 'Other'))) {
+      checks.push({ key: `${cat.otherField}Check`, label: `${cat.label} \u2014 Other description (specify)`, ok: has(incident[cat.otherField]) });
+    }
+  });
+
+  return checks;
 }
 
 export function isIncidentReady(incident) {
   return getIncidentReadinessChecks(incident).every(c => c.ok);
+}
+
+/* Whether the report's status gate (not just the readiness checklist) means
+   the PDF should print as a final, non-watermarked document. "ready" and
+   "completed" print identically -- the only difference is that "completed"
+   also means a final PDF has actually been generated at least once. Editing
+   any printed field after either status reverts to "draft" (see
+   IncidentWorkflow's upd()), so the user must deliberately re-confirm
+   readiness (Mark Ready) after changes, rather than the app silently
+   re-treating stale content as final. */
+export function isIncidentPrintFinal(incident) {
+  return incident.status === 'ready' || incident.status === 'completed';
+}
+
+/* Fields that never appear on a printed page -- excluded from the "printed
+   content" fingerprint used both by the PDF stale-check
+   (incidentPdfFingerprint) and by the ready/completed -> draft reversion
+   logic in IncidentWorkflow's upd(). Keeping one shared list/helper here
+   means both call sites can never drift apart on what counts as "printed
+   content changed". */
+const NON_PRINTED_INCIDENT_FIELDS = ['id', 'status', 'createdAt', 'lastSavedAt', 'completedAt', 'reportNumber', 'notes'];
+
+export function printedIncidentFingerprint(incident) {
+  const printed = { ...incident };
+  NON_PRINTED_INCIDENT_FIELDS.forEach(k => { delete printed[k]; });
+  return JSON.stringify(printed);
 }
 
 export const INCIDENT_STEPS = [

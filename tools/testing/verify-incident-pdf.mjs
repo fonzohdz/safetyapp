@@ -17,7 +17,14 @@
 //   4. Saves the real generated PDF file.
 //   5. Screenshots each real .incidentPdfExportRoot .incidentPage DOM
 //      element (the exact nodes html2canvas captured) as PNGs.
-//   6. Reports console/page errors and the final generated page count.
+//   6. Asserts hard expectations per fixture (exact page count, draft vs.
+//      final filename/watermark, six-page structural completeness,
+//      signature rendering, cause-table formatting) and exits nonzero on
+//      any mismatch -- this script is a real regression gate, not just a
+//      screenshot generator.
+//
+// Never commits generated PDFs, PNGs, or summaries -- tools/testing/output/
+// is git-ignored (see .gitignore).
 
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
@@ -30,10 +37,13 @@ const repoRoot = path.resolve(__dirname, '..', '..');
 const outRoot = path.join(__dirname, process.env.INCIDENT_VERIFY_OUTDIR || 'output', 'incident');
 mkdirSync(outRoot, { recursive: true });
 
+// expectedPageCount is a hard assertion -- the script fails loudly (nonzero
+// exit) if the real generated page count ever drifts from this, instead of
+// silently accepting whatever came out.
 const FIXTURES = [
-  { name: 'full', file: 'incident-full-fixture.json' },
-  { name: 'na', file: 'incident-na-fixture.json' },
-  { name: 'overflow', file: 'incident-overflow-fixture.json' },
+  { name: 'full', file: 'incident-full-fixture.json', expectedPageCount: 6, expectFinal: true },
+  { name: 'na', file: 'incident-na-fixture.json', expectedPageCount: 6, expectFinal: false },
+  { name: 'overflow', file: 'incident-overflow-fixture.json', expectedPageCount: 12, expectFinal: false },
 ];
 
 const PORT = 4320;
@@ -50,6 +60,16 @@ function waitForServer(url, timeoutMs) {
     };
     tryOnce();
   });
+}
+
+// Collects assertion failures instead of throwing on the first one, so a
+// single run reports every mismatch for a fixture at once.
+function makeAssertions() {
+  const failures = [];
+  return {
+    check(condition, message) { if (!condition) failures.push(message); },
+    failures,
+  };
 }
 
 async function runFixture(browser, fixture) {
@@ -71,21 +91,21 @@ async function runFixture(browser, fixture) {
   page.on('pageerror', (err) => pageErrors.push(err.message));
 
   console.log(`\n=== Fixture: ${fixture.name} (${fixture.file}) ===`);
-  console.log('  [1/6] Loading app with seeded draft...');
+  console.log('  [1/7] Loading app with seeded draft...');
   await page.goto(BASE_URL, { waitUntil: 'networkidle' });
 
   await page.getByRole('button', { name: 'Continue Incident Report' }).click();
   await page.getByRole('tab', { name: /^Review & Export/ }).click();
 
-  console.log('  [2/6] Triggering real PDF export (exportIncidentPdf -> generateIncidentPdf)...');
-  await page.locator('.reviewPrimaryAction button, .pdfStaleWarning button').first().click();
+  console.log('  [2/7] Triggering real PDF export (exportIncidentPdf -> generateIncidentPdf)...');
+  await page.locator('button:has-text("Generate PDF"), button:has-text("Regenerate PDF")').first().click();
   await page.locator('.pdfReadyPanel').waitFor({ state: 'visible', timeout: 30000 });
 
   const readyHeadline = await page.locator('.pdfReadyHeadline').innerText();
   const readyFilename = await page.locator('.pdfReadyFilename').innerText();
-  console.log(`  [3/6] PDF ready: ${readyHeadline} (${readyFilename})`);
+  console.log(`  [3/7] PDF ready: ${readyHeadline} (${readyFilename})`);
 
-  console.log('  [4/6] Downloading generated PDF...');
+  console.log('  [4/7] Downloading generated PDF...');
   const downloadPromise = page.waitForEvent('download');
   await page.locator('button:has-text("Download PDF")').click();
   const download = await downloadPromise;
@@ -102,7 +122,7 @@ async function runFixture(browser, fixture) {
   });
 
   const pageEls = await page.locator('.incidentPdfExportRoot .incidentPage').all();
-  console.log(`  [5/6] Screenshotting ${pageEls.length} real export page(s)...`);
+  console.log(`  [5/7] Screenshotting ${pageEls.length} real export page(s)...`);
   const shots = [];
   for (let i = 0; i < pageEls.length; i += 1) {
     const el = pageEls[i];
@@ -113,7 +133,72 @@ async function runFixture(browser, fixture) {
     await el.screenshot({ path: fpath });
     shots.push(fpath);
   }
-  console.log(`  [6/6] Wrote ${shots.length} page screenshot(s) to ${outDir}`);
+  console.log(`  [6/7] Wrote ${shots.length} page screenshot(s) to ${outDir}`);
+
+  console.log('  [7/7] Running hard assertions...');
+  const a = makeAssertions();
+  const root = page.locator('.incidentPdfExportRoot');
+
+  a.check(pageEls.length === fixture.expectedPageCount,
+    `expected exactly ${fixture.expectedPageCount} pages, got ${pageEls.length}`);
+
+  const isDraftFilename = /_DRAFT/.test(readyFilename);
+  const watermarkCount = await root.locator('.incidentWatermark').count();
+  if (fixture.expectFinal) {
+    a.check(!isDraftFilename, `expected a final (non-_DRAFT) filename, got "${readyFilename}"`);
+    a.check(watermarkCount === 0, `expected no DRAFT watermark on a final export, found ${watermarkCount}`);
+  } else {
+    a.check(isDraftFilename, `expected a draft (_DRAFT) filename, got "${readyFilename}"`);
+    a.check(watermarkCount > 0, 'expected at least one DRAFT watermark on a draft export');
+  }
+
+  if (fixture.name === 'full') {
+    const witnessSignatureCount = await page.locator('.incidentPage').nth(2).locator('.incSignatureImage').count()
+      + await page.locator('.incidentPage').nth(3).locator('.incSignatureImage').count();
+    a.check(witnessSignatureCount > 0, 'expected at least one witness signature image to render');
+    const teamSignatureCount = await page.locator('.incTeamTable .incSignatureImage').count();
+    a.check(teamSignatureCount > 0, 'expected at least one investigation-team signature image to render');
+    const wrapBox = await page.locator('.incidentBodyDiagramImageWrap').boundingBox();
+    const markCount = await page.locator('.incidentBodyDiagramImageWrap .incidentBodyDiagramMark').count();
+    a.check(markCount === 2, `expected 2 body diagram marks rendered inside the image wrapper, found ${markCount}`);
+    a.check(Boolean(wrapBox && wrapBox.width > 0 && wrapBox.height > 0), 'expected the body diagram image wrapper to have a measurable size');
+  }
+
+  if (fixture.name === 'na') {
+    const page2Text = await page.locator('.incidentPage').nth(1).innerText();
+    a.check(/INJURED PARTY/.test(page2Text), 'page 2 should always render the INJURED PARTY section header, even when Injury = No');
+    a.check((page2Text.match(/N\/A/g) || []).length >= 5, 'page 2 should show N/A in every injury detail field when Injury = No');
+
+    const page3Text = await page.locator('.incidentPage').nth(2).innerText();
+    const page4Text = await page.locator('.incidentPage').nth(3).innerText();
+    const witnessHeaders = (page3Text.match(/WITNESS \d/g) || []).concat(page4Text.match(/WITNESS \d/g) || []);
+    a.check(witnessHeaders.length === 3, `expected all 3 witness block headers across pages 3-4, found ${witnessHeaders.length}`);
+    a.check(/PROPERTY DAMAGE/.test(page4Text), 'page 4 should always render the PROPERTY DAMAGE line');
+    a.check((page4Text.match(/N\/A/g) || []).length >= 4, 'page 4 should show N/A in all 4 property-damage detail fields when Property Damage = No');
+
+    const page6TeamRows = await page.locator('.incidentPage').nth(5).locator('.incTeamTable tbody tr').count();
+    a.check(page6TeamRows === 4, `expected 4 investigation-team rows on page 6, found ${page6TeamRows}`);
+  }
+
+  // Cause-analysis page assertions apply to every fixture (page 5 is always
+  // present at a fixed index for these three fixtures since none of them
+  // overflow before page 5).
+  const causePageIndex = fixture.name === 'overflow' ? null : 4;
+  if (causePageIndex != null) {
+    const causePage = page.locator('.incidentPage').nth(causePageIndex);
+    const otherLinesCount = await causePage.locator('.incCauseOtherLines, .incCauseOtherLine').count();
+    a.check(otherLinesCount === 0, 'expected no duplicated Other section beneath the cause table');
+    const causeFontPx = await causePage.locator('.incCauseTable').first().evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+    // 9pt == 12px at the standard 96dpi/72pt browser conversion used throughout this module.
+    a.check(causeFontPx >= 12, `expected cause table body font-size >= 9pt (12px), computed ${causeFontPx}px`);
+  }
+
+  if (a.failures.length) {
+    console.error(`  FAILED ASSERTIONS for fixture "${fixture.name}":`);
+    a.failures.forEach(f => console.error(`    - ${f}`));
+  } else {
+    console.log('  All assertions passed.');
+  }
 
   const summary = {
     fixture: fixture.name,
@@ -121,6 +206,8 @@ async function runFixture(browser, fixture) {
     pdfReadyHeadline: readyHeadline,
     pdfReadyFilename: readyFilename,
     pageCount: pageEls.length,
+    expectedPageCount: fixture.expectedPageCount,
+    assertionFailures: a.failures,
     pageScreenshots: shots,
     pdfPath,
     consoleErrors,
@@ -156,14 +243,16 @@ async function main() {
 
     console.log('\n=== OVERALL SUMMARY ===');
     console.log(JSON.stringify(summaries.map(s => ({
-      fixture: s.fixture, pageCount: s.pageCount, headline: s.pdfReadyHeadline,
-      consoleErrors: s.consoleErrors.length, pageErrors: s.pageErrors.length,
+      fixture: s.fixture, pageCount: s.pageCount, expectedPageCount: s.expectedPageCount, headline: s.pdfReadyHeadline,
+      assertionFailures: s.assertionFailures.length, consoleErrors: s.consoleErrors.length, pageErrors: s.pageErrors.length,
     })), null, 2));
 
-    const anyErrors = summaries.some(s => s.consoleErrors.length || s.pageErrors.length);
+    const anyErrors = summaries.some(s => s.consoleErrors.length || s.pageErrors.length || s.assertionFailures.length);
     if (anyErrors) {
-      console.error('\nFAILED: console/page errors were captured during at least one fixture run (see per-fixture summary.json).');
+      console.error('\nFAILED: console/page errors or assertion failures were captured during at least one fixture run (see per-fixture summary.json).');
       process.exitCode = 1;
+    } else {
+      console.log('\nAll fixtures passed all assertions with zero console/page errors.');
     }
   } finally {
     server.kill();

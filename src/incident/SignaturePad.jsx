@@ -34,10 +34,21 @@ export default function SignaturePad({ value, onChange, label, disabled }) {
     hasStrokeRef.current = false;
   }, [editing]);
 
+  /* The canvas's internal drawing coordinate space is always CSS_WIDTH x
+     CSS_HEIGHT (ctx.scale(dpr, dpr) already normalizes for devicePixelRatio
+     -- see the editing effect above), but the canvas's actual rendered box
+     can be narrower than that on small screens (incident.css caps
+     .signatureCanvas at `max-width: 100%`). Without rescaling, a stroke
+     drawn across the full *displayed* width would only reach partway across
+     the internal coordinate space, compressing the saved signature toward
+     the left. Scaling by the ratio of internal-to-rendered size keeps
+     pointer coordinates correct at any responsive width. */
   function getPoint(e) {
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    const scaleX = rect.width > 0 ? CSS_WIDTH / rect.width : 1;
+    const scaleY = rect.height > 0 ? CSS_HEIGHT / rect.height : 1;
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
   }
 
   function pointerDown(e) {

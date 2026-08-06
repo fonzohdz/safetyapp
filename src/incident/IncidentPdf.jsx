@@ -1,5 +1,5 @@
 import { CAUSE_CATEGORIES, causeKey } from './incidentModel';
-import { BODY_DIAGRAM_SRC } from './BodyDiagram';
+import { BODY_DIAGRAM_SRC, BODY_DIAGRAM_ASPECT } from './BodyDiagram';
 
 /* Print/PDF rendering for the Incident Report. Mirrors the reference
    document ("SCH Blank incident report (1).docx") section-for-section:
@@ -140,66 +140,66 @@ export function Page1Content({ incident, descriptionText }) {
   );
 }
 
-/* ── PAGE 2 ── */
+/* ── PAGE 2 ──
+   Always renders the full reference-form structure (injured-party fields,
+   remarks, body diagram) regardless of the Yes/No answer -- when Injury is
+   No, every detail field prints "N/A" and the diagram prints clean (no
+   marks) instead of collapsing the whole section to one generic sentence,
+   so the printed page always matches the reference form's layout. */
 export function Page2Content({ incident }) {
   const injured = incident.injuryOccurred === 'yes';
+  const na = v => (injured ? (v || 'N/A') : 'N/A');
   return (
     <>
       <YesNoLine label="INJURY" val={incident.injuryOccurred} note="(see details below)" />
-      {!injured ? (
-        <div className="incNotApplicable">No injury reported for this incident.</div>
-      ) : (
-        <>
-          <GrayBar>INJURED PARTY</GrayBar>
-          <InfoTable rows={[
-            [label('Name, Title, Years in Company & Current Trade', '38%'), value([incident.injuredPartyName, incident.injuredPartyTitle, incident.injuredPartyYearsWithCompany, incident.injuredPartyCurrentTrade].filter(Boolean).join(' \u2022 '))],
-            [label('Contact Info (phone)', '38%'), value(incident.injuredPartyPhone)],
-            [label('Contact Info (email)', '38%'), value(incident.injuredPartyEmail)],
-            [label('Nature of Injury', '38%'), value((incident.injuryNature || []).join(', ') + (incident.injuryNature?.includes('Other') && incident.injuryNatureOther ? ` (${incident.injuryNatureOther})` : ''))],
-            [label('Body Part(s) Affected', '38%'), value(incident.bodyPartsAffectedText)],
-            [label('Treatment', '38%'), value(incident.treatmentLevel === 'firstAid' ? 'First aid' : incident.treatmentLevel === 'beyondFirstAid' ? 'Services beyond first aid' : '')],
-            [label('Physician/Clinic for First Aid Treatment', '38%'), value(incident.treatingPhysicianOrClinic)],
-          ]} />
-          <TextBlock title="Remarks/Comments" text={incident.injuryRemarks} minHeightPx={40} />
-          <div className="incBodyDiagramSection">
-            <div className="incTextBlockTitle">PART OF BODY AFFECTED (shade all areas that apply)</div>
-            <div className="incidentBodyDiagramPrint">
-              <img src={BODY_DIAGRAM_SRC} alt="Body diagram" className="incidentBodyDiagramImage" />
-              {(incident.bodyDiagramMarks || []).map(m => (
-                <span key={m.id} className="incidentBodyDiagramMark" style={{ left: `${m.xPct}%`, top: `${m.yPct}%` }} />
-              ))}
-            </div>
+      <GrayBar>INJURED PARTY</GrayBar>
+      <InfoTable rows={[
+        [label('Name, Title, Years in Company & Current Trade', '38%'), value(na([incident.injuredPartyName, incident.injuredPartyTitle, incident.injuredPartyYearsWithCompany, incident.injuredPartyCurrentTrade].filter(Boolean).join(' \u2022 ')))],
+        [label('Contact Info (phone)', '38%'), value(na(incident.injuredPartyPhone))],
+        [label('Contact Info (email)', '38%'), value(na(incident.injuredPartyEmail))],
+        [label('Nature of Injury', '38%'), value(na((incident.injuryNature || []).join(', ') + (incident.injuryNature?.includes('Other') && incident.injuryNatureOther ? ` (${incident.injuryNatureOther})` : '')))],
+        [label('Body Part(s) Affected', '38%'), value(na(incident.bodyPartsAffectedText))],
+        [label('Treatment', '38%'), value(na(incident.treatmentLevel === 'firstAid' ? 'First aid' : incident.treatmentLevel === 'beyondFirstAid' ? 'Services beyond first aid' : ''))],
+        [label('Physician/Clinic for First Aid Treatment', '38%'), value(na(incident.treatingPhysicianOrClinic))],
+      ]} />
+      <TextBlock title="Remarks/Comments" text={injured ? (incident.injuryRemarks || '') : 'N/A'} minHeightPx={40} />
+      <div className="incBodyDiagramSection">
+        <div className="incTextBlockTitle">PART OF BODY AFFECTED (shade all areas that apply)</div>
+        <div className="incidentBodyDiagramPrint">
+          <div className="incidentBodyDiagramImageWrap" style={{ aspectRatio: BODY_DIAGRAM_ASPECT }}>
+            <img src={BODY_DIAGRAM_SRC} alt="Body diagram" className="incidentBodyDiagramImage" />
+            {injured && (incident.bodyDiagramMarks || []).map(m => (
+              <span key={m.id} className="incidentBodyDiagramMark" style={{ left: `${m.xPct}%`, top: `${m.yPct}%` }} />
+            ))}
           </div>
-        </>
-      )}
+        </div>
+      </div>
     </>
   );
 }
 
-/* ── Witness subsection (shared by pages 3 & 4) ── */
+/* ── Witness subsection (shared by pages 3 & 4) ──
+   Always renders the full name/contact/statement/signature structure --
+   for an unused witness slot (witness == null), every field prints "N/A"
+   instead of collapsing the block to a single N/A box, so pages 3-4 always
+   match the reference form's three-witness layout. */
 export function WitnessBlock({ index, witness, statementText }) {
-  if (!witness) {
-    return (
-      <>
-        <GrayBar>WITNESS {index}</GrayBar>
-        <div className="incNotApplicable">N/A</div>
-      </>
-    );
-  }
+  const w = witness || {};
+  const na = v => (witness ? (v || 'N/A') : 'N/A');
   return (
     <>
       <GrayBar>WITNESS {index}</GrayBar>
       <InfoTable rows={[
-        [label('Name', '22%'), value(witness.name), label('Company', '22%'), value(witness.company)],
-        [label('Supervisor', '22%'), value(witness.supervisor), label('Phone', '22%'), value(witness.phone)],
-        [label('Email', '22%'), value(witness.email), label('Date', '22%'), value(fmtDate(witness.signatureDate))],
+        [label('Name', '22%'), value(na(w.name)), label('Company', '22%'), value(na(w.company))],
+        [label('Supervisor', '22%'), value(na(w.supervisor)), label('Phone', '22%'), value(na(w.phone))],
+        [label('Email', '22%'), value(na(w.email)), label('Date', '22%'), value(witness && w.signatureDate ? fmtDate(w.signatureDate) : 'N/A')],
       ]} />
-      <TextBlock title="Statement" text={statementText} minHeightPx={55} />
+      <TextBlock title="Statement" text={witness ? (statementText || '') : 'N/A'} minHeightPx={55} />
       <div className="incSignatureRow">
         <span className="incSignatureRowLabel">Signature:</span>
-        {witness.signatureData
-          ? <img src={witness.signatureData} alt="Witness signature" className="incSignatureImage" />
-          : <span className="incNotApplicableInline">Not signed</span>}
+        {w.signatureData
+          ? <img src={w.signatureData} alt="Witness signature" className="incSignatureImage" />
+          : <span className="incNotApplicableInline">{witness ? 'Not signed' : 'N/A'}</span>}
       </div>
     </>
   );
@@ -216,28 +216,34 @@ export function Page3Content({ incident, statementChunks }) {
   );
 }
 
-/* ── PAGE 4 ── */
+/* ── PAGE 4 ──
+   The four-row property-damage table always renders; when Property Damage
+   is No, every detail field prints "N/A" instead of the table disappearing. */
 export function Page4Content({ incident, statementChunks }) {
   const damaged = incident.propertyDamageOccurred === 'yes';
+  const na = v => (damaged ? (v || 'N/A') : 'N/A');
   return (
     <>
       <WitnessBlock index={3} witness={incident.witnesses[2]} statementText={statementChunks[2]?.[0]} />
       <YesNoLine label="PROPERTY DAMAGE" val={incident.propertyDamageOccurred} note="(see details below)" />
-      {!damaged ? (
-        <div className="incNotApplicable">N/A</div>
-      ) : (
-        <InfoTable rows={[
-          [label('List Property/Material Damaged', '38%'), value(incident.propertyOrMaterialDamaged)],
-          [label('Nature of Damage', '38%'), value(incident.natureOfDamage)],
-          [label('Object(s)/Machine(s)/Tool(s)/Substance(s) Inflicting Damage', '38%'), value(incident.objectMachineToolOrSubstance)],
-          [label('Approximate Cost of Damage', '38%'), value(incident.approximateDamageCost)],
-        ]} />
-      )}
+      <InfoTable rows={[
+        [label('List Property/Material Damaged', '38%'), value(na(incident.propertyOrMaterialDamaged))],
+        [label('Nature of Damage', '38%'), value(na(incident.natureOfDamage))],
+        [label('Object(s)/Machine(s)/Tool(s)/Substance(s) Inflicting Damage', '38%'), value(na(incident.objectMachineToolOrSubstance))],
+        [label('Approximate Cost of Damage', '38%'), value(na(incident.approximateDamageCost))],
+      ]} />
     </>
   );
 }
 
-/* ── PAGE 5 -- Cause Analysis ── */
+/* ── PAGE 5 -- Cause Analysis ──
+   Every category's "Other" option is the final item in its items[] array
+   (see incidentModel.js), so it always lands in the table's last row. That
+   row renders the entered free-text directly inline (selection indicator +
+   "Other (specify):" + text + primary asterisk) instead of a plain
+   checklist row, matching the reference document -- there is deliberately
+   no separate "Other" section below the table (that would duplicate the
+   same three fields a second time). */
 export function Page5Content({ incident }) {
   const maxRows = Math.max(...CAUSE_CATEGORIES.map(c => c.items.length));
   return (
@@ -258,10 +264,14 @@ export function Page5Content({ incident }) {
                 const key = causeKey(cat.id, item);
                 const checked = (incident.selectedCauses || []).includes(key);
                 const isPrimary = incident.primaryCause === key;
+                const isOtherRow = item === 'Other';
                 return (
                   <td key={cat.id} className={checked ? 'incCauseChecked' : ''}>
                     <span className={`incCheckbox${checked ? ' checked' : ''}`}>{checked ? '\u2713' : ''}</span>
-                    <span className="incCauseItemText">{item}{isPrimary ? ' *' : ''}</span>
+                    <span className="incCauseItemText">
+                      {isOtherRow ? `Other (specify): ${incident[cat.otherField] || ''}` : item}
+                      {isPrimary ? ' *' : ''}
+                    </span>
                   </td>
                 );
               })}
@@ -269,21 +279,18 @@ export function Page5Content({ incident }) {
           ))}
         </tbody>
       </table>
-      <div className="incCauseOtherLines">
-        {CAUSE_CATEGORIES.map(cat => (
-          <div key={cat.id} className="incCauseOtherLine">
-            <span className="incYesNoLabel">{cat.label} &ndash; Other (specify):</span>
-            <span>{incident[cat.otherField] || ''}</span>
-          </div>
-        ))}
-      </div>
     </>
   );
 }
 
-/* ── PAGE 6 ── */
+/* ── PAGE 6 ──
+   The investigation-team table always renders all 4 reference-form rows.
+   Existing members populate rows in order; unused rows print blank (not an
+   N/A box) -- an incomplete team just hasn't been filled in yet, which is
+   different from a deliberate "not applicable" answer. */
 export function Page6Content({ incident, supervisorNotesChunk, safetyConsultantNotesChunk }) {
   const team = incident.investigationTeam || [];
+  const rows = Array.from({ length: 4 }).map((_, i) => team[i] || null);
   return (
     <>
       <GrayBar>SUPERINTENDENT/SUPERVISOR NOTES &amp; SUMMARY</GrayBar>
@@ -291,25 +298,21 @@ export function Page6Content({ incident, supervisorNotesChunk, safetyConsultantN
       <GrayBar>SAFETY CONSULTANT NOTES &amp; SUMMARY</GrayBar>
       <TextBlock text={safetyConsultantNotesChunk} minHeightPx={95} />
       <GrayBar>INVESTIGATION TEAM</GrayBar>
-      {team.length === 0 ? (
-        <div className="incNotApplicable">N/A</div>
-      ) : (
-        <table className="incInfoTable incTeamTable">
-          <thead>
-            <tr><th>Name</th><th>Title</th><th>Signature</th><th>Date</th></tr>
-          </thead>
-          <tbody>
-            {team.map(m => (
-              <tr key={m.id}>
-                <td>{m.name}</td>
-                <td>{m.title}</td>
-                <td>{m.signatureData ? <img src={m.signatureData} alt="Signature" className="incSignatureImage" /> : ''}</td>
-                <td>{fmtDate(m.date)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <table className="incInfoTable incTeamTable">
+        <thead>
+          <tr><th>Name</th><th>Title</th><th>Signature</th><th>Date</th></tr>
+        </thead>
+        <tbody>
+          {rows.map((m, i) => (
+            <tr key={m?.id || `empty-${i}`}>
+              <td>{m?.name || ''}</td>
+              <td>{m?.title || ''}</td>
+              <td>{m?.signatureData ? <img src={m.signatureData} alt="Signature" className="incSignatureImage" /> : ''}</td>
+              <td>{m?.date ? fmtDate(m.date) : ''}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </>
   );
 }

@@ -1,7 +1,7 @@
 {
   "id": "fixture-full-0001",
   "schemaVersion": 1,
-  "status": "draft",
+  "status": "ready",
   "createdAt": "2026-08-01T08:00:00.000Z",
   "lastSavedAt": "",
   "completedAt": "",
@@ -46,7 +46,7 @@
       "phone": "601-555-0111",
       "email": "ktaute@example.com",
       "statement": "I was operating the water truck about 40 feet away and saw Marcus step back and go down onto one knee. I turned off the truck and went to check on him right away.",
-      "signatureData": null,
+      "signatureData": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
       "signatureDate": "2026-08-05"
     },
     {
@@ -93,7 +93,7 @@
   "supervisorNotes": "Area has been flagged and will be re-graded before work resumes. Toolbox talk held with crew on inspecting footing before backing/repositioning hoses and equipment near graded fill.",
   "safetyConsultantNotes": "Recommend adding a daily ground-condition check to the JSA for lime mixing operations and marking soft/uneven fill areas with cones until regraded.",
   "investigationTeam": [
-    { "id": "t1", "name": "Alfonso Hernandez", "title": "Safety Coordinator", "signatureData": null, "date": "2026-08-05" },
+    { "id": "t1", "name": "Riley Ashworth", "title": "Safety Coordinator", "signatureData": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "date": "2026-08-05" },
     { "id": "t2", "name": "Gaines Newell", "title": "Site Superintendent", "signatureData": null, "date": "2026-08-05" }
   ],
 
