@@ -44,19 +44,23 @@ const FIXTURES = [
   { name: 'full', file: 'incident-full-fixture.json', expectedPageCount: 6, expectFinal: true },
   { name: 'na', file: 'incident-na-fixture.json', expectedPageCount: 6, expectFinal: false },
   // Was 12 pages pre-v0.1.1, then 10 after the v0.1.1 polish pass raised the
-  // description/statement base-page capacities to fixed-but-larger guesses.
-  // The v0.1.2 full-page-utilization pass replaced those fixed guesses with
-  // real per-page measurement (measurePage1Budget/measurePage3Budget/
-  // measurePage4Budget/measurePage6NotesBudget in incidentPdfMeasure.js),
-  // which for THIS fixture's real content legitimately leaves more usable
-  // room on pages 1, 3, 4, and 6 than the old fixed numbers did (e.g. page
-  // 1's description box alone grew from a flat 300px to ~640px of real
-  // measured leftover) -- so the same deliberately-long overflow text now
-  // needs 8 pages, not 10. Confirmed via page-by-page screenshots in
+  // description/statement base-page capacities to fixed-but-larger guesses,
+  // then 8 after the v0.1.2 full-page-utilization pass replaced those fixed
+  // guesses with real per-page measurement (measurePage1Budget/
+  // measurePage3Budget/measurePage4Budget/measurePage6NotesBudget in
+  // incidentPdfMeasure.js). The v0.1.3 typography pass increased narrative
+  // text-box line-height from 15.5px to 18px (~1.16x -> ~1.35x, the
+  // requested "readable" spacing) and top+side+bottom padding from a flat
+  // 5px to 9/9/8px -- both legitimately reduce how much text fits per box
+  // (less usable height per box, and fewer characters fit per line at the
+  // same box width once you count more vertical space per line), so the
+  // same deliberately-long overflow text now needs 11 pages, not 8. This is
+  // the expected, disclosed tradeoff of the readability improvement, not a
+  // regression -- confirmed via page-by-page screenshots in
   // tools/testing/output/incident/overflow/ that nothing is clipped; see
   // also the generic per-page scrollHeight<=clientHeight check below, which
   // runs for every page of every fixture including this one.
-  { name: 'overflow', file: 'incident-overflow-fixture.json', expectedPageCount: 8, expectFinal: false },
+  { name: 'overflow', file: 'incident-overflow-fixture.json', expectedPageCount: 11, expectFinal: false },
   // Reproduces the actual user-reported draft (Entergy_TAPS_IncidentReport_2026-08-06_DRAFT.pdf)
   // that generated a wasted, nearly-empty page 7 before the v0.1.1 PDF polish
   // pass -- see incidentPdfMeasure.js / allocateFlexibleSections in
@@ -351,6 +355,166 @@ async function runFixture(browser, fixture) {
     const causeFontPx = await causePage.locator('.incCauseTable').first().evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
     // 9pt == 12px at the standard 96dpi/72pt browser conversion used throughout this module.
     a.check(causeFontPx >= 12, `expected cause table body font-size >= 9pt (12px), computed ${causeFontPx}px`);
+  }
+
+  // ── v0.1.3 typography/alignment/visual-cleanliness computed-layout checks ──
+  // Runs for every fixture that has a first page (all of them). Checks real
+  // computed styles and real bounding boxes rather than re-screenshotting --
+  // catches a regression back to top-aligned/cramped/off-center rendering
+  // even if nobody happens to look at that exact screenshot region. Uses
+  // generous tolerances (a few px) since these are real sub-pixel browser
+  // layout values, not hand-picked round numbers.
+  {
+    // Compact information-table cells: vertically centered, balanced
+    // top/bottom padding, and a consistent minimum row height. Checked on
+    // page 1's top info table (present, and populated, in every fixture).
+    const firstInfoCell = page.locator('.incidentPage').first().locator('.incInfoTable td').first();
+    const cellStyle = await firstInfoCell.evaluate((elCell) => {
+      const cs = getComputedStyle(elCell);
+      return {
+        verticalAlign: cs.verticalAlign,
+        textAlign: cs.textAlign,
+        paddingTop: parseFloat(cs.paddingTop),
+        paddingBottom: parseFloat(cs.paddingBottom),
+        height: elCell.getBoundingClientRect().height,
+      };
+    });
+    a.check(cellStyle.verticalAlign === 'middle', `expected compact table cells to be vertically centered, computed vertical-align="${cellStyle.verticalAlign}"`);
+    a.check(cellStyle.textAlign === 'left', `expected compact table cells to stay left-aligned, computed text-align="${cellStyle.textAlign}"`);
+    a.check(Math.abs(cellStyle.paddingTop - cellStyle.paddingBottom) <= 1, `expected balanced top/bottom cell padding, got top=${cellStyle.paddingTop}px bottom=${cellStyle.paddingBottom}px`);
+    a.check(cellStyle.height >= 26, `expected compact table rows to meet the ~27-30px minimum height target, got ${cellStyle.height}px`);
+
+    // Large narrative box (Detailed Description, page 1): left-aligned,
+    // top-aligned (not vertically centered), comfortable padding, and a
+    // line-height clearly greater than the font size (readable spacing).
+    const descBox = page.locator('.incidentPage').first().locator('.incTextBlock').first();
+    const descStyle = await descBox.evaluate((elBox) => {
+      const cs = getComputedStyle(elBox);
+      return {
+        textAlign: cs.textAlign,
+        paddingTop: parseFloat(cs.paddingTop),
+        paddingLeft: parseFloat(cs.paddingLeft),
+        fontSize: parseFloat(cs.fontSize),
+        lineHeight: parseFloat(cs.lineHeight),
+      };
+    });
+    a.check(descStyle.textAlign === 'left' || descStyle.textAlign === 'start', `expected narrative box text to be left-aligned, computed text-align="${descStyle.textAlign}"`);
+    a.check(descStyle.paddingTop >= 7, `expected narrative box top padding >= ~7px, got ${descStyle.paddingTop}px`);
+    a.check(descStyle.paddingLeft >= 7, `expected narrative box side padding >= ~7px, got ${descStyle.paddingLeft}px`);
+    a.check(descStyle.lineHeight > descStyle.fontSize * 1.15, `expected narrative box line-height clearly greater than font-size (readable spacing), got line-height=${descStyle.lineHeight}px font-size=${descStyle.fontSize}px`);
+
+    // The narrative box's own text should begin near the top padding, not
+    // vertically centered in the box -- verified by comparing the first
+    // rendered line's top edge (via a DOM Range around the box's first text
+    // node) to the box's own top edge + padding-top.
+    const descTopAlignment = await descBox.evaluate((elBox) => {
+      const boxRect = elBox.getBoundingClientRect();
+      const textNode = elBox.firstChild;
+      if (!textNode) return null;
+      const range = document.createRange();
+      range.selectNodeContents(textNode);
+      const textRect = range.getBoundingClientRect();
+      const cs = getComputedStyle(elBox);
+      return { gap: textRect.top - boxRect.top, paddingTop: parseFloat(cs.paddingTop) };
+    });
+    if (descTopAlignment) {
+      a.check(
+        descTopAlignment.gap <= descTopAlignment.paddingTop + 4,
+        `expected narrative box text to start near the top padding (not vertically centered), text started ${descTopAlignment.gap.toFixed(1)}px from the box top (padding-top is ${descTopAlignment.paddingTop}px)`,
+      );
+    }
+
+    // Investigation-team table: header cells vertically centered, Signature
+    // column horizontally centered, populated data cells' text vertically
+    // centered within the (often much taller, dynamically-grown) row.
+    const teamHeaderSig = page.locator('.incTeamTable thead th').nth(2);
+    if (await teamHeaderSig.count()) {
+      const headerTextAlign = await teamHeaderSig.evaluate((elTh) => getComputedStyle(elTh).textAlign);
+      a.check(headerTextAlign === 'center', `expected investigation-team Signature column header to be centered, computed text-align="${headerTextAlign}"`);
+    }
+    const populatedNameCell = page.locator('.incTeamTable tbody tr').first().locator('td').first();
+    if (await populatedNameCell.count()) {
+      const centering = await populatedNameCell.evaluate((elCell) => {
+        const cellRect = elCell.getBoundingClientRect();
+        const textNode = elCell.firstChild;
+        if (!textNode || !textNode.textContent || !textNode.textContent.trim()) return null;
+        const range = document.createRange();
+        range.selectNodeContents(textNode);
+        const textRect = range.getBoundingClientRect();
+        return {
+          cellCenter: cellRect.top + cellRect.height / 2,
+          textCenter: textRect.top + textRect.height / 2,
+        };
+      });
+      if (centering) {
+        a.check(
+          Math.abs(centering.cellCenter - centering.textCenter) <= 4,
+          `expected investigation-team populated row text to be vertically centered in its (dynamically-grown) row, cell center=${centering.cellCenter.toFixed(1)} text center=${centering.textCenter.toFixed(1)}`,
+        );
+      }
+    }
+    // Team signature image, when present, stays centered in its cell and
+    // fully inside it (never touching the cell border).
+    const teamSigImg = page.locator('.incTeamTable .incSignatureImage').first();
+    if (await teamSigImg.count()) {
+      const imgCentering = await teamSigImg.evaluate((elImg) => {
+        const cell = elImg.closest('td');
+        const cellRect = cell.getBoundingClientRect();
+        const imgRect = elImg.getBoundingClientRect();
+        return {
+          dx: Math.abs((cellRect.left + cellRect.width / 2) - (imgRect.left + imgRect.width / 2)),
+          dy: Math.abs((cellRect.top + cellRect.height / 2) - (imgRect.top + imgRect.height / 2)),
+          insideX: imgRect.left >= cellRect.left && imgRect.right <= cellRect.right,
+          insideY: imgRect.top >= cellRect.top && imgRect.bottom <= cellRect.bottom,
+        };
+      });
+      a.check(imgCentering.dx <= 6, `expected investigation-team signature image horizontally centered in its cell (within 6px), off by ${imgCentering.dx.toFixed(1)}px`);
+      a.check(imgCentering.dy <= 6, `expected investigation-team signature image vertically centered in its cell (within 6px), off by ${imgCentering.dy.toFixed(1)}px`);
+      a.check(imgCentering.insideX && imgCentering.insideY, 'expected investigation-team signature image to remain fully inside its cell');
+    }
+
+    // Witness signature image (pages 3-4), when present, stays centered in
+    // its bordered signature cell.
+    const witnessSigImg = page.locator('.incSignatureCell .incSignatureImage').first();
+    if (await witnessSigImg.count()) {
+      const imgCentering = await witnessSigImg.evaluate((elImg) => {
+        const cell = elImg.closest('td');
+        const cellRect = cell.getBoundingClientRect();
+        const imgRect = elImg.getBoundingClientRect();
+        return {
+          dx: Math.abs((cellRect.left + cellRect.width / 2) - (imgRect.left + imgRect.width / 2)),
+          dy: Math.abs((cellRect.top + cellRect.height / 2) - (imgRect.top + imgRect.height / 2)),
+          insideX: imgRect.left >= cellRect.left && imgRect.right <= cellRect.right,
+          insideY: imgRect.top >= cellRect.top && imgRect.bottom <= cellRect.bottom,
+        };
+      });
+      a.check(imgCentering.dx <= 6, `expected witness signature image horizontally centered in its cell (within 6px), off by ${imgCentering.dx.toFixed(1)}px`);
+      a.check(imgCentering.dy <= 6, `expected witness signature image vertically centered in its cell (within 6px), off by ${imgCentering.dy.toFixed(1)}px`);
+      a.check(imgCentering.insideX && imgCentering.insideY, 'expected witness signature image to remain fully inside its cell');
+    }
+
+    // No element anywhere in the document should cross its own page's
+    // printable bottom boundary -- a stronger, page-wide version of the
+    // per-page scrollHeight<=clientHeight check above, applied to every
+    // direct .incidentPageBody child on every page.
+    const allPages = await page.locator('.incidentPage').all();
+    for (let i = 0; i < allPages.length; i += 1) {
+      const overflowInfo = await allPages[i].evaluate((elPage) => {
+        const body = elPage.querySelector('.incidentPageBody');
+        if (!body) return null;
+        const bodyRect = body.getBoundingClientRect();
+        const bottom = bodyRect.top + bodyRect.height;
+        let maxOverflow = 0;
+        body.querySelectorAll(':scope > *').forEach((child) => {
+          const r = child.getBoundingClientRect();
+          maxOverflow = Math.max(maxOverflow, r.top + r.height - bottom);
+        });
+        return maxOverflow;
+      });
+      if (overflowInfo != null) {
+        a.check(overflowInfo <= 2, `page ${i + 1}: expected no direct page-body child to cross the printable bottom boundary (found ${overflowInfo.toFixed(1)}px overflow, 2px rounding tolerance)`);
+      }
+    }
   }
 
   if (a.failures.length) {

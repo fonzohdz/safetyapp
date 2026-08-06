@@ -25,13 +25,27 @@ export const FONT_FAMILY = 'Arial, Helvetica, sans-serif';
 export const FONT_10PT_PX = 10 * (96 / 72); // 13.33px
 export const FONT_9PT_PX = 9 * (96 / 72); // 12px
 
-// Long free-text block metrics (description, witness statements, notes).
-// Width matches a full-width bordered box inset slightly from the page's
-// content width for its own 1px border + padding.
-export const TEXT_BLOCK_WIDTH_PX = CONTENT_WIDTH_PX - 8;
+// Long free-text block metrics (description, witness statements, notes) --
+// must exactly mirror .incTextBlock in incident.css (border/padding/
+// line-height/font-size). `.incTextBlock` has no explicit width of its own:
+// it stretches (flex column, align-items: stretch by default) to fill its
+// `.incTextBlockWrap` parent, which itself stretches to fill
+// `.incidentPageBody`'s content width -- i.e. the real rendered box's outer
+// (border-box) width is exactly CONTENT_WIDTH_PX. textBlockMeasureStyle()
+// reproduces that same border-box width AND a matching 1px border (rather
+// than the pre-v0.1.3 approach of fudging the width a few px narrower to
+// approximate the missing border) so the detached measurement div in
+// textFit.js wraps text at the identical column width the real box will --
+// no drift, no guessing. See incident.css's .incTextBlock comment for the
+// padding/line-height rationale (top-aligned narrative text, comfortable
+// padding, ~1.35x line-height).
+export const TEXT_BLOCK_WIDTH_PX = CONTENT_WIDTH_PX;
 export const TEXT_BLOCK_FONT_PX = FONT_10PT_PX;
-export const TEXT_BLOCK_LINE_HEIGHT_PX = 15.5;
-export const TEXT_BLOCK_PADDING_PX = 5;
+export const TEXT_BLOCK_LINE_HEIGHT_PX = 18;
+export const TEXT_BLOCK_BORDER_PX = 1;
+export const TEXT_BLOCK_PADDING_TOP_PX = 9;
+export const TEXT_BLOCK_PADDING_SIDE_PX = 9;
+export const TEXT_BLOCK_PADDING_BOTTOM_PX = 8;
 
 export function textBlockMeasureStyle() {
   return {
@@ -39,7 +53,8 @@ export function textBlockMeasureStyle() {
     fontSize: `${TEXT_BLOCK_FONT_PX}px`,
     lineHeight: `${TEXT_BLOCK_LINE_HEIGHT_PX}px`,
     fontFamily: FONT_FAMILY,
-    padding: `${TEXT_BLOCK_PADDING_PX}px`,
+    border: `${TEXT_BLOCK_BORDER_PX}px solid transparent`,
+    padding: `${TEXT_BLOCK_PADDING_TOP_PX}px ${TEXT_BLOCK_PADDING_SIDE_PX}px ${TEXT_BLOCK_PADDING_BOTTOM_PX}px`,
   };
 }
 

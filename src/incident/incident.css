@@ -161,41 +161,77 @@ html[data-theme='dark'] .incidentReadinessItem.ok .checkIcon { color: #8bd48f; }
 .incidentHeaderPageNum { text-align: right; font-size: 8.5pt; color: #333; white-space: nowrap; }
 .incidentRedRule { height: 3px; background: #c1121f; margin-top: 4px; }
 
-.incidentPageBody { flex: 1 1 auto; display: flex; flex-direction: column; gap: 5px; min-height: 0; }
+.incidentPageBody { flex: 1 1 auto; display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+
+/* One flex `gap` on .incidentPageBody is the ONLY vertical spacing mechanism
+   between sections now -- every direct child (gray bar, table, text block)
+   is separated by the exact same 6px regardless of what precedes/follows it.
+   A previous `.incInfoTable + .incInfoTable { margin-top: -1px }` hack tried
+   to visually "fuse" two adjacent tables with no gray bar between them into
+   one continuous grid (a pre-flexbox-gap trick for collapsing double
+   borders), but once .incidentPageBody switched to `display:flex` + `gap`,
+   that negative margin only ate 1px of the 6px gap (leaving an inconsistent
+   4px gap there vs. 6px everywhere else) instead of truly fusing anything --
+   see the v0.1.3 typography/spacing pass. Removed rather than "fixed" since
+   a uniform 6px between all sections already reads as consistent and
+   intentional; there is no correctness reason two tables need to look
+   different from a table following a gray bar. */
 
 .incGrayBar {
   background: #c9cecc;
   border: 1px solid #000;
-  border-bottom: 0;
-  padding: 3px 6px;
+  padding: 4.5px 8px;
   font-size: 9.5pt;
+  line-height: 1.3;
   font-weight: 700;
   text-align: center;
   text-transform: uppercase;
 }
 
+/* Compact information-table cells: horizontally left, vertically centered,
+   with balanced padding so text never appears to ride the bottom border
+   (the pre-v0.1.3 complaint) and a shared minimum row height so short single-
+   line rows and taller wrapped-label rows both look like part of the same
+   grid system. `height` (not `min-height`) is used deliberately -- table
+   cells never clip content shorter than their own text, so it behaves as a
+   floor in every browser html2canvas targets, exactly like the existing
+   .incSignatureTable/.incTeamTable row-height rules below. Label (th) vs.
+   value (td) get their own font rule so the label/value type hierarchy is
+   consistent everywhere this table is reused (info tables, witness contact
+   tables, property-damage table, signature/date rows, investigation-team
+   table). */
 .incInfoTable { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .incInfoTable th, .incInfoTable td {
   border: 1px solid #000;
-  padding: 3px 6px;
-  font-size: 9.5pt;
-  line-height: 1.35;
+  padding: 5px 8px;
+  height: 28px;
   text-align: left;
-  vertical-align: top;
+  vertical-align: middle;
   word-break: break-word;
 }
-.incInfoTable th { background: #efefef; font-weight: 700; width: 32%; }
-.incInfoTable + .incInfoTable { margin-top: -1px; }
+.incInfoTable th { background: #efefef; font-weight: 700; font-size: 9.5pt; line-height: 1.25; width: 32%; }
+.incInfoTable td { font-weight: 400; font-size: 10pt; line-height: 1.3; }
 .incInfoTable tr + tr th, .incInfoTable tr + tr td { border-top: 0; }
 
-.incTextBlockWrap { display: flex; flex-direction: column; gap: 2px; }
+.incTextBlockWrap { display: flex; flex-direction: column; gap: 4px; }
 .incTextBlockTitle { font-weight: 700; font-size: 9.5pt; text-transform: uppercase; }
-.incTextBlockHelp { font-size: 8pt; color: #333; font-style: italic; }
+.incTextBlockHelp { font-size: 8.3pt; line-height: 1.3; color: #333; font-style: italic; }
+/* Large narrative/writing boxes (description, statements, notes): text stays
+   top-left aligned (white-space:pre-wrap only wraps/preserves breaks, it
+   never centers), with enough top/side padding that the first line doesn't
+   hug the border and enough line-height (~1.35x the 10pt font) that
+   multi-line notes don't read as compressed. Bottom padding is a hair
+   smaller than top/side so a box that ends exactly on a line of text doesn't
+   look bottom-heavy. These exact numbers (padding/line-height/font-size) are
+   duplicated as TEXT_BLOCK_* constants in incidentPdfLayout.js for
+   textFit.js's real-DOM pagination measurement -- keep both in sync (see the
+   comment there) or measured chunk boundaries will drift from what actually
+   renders. */
 .incTextBlock {
   border: 1px solid #000;
-  padding: 5px;
+  padding: 9px 9px 8px;
   font-size: 10pt;
-  line-height: 15.5px;
+  line-height: 18px;
   white-space: pre-wrap;
   word-wrap: break-word;
   overflow-wrap: break-word;
@@ -241,22 +277,28 @@ html[data-theme='dark'] .incidentReadinessItem.ok .checkIcon { color: #8bd48f; }
 
 /* Witness signature/date row -- reuses .incInfoTable's border/shading so it
    reads as part of the witness form (a bordered grid cell) instead of a
-   floating mark pasted below the statement box. */
-.incSignatureTable td, .incSignatureTable th { height: 38px; vertical-align: middle; }
+   floating mark pasted below the statement box. Height is a hair taller
+   than the compact-table default (28px) to comfortably frame the 34px-tall
+   signature image with even space above/below; the signature cell centers
+   its content both ways (text-align here, .incSignatureImage's own
+   margin:0 auto + the row's vertical-align:middle) so a signature or an
+   N/A placeholder both land in the same visual spot regardless of witness. */
+.incSignatureTable td, .incSignatureTable th { height: 40px; vertical-align: middle; }
 .incSignatureCell { text-align: center; }
 .incSignatureCell .incNotApplicableInline { display: block; }
 
-.incCauseIntro { font-size: 9pt; font-weight: 700; border: 1px solid #000; padding: 4px 6px; text-align: center; }
+.incCauseIntro { font-size: 9pt; font-weight: 700; line-height: 1.3; border: 1px solid #000; padding: 5px 8px; text-align: center; }
 .incCauseTable { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 9pt; flex: 1 1 auto; }
 .incCauseTable th {
   background: #c9cecc;
   border: 1px solid #000;
-  padding: 3px 4px;
-  font-size: 8.8pt;
+  padding: 4px 5px;
+  font-size: 9pt;
+  line-height: 1.25;
   text-align: center;
   text-transform: uppercase;
 }
-.incCauseTable td { border: 1px solid #000; padding: 1.5px 4px; vertical-align: top; }
+.incCauseTable td { border: 1px solid #000; padding: 3px 6px; line-height: 1.25; vertical-align: top; }
 .incCauseTable td.incCauseChecked { background: #f4e7e9; }
 .incCheckbox {
   display: inline-block;
@@ -283,6 +325,14 @@ html[data-theme='dark'] .incidentReadinessItem.ok .checkIcon { color: #8bd48f; }
    pass. 40px remains the default/floor if the property is ever omitted. */
 .incTeamTable th, .incTeamTable td { width: 25%; }
 .incTeamTable td { height: var(--incTeamRowHeight, 40px); vertical-align: middle; }
+/* Signature is the one column whose content (an image, or nothing) should
+   read as centered rather than left-aligned like Name/Title/Date -- matches
+   the "signature cells: horizontally + vertically centered" rule applied to
+   every other signature cell in the document (see .incSignatureCell above).
+   nth-child(3) targets it directly since the table has no header/column
+   metadata to key off otherwise (Name, Title, Signature, Date in that
+   fixed order -- see Page6Content in IncidentPdf.jsx). */
+.incTeamTable th:nth-child(3), .incTeamTable td:nth-child(3) { text-align: center; }
 
 .incContinuationMeta { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 8.5pt; color: #333; border-bottom: 1px solid #999; padding-bottom: 3px; margin-bottom: 4px; }
 
