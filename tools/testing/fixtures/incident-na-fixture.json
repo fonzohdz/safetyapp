@@ -1,0 +1,58 @@
+{
+  "id": "fixture-na-0001",
+  "schemaVersion": 1,
+  "status": "draft",
+  "createdAt": "2026-08-01T08:00:00.000Z",
+  "lastSavedAt": "",
+  "completedAt": "",
+  "reportNumber": "",
+
+  "workplaceLocation": "Brandon, MS \u2014 Rankin Co. Yard",
+  "incidentDate": "2026-08-04",
+  "incidentTime": "09:15",
+  "writtenReportDateTime": "2026-08-04T10:00",
+  "reportedToSupervisorDateTime": "2026-08-04T09:20",
+  "investigatorName": "Jake Lytle",
+  "investigatorTitle": "Foreman",
+  "investigatorPhone": "601-555-0177",
+  "investigatorEmail": "jlytle@shackelfordch.com",
+  "incidentSpecificLocation": "Main equipment yard, near fuel island",
+  "detailedIncidentDescription": "A near-miss was reported when a fuel delivery truck backed up without a spotter, coming within a few feet of a parked skid steer. No contact occurred and no one was injured. The delivery driver was reminded of the site's spotter requirement before continuing.",
+
+  "injuryOccurred": "no",
+  "injuredPartyName": "",
+  "injuredPartyTitle": "",
+  "injuredPartyYearsWithCompany": "",
+  "injuredPartyCurrentTrade": "",
+  "injuredPartyPhone": "",
+  "injuredPartyEmail": "",
+  "injuryNature": [],
+  "injuryNatureOther": "",
+  "bodyPartsAffectedText": "",
+  "treatmentLevel": "unselected",
+  "treatingPhysicianOrClinic": "",
+  "injuryRemarks": "",
+  "bodyDiagramMarks": [],
+
+  "witnesses": [],
+
+  "propertyDamageOccurred": "no",
+  "propertyOrMaterialDamaged": "",
+  "natureOfDamage": "",
+  "objectMachineToolOrSubstance": "",
+  "approximateDamageCost": "",
+
+  "selectedCauses": [
+    "managementDeficiencies::Insufficient job planning"
+  ],
+  "primaryCause": "managementDeficiencies::Insufficient job planning",
+  "unsafeActsOther": "",
+  "unsafeConditionsOther": "",
+  "managementDeficienciesOther": "",
+
+  "supervisorNotes": "Reviewed spotter requirement with all delivery vendors at the morning safety meeting.",
+  "safetyConsultantNotes": "",
+  "investigationTeam": [],
+
+  "notes": ""
+}

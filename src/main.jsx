@@ -3,6 +3,12 @@ import { createRoot } from 'react-dom/client';
 import html2canvas from 'html2canvas';
 import { PDFDocument } from 'pdf-lib';
 import './styles.css';
+import './incident/incident.css';
+import { emptyIncident, hasMeaningfulIncidentContent, incidentStepProgress, incidentNextStepHint, isIncidentReady } from './incident/incidentModel';
+import { loadIncidentDraft, saveIncidentDraft, clearIncidentDraft, upsertIncidentRecord } from './incident/incidentStorage';
+import { incidentCopy } from './incident/incidentCopy';
+import IncidentWorkflow from './incident/IncidentWorkflow';
+import { IncidentPdfExportRoot, generateIncidentPdf, incidentPdfFingerprint, buildIncidentExportName } from './incident/incidentPdfGenerate';
 
 /* ── Storage keys ── */
 const KEYS = {
@@ -1118,8 +1124,19 @@ function App() {
   const [savedDraft, setSavedDraft] = useState(() => safeJson(localStorage.getItem(KEYS.draft), null));
   const [jsa, setJsa] = useState(() => emptyJsa());
   const [tab, setTab] = useState('home');
-  const [activeDoc, setActiveDoc] = useState(null); // null | 'jsa-start' | 'jsa'
+  const [activeDoc, setActiveDoc] = useState(null); // null | 'jsa-start' | 'jsa' | 'incident'
   const [jsaStep, setJsaStep] = useState('job');
+
+  // ── Incident Report state (fully separate from JSA state/storage above) ──
+  const [savedIncidentDraft, setSavedIncidentDraft] = useState(() => loadIncidentDraft());
+  const [incident, setIncident] = useState(() => emptyIncident());
+  const [incidentStep, setIncidentStep] = useState('details');
+  const [incidentSaveStatus, setIncidentSaveStatus] = useState('idle');
+  const incidentAutoSaveTimer = useRef(null);
+  const lastIncidentAutoSaveSnapshot = useRef('');
+  const [incidentPdfExportState, setIncidentPdfExportState] = useState(null);
+  const incidentPdfPageRefsRef = useRef([]);
+  const isIncidentPdfStale = incidentPdfExportState?.phase === 'ready' && incidentPdfExportState.fingerprint !== incidentPdfFingerprint(incident);
   const [templateId, setTemplateId] = useState('blank-jsa');
   const [saveName, setSaveName] = useState('');
   const [toast, setToast] = useState('');
@@ -1196,6 +1213,29 @@ function App() {
     return () => clearTimeout(autoSaveTimer.current);
   }, [jsa, activeDoc]);
 
+  // Incident Report autosave — same 900ms debounce shape as the JSA
+  // autosave above, but reads/writes only sdc.incident.* keys.
+  useEffect(() => {
+    if (activeDoc !== 'incident') return undefined;
+    if (!hasMeaningfulIncidentContent(incident)) return undefined;
+    const snapshot = JSON.stringify({ ...incident, lastSavedAt: '' });
+    if (snapshot === lastIncidentAutoSaveSnapshot.current) return undefined;
+    setIncidentSaveStatus('saving');
+    clearTimeout(incidentAutoSaveTimer.current);
+    incidentAutoSaveTimer.current = setTimeout(() => {
+      const next = { ...incident, lastSavedAt: new Date().toISOString() };
+      if (saveIncidentDraft(next)) {
+        lastIncidentAutoSaveSnapshot.current = snapshot;
+        setSavedIncidentDraft(next);
+        setIncident(prev => ({ ...prev, lastSavedAt: next.lastSavedAt }));
+        setIncidentSaveStatus('saved');
+      } else {
+        setIncidentSaveStatus('error');
+      }
+    }, 900);
+    return () => clearTimeout(incidentAutoSaveTimer.current);
+  }, [incident, activeDoc]);
+
   function upd(patch) { setJsa(prev => ({ ...prev, ...patch })); }
   function showToast(msg) { setToast(msg); setTimeout(() => setToast(''), 2500); }
 
@@ -1203,6 +1243,97 @@ function App() {
   function goDocs() { setTab('documents'); setActiveDoc(null); }
   function goJsaStart() { setTab('documents'); setActiveDoc('jsa-start'); }
   function goJsa(step = 'job') { setTab('documents'); setActiveDoc('jsa'); setJsaStep(step); }
+  function goIncidentStart() { setTab('documents'); setActiveDoc('incident'); setIncidentStep('details'); }
+  function goIncident(step = 'details') { setTab('documents'); setActiveDoc('incident'); setIncidentStep(step); }
+
+  function startIncidentBlank() {
+    setIncident(emptyIncident());
+    setIncidentPdfExportState(null);
+    goIncident('details');
+  }
+  function requestStartIncidentBlank() {
+    if (hasMeaningfulIncidentContent(incident) && activeDoc !== 'incident') {
+      if (!confirm(incidentCopy.confirmReplaceDraft)) return;
+    }
+    startIncidentBlank();
+  }
+  function loadSavedIncidentDraft() {
+    const raw = loadIncidentDraft() || savedIncidentDraft;
+    if (!raw) { showToast('No saved incident report found on this device.'); return; }
+    const normalized = { ...emptyIncident(), ...raw };
+    setIncident(normalized);
+    setSavedIncidentDraft(normalized);
+    setIncidentPdfExportState(null);
+    goIncident('details');
+    showToast('Saved incident report loaded.');
+  }
+  function startNewIncidentReport() {
+    if (hasMeaningfulIncidentContent(incident) && !confirm('Start a new incident report? The current one will be cleared from this device.')) return;
+    clearIncidentDraft();
+    setSavedIncidentDraft(null);
+    setIncident(emptyIncident());
+    setIncidentPdfExportState(null);
+    lastIncidentAutoSaveSnapshot.current = '';
+    goIncident('details');
+    showToast('Started a new incident report.');
+  }
+
+  async function exportIncidentPdf() {
+    if (incidentPdfExportState?.phase === 'generating') return;
+    const draft = !isIncidentReady(incident);
+    const filename = `${buildIncidentExportName(incident)}.pdf`;
+    const fingerprint = incidentPdfFingerprint(incident);
+    try {
+      setIncidentPdfExportState({ phase: 'generating', status: 'preparing' });
+      const { blob, pageCount } = await generateIncidentPdf(incidentPdfPageRefsRef, (pageIndex, totalPages) => {
+        setIncidentPdfExportState({ phase: 'generating', status: 'rendering', pageIndex, totalPages });
+      });
+      setIncidentPdfExportState({ phase: 'ready', blob, filename, pageCount, fingerprint, shareMessage: null });
+      const savedAt = new Date().toISOString();
+      if (!draft) {
+        const completed = { ...incident, status: 'completed', completedAt: savedAt, lastSavedAt: savedAt };
+        saveIncidentDraft(completed);
+        setIncident(completed);
+        setSavedIncidentDraft(completed);
+        upsertIncidentRecord(completed, { pageCount });
+      } else {
+        const savedNow = { ...incident, lastSavedAt: savedAt };
+        saveIncidentDraft(savedNow);
+        setIncident(savedNow);
+        setSavedIncidentDraft(savedNow);
+      }
+    } catch (err) {
+      console.error('[incident pdf export]', err);
+      showToast(`PDF export failed (${err?.message || 'unknown error'}).`);
+      setIncidentPdfExportState(null);
+    }
+  }
+
+  function shareIncidentPdfClick() {
+    if (!incidentPdfExportState || incidentPdfExportState.phase !== 'ready') return;
+    if (isIncidentPdfStale) return;
+    const file = new File([incidentPdfExportState.blob], incidentPdfExportState.filename, { type: 'application/pdf' });
+    const result = shareGeneratedPdf(file);
+    if (!result.ok) {
+      setIncidentPdfExportState(prev => (prev && prev.phase === 'ready' ? { ...prev, shareMessage: result.reason } : prev));
+      return;
+    }
+    result.promise
+      .then(() => setIncidentPdfExportState(prev => (prev && prev.phase === 'ready' ? { ...prev, shareMessage: null } : prev)))
+      .catch(err => {
+        if (err && err.name === 'AbortError') return;
+        console.error('[incident pdf share]', err);
+        setIncidentPdfExportState(prev => (prev && prev.phase === 'ready'
+          ? { ...prev, shareMessage: `Sharing failed (${err?.name || err?.message || 'unknown error'}). Try again, or use Download PDF.` }
+          : prev));
+      });
+  }
+  function downloadIncidentPdfClick() {
+    if (!incidentPdfExportState || incidentPdfExportState.phase !== 'ready') return;
+    if (isIncidentPdfStale) return;
+    downloadGeneratedPdf(incidentPdfExportState.blob, incidentPdfExportState.filename);
+    showToast(`PDF downloaded: ${incidentPdfExportState.filename}`);
+  }
 
   function saveDraft(msg = true) {
     const next = { ...jsa, status: 'draft', lastSavedAt: new Date().toISOString() };
@@ -1439,7 +1570,7 @@ function App() {
   return (
     <>
       <div className="appShell">
-        <aside className={`sidebar${activeDoc === 'jsa' ? ' builderActive' : ''}`}>
+        <aside className={`sidebar${activeDoc === 'jsa' || activeDoc === 'incident' ? ' builderActive' : ''}`}>
           <div className="sidebarBrand">
             <span className="sidebarBrandName">{APP_NAME}</span>
             <span className="sidebarBrandSub">{APP_SUB}</span>
@@ -1468,8 +1599,13 @@ function App() {
         </aside>
 
         <main className="page">
-          {tab === 'home' && <HomeView savedDraft={savedDraft} customTemplates={customTemplates} goJsaStart={goJsaStart} startBlank={requestStartBlank} setTab={setTab} loadSavedDraft={loadSavedDraft} />}
-          {tab === 'documents' && !activeDoc && <DocCenterView goJsaStart={goJsaStart} />}
+          {tab === 'home' && (
+            <HomeView
+              savedDraft={savedDraft} customTemplates={customTemplates} goJsaStart={goJsaStart} startBlank={requestStartBlank} setTab={setTab} loadSavedDraft={loadSavedDraft}
+              savedIncidentDraft={savedIncidentDraft} startIncidentBlank={requestStartIncidentBlank} loadSavedIncidentDraft={loadSavedIncidentDraft}
+            />
+          )}
+          {tab === 'documents' && !activeDoc && <DocCenterView goJsaStart={goJsaStart} goIncidentStart={goIncidentStart} />}
           {tab === 'documents' && activeDoc === 'jsa-start' && (
             <JsaStartView allTemplates={allTemplates} selectedTemplate={selectedTemplate} templateId={templateId} setTemplateId={setTemplateId} loadTemplate={requestLoadTemplate} loadSavedDraft={loadSavedDraft} startBlank={requestStartBlank} savedDraft={savedDraft} />
           )}
@@ -1484,6 +1620,15 @@ function App() {
               legacyBrowserPrint={legacyBrowserPrint} pdfExportState={pdfExportState} isPdfStale={isPdfStale}
               shareGeneratedPdfClick={shareGeneratedPdfClick} downloadGeneratedPdfClick={downloadGeneratedPdfClick}
               savedDraft={savedDraft} settings={settings} saveStatus={saveStatus}
+            />
+          )}
+          {tab === 'documents' && activeDoc === 'incident' && (
+            <IncidentWorkflow
+              incident={incident} setIncident={setIncident} step={incidentStep} setStep={setIncidentStep}
+              goDocs={goDocs} saveStatus={incidentSaveStatus === 'saving' ? incidentCopy.autosaveSaving : incidentSaveStatus === 'saved' ? incidentCopy.autosaveSaved : ''}
+              pdfExportState={incidentPdfExportState} isPdfStale={isIncidentPdfStale}
+              onGeneratePdf={exportIncidentPdf} onShare={shareIncidentPdfClick} onDownload={downloadIncidentPdfClick}
+              onStartNew={startNewIncidentReport}
             />
           )}
           {tab === 'drafts' && <DraftsView savedDraft={savedDraft} loadSavedDraft={loadSavedDraft} goJsaStart={goJsaStart} clearDraft={() => { if (!savedDraft) return; if (!confirm('Delete this draft?')) return; setJsa(emptyJsa()); localStorage.removeItem(KEYS.draft); setSavedDraft(null); showToast('Draft deleted.'); }} />}
@@ -1503,6 +1648,7 @@ function App() {
       <PaginationMeasureRig jsa={jsa} />
       <PrintableJsa jsa={jsa} />
       <PdfExportRoot jsa={jsa} plan={pdfExportPlan} pageRefsRef={pdfExportPageRefsRef} />
+      <IncidentPdfExportRoot incident={incident} pageRefsRef={incidentPdfPageRefsRef} />
       {toast && <div className="toast">{toast}</div>}
     </>
   );
@@ -1513,7 +1659,6 @@ function App() {
    Deliberately inert: no onClick, no href, cursor:default via CSS — these
    are not disabled buttons pretending to be buttons, they're plain rows. */
 const PLANNED_DOCUMENT_TYPES = [
-  { name: 'Incident Report', desc: 'Document incidents and near misses in a structured format.' },
   { name: 'BBS Observation', desc: 'Behavior-based safety observations and coaching notes.' },
   { name: 'Unplanned Event', desc: 'Capture unplanned events before they escalate.' },
   { name: 'Sign-In Sheet', desc: 'Standalone sign-in sheet for meetings and training.' },
@@ -1546,13 +1691,20 @@ function PlannedDocumentList() {
    in-progress draft data when it exists), quick access to the existing
    Documents/Drafts/Templates destinations, and an always-visible (not
    disclosure-hidden) preview of the broader document library roadmap. */
-function HomeView({ savedDraft, customTemplates, startBlank, setTab, loadSavedDraft }) {
+function HomeView({ savedDraft, customTemplates, startBlank, setTab, loadSavedDraft, savedIncidentDraft, startIncidentBlank, loadSavedIncidentDraft }) {
   const hasDraft = Boolean(savedDraft);
   const draftTitle = savedDraft?.jobSite || savedDraft?.templateName || 'Untitled JSA Draft';
   const savedLabel = savedDraft?.lastSavedAt ? nowNice(new Date(savedDraft.lastSavedAt)) : 'on this device';
   const nextStep = hasDraft ? nextStepHint(savedDraft) : null;
   const progress = hasDraft ? draftStepProgress(savedDraft) : null;
   const progressPct = progress ? Math.round((progress.done / progress.total) * 100) : 0;
+
+  const hasIncidentDraft = Boolean(savedIncidentDraft);
+  const incidentDraftTitle = savedIncidentDraft?.workplaceLocation || 'Untitled Incident Report';
+  const incidentSavedLabel = savedIncidentDraft?.lastSavedAt ? nowNice(new Date(savedIncidentDraft.lastSavedAt)) : 'on this device';
+  const incidentNextStep = hasIncidentDraft ? incidentNextStepHint(savedIncidentDraft) : null;
+  const incidentProgress = hasIncidentDraft ? incidentStepProgress(savedIncidentDraft) : null;
+  const incidentProgressPct = incidentProgress ? Math.round((incidentProgress.done / incidentProgress.total) * 100) : 0;
 
   return (
     <div className="homeLayout">
@@ -1593,6 +1745,32 @@ function HomeView({ savedDraft, customTemplates, startBlank, setTab, loadSavedDr
         )}
       </div>
 
+      <div className={`homePrimaryRow${hasIncidentDraft ? '' : ' single'}`}>
+        <section className="homeCard startDocCard">
+          <span className="availableNowTag">Available now</span>
+          <h2>Incident Report</h2>
+          <p>Document and investigate a workplace incident, step by step.</p>
+          <div className="homeCardActions">
+            <button className="btn primary homeCardBtn" onClick={startIncidentBlank}>{incidentCopy.home.startButton}</button>
+          </div>
+        </section>
+
+        {hasIncidentDraft && (
+          <section className="homeCard continueWorkCard">
+            <span className="homeCardEyebrow">Continue Current Work</span>
+            <h2>{incidentDraftTitle}</h2>
+            <p className="continueWorkMeta">Next: {incidentNextStep} &middot; Saved {incidentSavedLabel}</p>
+            <div className="continueWorkProgress">
+              <div className="continueWorkProgressTrack"><div className="continueWorkProgressFill" style={{ width: `${incidentProgressPct}%` }} /></div>
+              <span>{incidentProgress.done} of {incidentProgress.total} steps complete</span>
+            </div>
+            <div className="homeCardActions">
+              <button className="btn primary" onClick={loadSavedIncidentDraft}>{incidentCopy.home.continueButton}</button>
+            </div>
+          </section>
+        )}
+      </div>
+
       <section className="homeSection">
         <span className="homeSectionEyebrow">Workspace</span>
         <div className="workspaceAccessGrid">
@@ -1624,7 +1802,7 @@ function HomeView({ savedDraft, customTemplates, startBlank, setTab, loadSavedDr
 }
 
 /* ── Document center ── */
-function DocCenterView({ goJsaStart }) {
+function DocCenterView({ goJsaStart, goIncidentStart }) {
   return (
     <div className="sectionStack">
       <div className="sectionTitle">
@@ -1643,6 +1821,16 @@ function DocCenterView({ goJsaStart }) {
           <div className="itemActions">
             <span className="badge avail">Available</span>
             <button className="btn secondary sm" onClick={goJsaStart}>Start</button>
+          </div>
+        </div>
+        <div className="listItem">
+          <div className="itemInfo">
+            <strong>Incident Report</strong>
+            <p>Document and investigate a workplace incident, step by step.</p>
+          </div>
+          <div className="itemActions">
+            <span className="badge avail">Available</span>
+            <button className="btn secondary sm" onClick={goIncidentStart}>Start</button>
           </div>
         </div>
       </section>

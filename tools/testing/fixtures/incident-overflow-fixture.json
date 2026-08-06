@@ -1,0 +1,128 @@
+{
+  "id": "fixture-overflow-0001",
+  "schemaVersion": 1,
+  "status": "draft",
+  "createdAt": "2026-08-01T08:00:00.000Z",
+  "lastSavedAt": "",
+  "completedAt": "",
+  "reportNumber": "",
+  "workplaceLocation": "Ridgeland, MS -- Overflow Test Site",
+  "incidentDate": "2026-08-03",
+  "incidentTime": "10:30",
+  "writtenReportDateTime": "2026-08-03T12:00",
+  "reportedToSupervisorDateTime": "2026-08-03T10:35",
+  "investigatorName": "Test Investigator",
+  "investigatorTitle": "Safety Manager",
+  "investigatorPhone": "601-555-0100",
+  "investigatorEmail": "investigator@example.com",
+  "incidentSpecificLocation": "East grading pad, station 12+50",
+  "detailedIncidentDescription": "DETAILED DESCRIPTION OVERFLOW TEST. The crew was performing routine grading work on the east pad when the incident occurred. Weather conditions were clear with light wind out of the southwest. All personnel in the immediate area were wearing required PPE at the time. The equipment involved had passed its daily pre-shift inspection with no defects noted. Supervision was notified immediately and the area was secured pending review. A tailgate safety meeting had been held that morning covering similar hazards. The affected employee has been with the company for several years with no prior incidents. Additional signage and barricades were installed in the area following the event. The crew was performing routine grading work on the east pad when the incident occurred. Weather conditions were clear with light wind out of the southwest. All personnel in the immediate area were wearing required PPE at the time. The equipment involved had passed its daily pre-shift inspection with no defects noted. Supervision was notified immediately and the area was secured pending review. A tailgate safety meeting had been held that morning covering similar hazards. The affected employee has been with the company for several years with no prior incidents. Additional signage and barricades were installed in the area following the event. The crew was performing routine grading work on the east pad when the incident occurred. Weather conditions were clear with light wind out of the southwest. All personnel in the immediate area were wearing required PPE at the time. The equipment involved had passed its daily pre-shift inspection with no defects noted. Supervision was notified immediately and the area was secured pending review. A tailgate safety meeting had been held that morning covering similar hazards. The affected employee has been with the company for several years with no prior incidents. Additional signage and barricades were installed in the area following the event. The crew was performing routine grading work on the east pad when the incident occurred. Weather conditions were clear with light wind out of the southwest. All personnel in the immediate area were wearing required PPE at the time. The equipment involved had passed its daily pre-shift inspection with no defects noted. Supervision was notified immediately and the area was secured pending review. A tailgate safety meeting had been held that morning covering similar hazards. The affected employee has been with the company for several years with no prior incidents. Additional signage and barricades were installed in the area following the event. The crew was performing routine grading work on the east pad when the incident occurred. Weather conditions were clear with light wind out of the southwest. All personnel in the immediate area were wearing required PPE at the time. The equipment involved had passed its daily pre-shift inspection with no defects noted. Supervision was notified immediately and the area was secured pending review. A tailgate safety meeting had been held that morning covering similar hazards. The affected employee has been with the company for several years with no prior incidents. Additional signage and barricades were installed in the area following the event. The crew was performing routine grading work on the east pad when the incident occurred. Weather conditions were clear with light wind out of the southwest. All personnel in the immediate area were wearing required PPE at the time. The equipment involved had passed its daily pre-shift inspection with no defects noted. Supervision was notified immediately and the area was secured pending review. A tailgate safety meeting had been held that morning covering similar hazards. The affected employee has been with the company for several years with no prior incidents. Additional signage and barricades were installed in the area following the event. The crew was performing routine grading work on the east pad when the incident occurred. Weather conditions were clear with light wind out of the southwest. All personnel in the immediate area were wearing required PPE at the time. The equipment involved had passed its daily pre-shift inspection with no defects noted.",
+  "injuryOccurred": "yes",
+  "injuredPartyName": "Overflow Test Employee",
+  "injuredPartyTitle": "Laborer",
+  "injuredPartyYearsWithCompany": "1",
+  "injuredPartyCurrentTrade": "General Labor",
+  "injuredPartyPhone": "601-555-0199",
+  "injuredPartyEmail": "employee@example.com",
+  "injuryNature": [
+    "Laceration/cut",
+    "Other"
+  ],
+  "injuryNatureOther": "Minor abrasion on forearm in addition to the cut",
+  "bodyPartsAffectedText": "Left forearm and hand",
+  "treatmentLevel": "beyondFirstAid",
+  "treatingPhysicianOrClinic": "UMMC Occupational Health",
+  "injuryRemarks": "INJURY REMARKS OVERFLOW. The crew was performing routine grading work on the east pad when the incident occurred. Weather conditions were clear with light wind out of the southwest. All personnel in the immediate area were wearing required PPE at the time. The equipment involved had passed its daily pre-shift inspection with no defects noted. Supervision was notified immediately and the area was secured pending review. A tailgate safety meeting had been held that morning covering similar hazards. The affected employee has been with the company for several years with no prior incidents. Additional signage and barricades were installed in the area following the event.",
+  "bodyDiagramMarks": [
+    {
+      "id": "m1",
+      "xPct": 20,
+      "yPct": 45
+    }
+  ],
+  "witnesses": [
+    {
+      "id": "w1",
+      "name": "Witness One",
+      "company": "Shackelford",
+      "supervisor": "Test Supervisor",
+      "phone": "601-555-0201",
+      "email": "w1@example.com",
+      "statement": "WITNESS ONE STATEMENT OVERFLOW TEST. The crew was performing routine grading work on the east pad when the incident occurred. Weather conditions were clear with light wind out of the southwest. All personnel in the immediate area were wearing required PPE at the time. The equipment involved had passed its daily pre-shift inspection with no defects noted. Supervision was notified immediately and the area was secured pending review. A tailgate safety meeting had been held that morning covering similar hazards. The affected employee has been with the company for several years with no prior incidents. Additional signage and barricades were installed in the area following the event. The crew was performing routine grading work on the east pad when the incident occurred. Weather conditions were clear with light wind out of the southwest. All personnel in the immediate area were wearing required PPE at the time. The equipment involved had passed its daily pre-shift inspection with no defects noted. Supervision was notified immediately and the area was secured pending review. A tailgate safety meeting had been held that morning covering similar hazards. The affected employee has been with the company for several years with no prior incidents. Additional signage and barricades were installed in the area following the event. The crew was performing routine grading work on the east pad when the incident occurred. Weather conditions were clear with light wind out of the southwest. All personnel in the immediate area were wearing required PPE at the time. The equipment involved had passed its daily pre-shift inspection with no defects noted. Supervision was notified immediately and the area was secured pending review. A tailgate safety meeting had been held that morning covering similar hazards. The affected employee has been with the company for several years with no prior incidents. Additional signage and barricades were installed in the area following the event. The crew was performing routine grading work on the east pad when the incident occurred. Weather conditions were clear with light wind out of the southwest. All personnel in the immediate area were wearing required PPE at the time. The equipment involved had passed its daily pre-shift inspection with no defects noted. Supervision was notified immediately and the area was secured pending review. A tailgate safety meeting had been held that morning covering similar hazards. The affected employee has been with the company for several years with no prior incidents. Additional signage and barricades were installed in the area following the event.",
+      "signatureData": null,
+      "signatureDate": "2026-08-03"
+    },
+    {
+      "id": "w2",
+      "name": "Witness Two",
+      "company": "Shackelford",
+      "supervisor": "Test Supervisor",
+      "phone": "601-555-0202",
+      "email": "w2@example.com",
+      "statement": "WITNESS TWO STATEMENT OVERFLOW TEST. The crew was performing routine grading work on the east pad when the incident occurred. Weather conditions were clear with light wind out of the southwest. All personnel in the immediate area were wearing required PPE at the time. The equipment involved had passed its daily pre-shift inspection with no defects noted. Supervision was notified immediately and the area was secured pending review. A tailgate safety meeting had been held that morning covering similar hazards. The affected employee has been with the company for several years with no prior incidents. Additional signage and barricades were installed in the area following the event. The crew was performing routine grading work on the east pad when the incident occurred. Weather conditions were clear with light wind out of the southwest. All personnel in the immediate area were wearing required PPE at the time. The equipment involved had passed its daily pre-shift inspection with no defects noted. Supervision was notified immediately and the area was secured pending review. A tailgate safety meeting had been held that morning covering similar hazards. The affected employee has been with the company for several years with no prior incidents. Additional signage and barricades were installed in the area following the event. The crew was performing routine grading work on the east pad when the incident occurred. Weather conditions were clear with light wind out of the southwest. All personnel in the immediate area were wearing required PPE at the time. The equipment involved had passed its daily pre-shift inspection with no defects noted. Supervision was notified immediately and the area was secured pending review. A tailgate safety meeting had been held that morning covering similar hazards. The affected employee has been with the company for several years with no prior incidents. Additional signage and barricades were installed in the area following the event. The crew was performing routine grading work on the east pad when the incident occurred. Weather conditions were clear with light wind out of the southwest. All personnel in the immediate area were wearing required PPE at the time. The equipment involved had passed its daily pre-shift inspection with no defects noted. Supervision was notified immediately and the area was secured pending review. A tailgate safety meeting had been held that morning covering similar hazards. The affected employee has been with the company for several years with no prior incidents. Additional signage and barricades were installed in the area following the event.",
+      "signatureData": null,
+      "signatureDate": "2026-08-03"
+    },
+    {
+      "id": "w3",
+      "name": "Witness Three",
+      "company": "Shackelford",
+      "supervisor": "Test Supervisor",
+      "phone": "601-555-0203",
+      "email": "w3@example.com",
+      "statement": "WITNESS THREE STATEMENT OVERFLOW TEST. The crew was performing routine grading work on the east pad when the incident occurred. Weather conditions were clear with light wind out of the southwest. All personnel in the immediate area were wearing required PPE at the time. The equipment involved had passed its daily pre-shift inspection with no defects noted. Supervision was notified immediately and the area was secured pending review. A tailgate safety meeting had been held that morning covering similar hazards. The affected employee has been with the company for several years with no prior incidents. Additional signage and barricades were installed in the area following the event. The crew was performing routine grading work on the east pad when the incident occurred. Weather conditions were clear with light wind out of the southwest. All personnel in the immediate area were wearing required PPE at the time. The equipment involved had passed its daily pre-shift inspection with no defects noted. Supervision was notified immediately and the area was secured pending review. A tailgate safety meeting had been held that morning covering similar hazards. The affected employee has been with the company for several years with no prior incidents. Additional signage and barricades were installed in the area following the event. The crew was performing routine grading work on the east pad when the incident occurred. Weather conditions were clear with light wind out of the southwest. All personnel in the immediate area were wearing required PPE at the time. The equipment involved had passed its daily pre-shift inspection with no defects noted. Supervision was notified immediately and the area was secured pending review. A tailgate safety meeting had been held that morning covering similar hazards. The affected employee has been with the company for several years with no prior incidents. Additional signage and barricades were installed in the area following the event. The crew was performing routine grading work on the east pad when the incident occurred. Weather conditions were clear with light wind out of the southwest. All personnel in the immediate area were wearing required PPE at the time. The equipment involved had passed its daily pre-shift inspection with no defects noted. Supervision was notified immediately and the area was secured pending review. A tailgate safety meeting had been held that morning covering similar hazards. The affected employee has been with the company for several years with no prior incidents. Additional signage and barricades were installed in the area following the event.",
+      "signatureData": null,
+      "signatureDate": "2026-08-03"
+    }
+  ],
+  "propertyDamageOccurred": "yes",
+  "propertyOrMaterialDamaged": "Test equipment guard",
+  "natureOfDamage": "Bent during the event",
+  "objectMachineToolOrSubstance": "Grader blade guard",
+  "approximateDamageCost": "$250",
+  "selectedCauses": [
+    "unsafeActs::Improper work technique",
+    "unsafeConditions::Poor housekeeping",
+    "managementDeficiencies::Insufficient worker training",
+    "unsafeActs::Other",
+    "unsafeConditions::Other",
+    "managementDeficiencies::Other"
+  ],
+  "primaryCause": "unsafeActs::Improper work technique",
+  "unsafeActsOther": "Reached across a moving conveyor instead of stopping it first",
+  "unsafeConditionsOther": "Loose gravel accumulated near the walkway",
+  "managementDeficienciesOther": "Refresher training was overdue for this crew",
+  "supervisorNotes": "SUPERVISOR NOTES OVERFLOW TEST. The crew was performing routine grading work on the east pad when the incident occurred. Weather conditions were clear with light wind out of the southwest. All personnel in the immediate area were wearing required PPE at the time. The equipment involved had passed its daily pre-shift inspection with no defects noted. Supervision was notified immediately and the area was secured pending review. A tailgate safety meeting had been held that morning covering similar hazards. The affected employee has been with the company for several years with no prior incidents. Additional signage and barricades were installed in the area following the event. The crew was performing routine grading work on the east pad when the incident occurred. Weather conditions were clear with light wind out of the southwest. All personnel in the immediate area were wearing required PPE at the time. The equipment involved had passed its daily pre-shift inspection with no defects noted. Supervision was notified immediately and the area was secured pending review. A tailgate safety meeting had been held that morning covering similar hazards. The affected employee has been with the company for several years with no prior incidents. Additional signage and barricades were installed in the area following the event. The crew was performing routine grading work on the east pad when the incident occurred. Weather conditions were clear with light wind out of the southwest. All personnel in the immediate area were wearing required PPE at the time. The equipment involved had passed its daily pre-shift inspection with no defects noted. Supervision was notified immediately and the area was secured pending review. A tailgate safety meeting had been held that morning covering similar hazards. The affected employee has been with the company for several years with no prior incidents. Additional signage and barricades were installed in the area following the event. The crew was performing routine grading work on the east pad when the incident occurred. Weather conditions were clear with light wind out of the southwest. All personnel in the immediate area were wearing required PPE at the time.",
+  "safetyConsultantNotes": "SAFETY CONSULTANT NOTES OVERFLOW TEST. The crew was performing routine grading work on the east pad when the incident occurred. Weather conditions were clear with light wind out of the southwest. All personnel in the immediate area were wearing required PPE at the time. The equipment involved had passed its daily pre-shift inspection with no defects noted. Supervision was notified immediately and the area was secured pending review. A tailgate safety meeting had been held that morning covering similar hazards. The affected employee has been with the company for several years with no prior incidents. Additional signage and barricades were installed in the area following the event. The crew was performing routine grading work on the east pad when the incident occurred. Weather conditions were clear with light wind out of the southwest. All personnel in the immediate area were wearing required PPE at the time. The equipment involved had passed its daily pre-shift inspection with no defects noted. Supervision was notified immediately and the area was secured pending review. A tailgate safety meeting had been held that morning covering similar hazards. The affected employee has been with the company for several years with no prior incidents. Additional signage and barricades were installed in the area following the event. The crew was performing routine grading work on the east pad when the incident occurred. Weather conditions were clear with light wind out of the southwest. All personnel in the immediate area were wearing required PPE at the time. The equipment involved had passed its daily pre-shift inspection with no defects noted. Supervision was notified immediately and the area was secured pending review. A tailgate safety meeting had been held that morning covering similar hazards. The affected employee has been with the company for several years with no prior incidents. Additional signage and barricades were installed in the area following the event. The crew was performing routine grading work on the east pad when the incident occurred. Weather conditions were clear with light wind out of the southwest. All personnel in the immediate area were wearing required PPE at the time.",
+  "investigationTeam": [
+    {
+      "id": "t1",
+      "name": "Team Member One",
+      "title": "Safety Coordinator",
+      "signatureData": null,
+      "date": "2026-08-03"
+    },
+    {
+      "id": "t2",
+      "name": "Team Member Two",
+      "title": "Safety Manager",
+      "signatureData": null,
+      "date": "2026-08-03"
+    },
+    {
+      "id": "t3",
+      "name": "Team Member Three",
+      "title": "Superintendent",
+      "signatureData": null,
+      "date": "2026-08-03"
+    },
+    {
+      "id": "t4",
+      "name": "Team Member Four",
+      "title": "HR Representative",
+      "signatureData": null,
+      "date": "2026-08-03"
+    }
+  ],
+  "notes": ""
+}

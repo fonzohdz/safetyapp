@@ -1,0 +1,271 @@
+/* ── Incident Report module styles ──
+   Split from styles.css on purpose: this is a self-contained module, and
+   keeping its CSS separate makes the boundary between "JSA" and "Incident
+   Report" easy to audit. Reuses the app's existing design tokens
+   (--accent, --muted, --line, --radius, .btn/.field/.card/.badge etc. from
+   styles.css) for the on-screen workflow so it looks like the same product,
+   but the PDF page rules below are intentionally self-contained fixed
+   px/pt values -- they must stay in sync with incidentPdfLayout.js (see
+   comments there) since that module measures real text against these
+   exact same numbers. */
+
+/* ══════════════ On-screen workflow ══════════════ */
+
+.incidentStepGrid { display: grid; gap: 14px; }
+
+.yesNoToggle { display: flex; gap: 8px; }
+.yesNoToggle button {
+  flex: 1 1 0;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 44px;
+}
+.yesNoToggle button.active.yes { background: color-mix(in srgb, #2e7d32 18%, transparent); border-color: #2e7d32; color: #1b5e20; }
+.yesNoToggle button.active.no { background: color-mix(in srgb, var(--accent) 16%, transparent); border-color: var(--accent); color: var(--accent); }
+html[data-theme='dark'] .yesNoToggle button.active.yes { color: #8bd48f; }
+
+.chipGrid { display: flex; flex-wrap: wrap; gap: 8px; }
+.chipToggle {
+  padding: 8px 13px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 13.5px;
+  cursor: pointer;
+  min-height: 40px;
+}
+.chipToggle.active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+
+.causeCategoryBlock { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; background: var(--surface-1); }
+.causeCategoryBlock + .causeCategoryBlock { margin-top: 12px; }
+.causeCategoryTitle { font-weight: 700; margin-bottom: 8px; }
+.causeItemRow { display: flex; align-items: center; gap: 8px; padding: 6px 4px; border-radius: var(--radius-sm); }
+.causeItemRow:hover { background: var(--surface-2); }
+.causeItemRow label { display: flex; align-items: center; gap: 8px; flex: 1 1 auto; cursor: pointer; min-height: 32px; }
+.causeItemRow input[type="checkbox"] { width: 18px; height: 18px; }
+.causePrimaryBtn { font-size: 12px; padding: 4px 9px; border-radius: var(--radius-pill); border: 1px solid var(--line); background: var(--surface-2); cursor: pointer; white-space: nowrap; }
+.causePrimaryBtn.active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; }
+
+.witnessCard, .teamMemberCard {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px;
+  background: var(--surface-1);
+  display: grid;
+  gap: 10px;
+}
+.witnessCard + .witnessCard, .teamMemberCard + .teamMemberCard { margin-top: 12px; }
+.cardRowHeader { display: flex; align-items: center; justify-content: space-between; }
+.cardRowHeader strong { font-size: 14.5px; }
+
+.signaturePad { display: grid; gap: 8px; }
+.signatureCanvas {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  touch-action: none;
+  max-width: 100%;
+}
+.signaturePreviewWrap { display: grid; gap: 8px; }
+.signaturePreview {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  max-width: 320px;
+  height: 90px;
+  object-fit: contain;
+}
+.signaturePreviewEmpty { display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 12.5px; }
+.signaturePadActions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.bodyDiagramWrap { display: grid; gap: 10px; }
+.bodyDiagramImageWrap { position: relative; display: inline-block; max-width: 100%; cursor: crosshair; touch-action: manipulation; }
+.bodyDiagramReadOnly { cursor: default; }
+.bodyDiagramImage { max-width: 100%; display: block; border: 1px solid var(--line); border-radius: var(--radius-sm); background: #fff; user-select: none; }
+.bodyDiagramMark {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  margin-top: -7px;
+  border-radius: 50%;
+  background: #d0021b;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px #d0021b;
+  pointer-events: none;
+}
+.bodyDiagramActions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.incidentReadinessList { display: grid; gap: 6px; }
+.incidentReadinessItem { display: flex; align-items: center; gap: 8px; font-size: 13.5px; }
+.incidentReadinessItem .checkIcon { width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; flex: none; }
+.incidentReadinessItem.ok .checkIcon { background: color-mix(in srgb, #2e7d32 20%, transparent); color: #1b5e20; }
+.incidentReadinessItem.pending .checkIcon { background: var(--surface-3); color: var(--muted); }
+html[data-theme='dark'] .incidentReadinessItem.ok .checkIcon { color: #8bd48f; }
+
+/* ══════════════ PDF / print page rendering ══════════════ */
+
+.incidentPdfExportRoot {
+  position: fixed;
+  top: 0;
+  left: -20000px;
+  pointer-events: none;
+}
+
+.incidentPage {
+  position: relative;
+  width: 8.5in;
+  height: 11in;
+  max-height: 11in;
+  box-sizing: border-box;
+  overflow: hidden;
+  padding: 0.3in;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 10pt;
+  color: #000;
+  background: #fff;
+}
+
+.incidentHeader { flex: none; }
+.incidentHeaderBar {
+  display: grid;
+  grid-template-columns: 1.6in 1fr 1in;
+  align-items: center;
+  gap: 0.08in;
+  min-height: 0.5in;
+}
+.incidentHeaderLogo { max-width: 100%; max-height: 0.42in; object-fit: contain; }
+.incidentHeaderTitles { text-align: center; }
+.incidentHeaderTitles h1 { margin: 0; font-size: 12.5pt; letter-spacing: .2px; }
+.incidentHeaderTitles h2 { margin: 2px 0 0; font-size: 8.5pt; color: #8b0f18; text-transform: uppercase; letter-spacing: .3px; }
+.incidentHeaderPageNum { text-align: right; font-size: 8.5pt; color: #333; white-space: nowrap; }
+.incidentRedRule { height: 3px; background: #c1121f; margin-top: 4px; }
+
+.incidentPageBody { flex: 1 1 auto; display: flex; flex-direction: column; gap: 5px; min-height: 0; }
+
+.incGrayBar {
+  background: #c9cecc;
+  border: 1px solid #000;
+  border-bottom: 0;
+  padding: 3px 6px;
+  font-size: 9.5pt;
+  font-weight: 700;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.incInfoTable { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.incInfoTable th, .incInfoTable td {
+  border: 1px solid #000;
+  padding: 3px 6px;
+  font-size: 9.5pt;
+  line-height: 1.35;
+  text-align: left;
+  vertical-align: top;
+  word-break: break-word;
+}
+.incInfoTable th { background: #efefef; font-weight: 700; width: 32%; }
+.incInfoTable + .incInfoTable { margin-top: -1px; }
+.incInfoTable tr + tr th, .incInfoTable tr + tr td { border-top: 0; }
+
+.incTextBlockWrap { display: flex; flex-direction: column; gap: 2px; }
+.incTextBlockTitle { font-weight: 700; font-size: 9.5pt; text-transform: uppercase; }
+.incTextBlockHelp { font-size: 8pt; color: #333; font-style: italic; }
+.incTextBlock {
+  border: 1px solid #000;
+  padding: 5px;
+  font-size: 10pt;
+  line-height: 15.5px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  min-height: 20px;
+}
+.incTextBlockContinuation { min-height: 700px; }
+
+.incYesNoLine { display: flex; align-items: baseline; gap: 6px; font-size: 10pt; padding: 2px 0; }
+.incYesNoLabel { font-weight: 700; }
+.incYesNoValue { font-weight: 700; }
+.incYesNoNote { font-size: 8.5pt; color: #333; font-style: italic; }
+
+.incNotApplicable {
+  border: 1px dashed #777;
+  padding: 6px 8px;
+  font-size: 9.5pt;
+  color: #444;
+  font-style: italic;
+  text-align: center;
+}
+.incNotApplicableInline { font-size: 9pt; color: #555; font-style: italic; }
+
+.incBodyDiagramSection { display: flex; flex-direction: column; gap: 3px; flex: 1 1 auto; min-height: 0; }
+.incidentBodyDiagramPrint { position: relative; display: flex; justify-content: center; flex: 1 1 auto; min-height: 0; }
+.incidentBodyDiagramImage { max-height: 100%; max-width: 100%; object-fit: contain; }
+.incidentBodyDiagramMark {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: #d0021b;
+  border: 1px solid #fff;
+}
+
+.incSignatureRow { display: flex; align-items: center; gap: 8px; font-size: 9.5pt; }
+.incSignatureRowLabel { font-weight: 700; }
+.incSignatureImage { height: 34px; max-width: 160px; object-fit: contain; }
+
+.incCauseIntro { font-size: 9pt; font-weight: 700; border: 1px solid #000; padding: 4px 6px; text-align: center; }
+.incCauseTable { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 8.5pt; flex: 1 1 auto; }
+.incCauseTable th {
+  background: #c9cecc;
+  border: 1px solid #000;
+  padding: 3px 4px;
+  font-size: 8.8pt;
+  text-align: center;
+  text-transform: uppercase;
+}
+.incCauseTable td { border: 1px solid #000; padding: 1.5px 4px; vertical-align: top; }
+.incCauseTable td.incCauseChecked { background: #f4e7e9; }
+.incCheckbox {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border: 1px solid #000;
+  text-align: center;
+  line-height: 8px;
+  font-size: 7.5px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+.incCheckbox.checked { background: #000; color: #fff; }
+.incCauseItemText { vertical-align: middle; }
+.incCauseOtherLines { display: flex; flex-direction: column; gap: 2px; font-size: 8.8pt; }
+.incCauseOtherLine { display: flex; gap: 6px; }
+
+.incTeamTable th, .incTeamTable td { width: 25%; }
+
+.incContinuationMeta { display: flex; gap: 16px; font-size: 8.5pt; color: #333; border-bottom: 1px solid #999; padding-bottom: 3px; margin-bottom: 4px; }
+
+.incidentWatermark {
+  position: absolute;
+  top: 45%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-30deg);
+  font-size: 72pt;
+  font-weight: 800;
+  color: rgba(197, 31, 58, 0.16);
+  letter-spacing: 6px;
+  pointer-events: none;
+  white-space: nowrap;
+}

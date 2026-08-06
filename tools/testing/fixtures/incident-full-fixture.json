@@ -1,0 +1,101 @@
+{
+  "id": "fixture-full-0001",
+  "schemaVersion": 1,
+  "status": "draft",
+  "createdAt": "2026-08-01T08:00:00.000Z",
+  "lastSavedAt": "",
+  "completedAt": "",
+  "reportNumber": "",
+
+  "workplaceLocation": "Ridgeland, MS \u2014 Entergy TAPS Yard",
+  "incidentDate": "2026-08-05",
+  "incidentTime": "13:45",
+  "writtenReportDateTime": "2026-08-05T15:30",
+  "reportedToSupervisorDateTime": "2026-08-05T13:55",
+  "investigatorName": "Gaines Newell",
+  "investigatorTitle": "Site Superintendent",
+  "investigatorPhone": "601-555-0142",
+  "investigatorEmail": "gnewell@shackelfordch.com",
+  "incidentSpecificLocation": "East gen pad, near the lime mixing station",
+  "detailedIncidentDescription": "While repositioning a water pull hose near the lime mixing station, the injured party stepped backward onto an uneven section of graded fill and rolled his right ankle. He was able to bear weight briefly before reporting pain and swelling. Two coworkers assisted him to the site trailer, where first aid was administered and the ankle was wrapped and elevated. Work in the immediate area was paused for approximately twenty minutes while the ground was inspected and marked. No other workers were in the immediate vicinity at the time of the incident.",
+
+  "injuryOccurred": "yes",
+  "injuredPartyName": "Marcus Doyle",
+  "injuredPartyTitle": "Equipment Operator",
+  "injuredPartyYearsWithCompany": "3",
+  "injuredPartyCurrentTrade": "Heavy Equipment",
+  "injuredPartyPhone": "601-555-0198",
+  "injuredPartyEmail": "mdoyle@example.com",
+  "injuryNature": ["Sprain/strain", "Bruising"],
+  "injuryNatureOther": "",
+  "bodyPartsAffectedText": "Right ankle and lower leg",
+  "treatmentLevel": "firstAid",
+  "treatingPhysicianOrClinic": "N/A \u2014 treated on site",
+  "injuryRemarks": "Ice and wrap applied. Employee was advised to see UMMC/AFCU if swelling does not improve by next shift.",
+  "bodyDiagramMarks": [
+    { "id": "m1", "xPct": 27, "yPct": 78 },
+    { "id": "m2", "xPct": 50, "yPct": 80 }
+  ],
+
+  "witnesses": [
+    {
+      "id": "w1",
+      "name": "Kris Taute",
+      "company": "Shackelford Construction and Hauling",
+      "supervisor": "Jake Lytle",
+      "phone": "601-555-0111",
+      "email": "ktaute@example.com",
+      "statement": "I was operating the water truck about 40 feet away and saw Marcus step back and go down onto one knee. I turned off the truck and went to check on him right away.",
+      "signatureData": null,
+      "signatureDate": "2026-08-05"
+    },
+    {
+      "id": "w2",
+      "name": "Jake Lytle",
+      "company": "Shackelford Construction and Hauling",
+      "supervisor": "Gaines Newell",
+      "phone": "601-555-0122",
+      "email": "jlytle@example.com",
+      "statement": "I helped walk Marcus to the trailer and got the first aid kit. The ground in that area had a hidden dip that wasn't obvious until you were right on top of it.",
+      "signatureData": null,
+      "signatureDate": "2026-08-05"
+    },
+    {
+      "id": "w3",
+      "name": "Delores Fenwick",
+      "company": "Entergy",
+      "supervisor": "N/A",
+      "phone": "601-555-0133",
+      "email": "dfenwick@example.com",
+      "statement": "I was in the area for a site walk and saw the crew respond quickly and professionally.",
+      "signatureData": null,
+      "signatureDate": "2026-08-05"
+    }
+  ],
+
+  "propertyDamageOccurred": "yes",
+  "propertyOrMaterialDamaged": "Water pull hose coupling",
+  "natureOfDamage": "Coupling cracked when dropped during the incident",
+  "objectMachineToolOrSubstance": "2-inch camlock hose coupling",
+  "approximateDamageCost": "$85",
+
+  "selectedCauses": [
+    "unsafeConditions::Slippery conditions",
+    "unsafeConditions::Insufficient lighting",
+    "managementDeficiencies::Inadequate workplace inspection",
+    "unsafeActs::Unnecessary haste/rush"
+  ],
+  "primaryCause": "unsafeConditions::Slippery conditions",
+  "unsafeActsOther": "",
+  "unsafeConditionsOther": "",
+  "managementDeficienciesOther": "",
+
+  "supervisorNotes": "Area has been flagged and will be re-graded before work resumes. Toolbox talk held with crew on inspecting footing before backing/repositioning hoses and equipment near graded fill.",
+  "safetyConsultantNotes": "Recommend adding a daily ground-condition check to the JSA for lime mixing operations and marking soft/uneven fill areas with cones until regraded.",
+  "investigationTeam": [
+    { "id": "t1", "name": "Alfonso Hernandez", "title": "Safety Coordinator", "signatureData": null, "date": "2026-08-05" },
+    { "id": "t2", "name": "Gaines Newell", "title": "Site Superintendent", "signatureData": null, "date": "2026-08-05" }
+  ],
+
+  "notes": ""
+}
