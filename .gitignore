@@ -1,2 +1,8 @@
 node_modules/
 dist/
+
+# Generated PDFs/screenshots from tools/testing/verify-jsa-pdf.mjs -- the
+# script and its fixture stay tracked for repeatable PDF regression testing,
+# but their output artifacts are throwaway and regenerated on demand.
+tools/testing/output/
+tools/testing/output-before/
