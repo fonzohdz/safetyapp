@@ -43,12 +43,19 @@ export function fmtTime(v) {
   return `${h12}:${m[2]} ${ampm}`;
 }
 
-export function IncidentPageShell({ pageRef, pageNumber, totalPages, draft, children, className = '' }) {
+/* watermarkVariant (the page's own type -- 'page1'..'page6') selects a
+   per-page-type vertical position via incidentWatermark--pageN in
+   incident.css, so the stamp lands on each page's largest calm region
+   instead of one universal position that happens to cross witness/
+   investigation-team signature rows on some pages -- see the v0.1.4 polish
+   pass. Deterministic (keyed off page type, not content), simple, and the
+   default (no variant) still renders identically to before. */
+export function IncidentPageShell({ pageRef, pageNumber, totalPages, draft, children, className = '', watermarkVariant }) {
   return (
     <div ref={pageRef} className={`incidentPage ${className}`}>
       <IncidentHeader pageNumber={pageNumber} totalPages={totalPages} />
       <div className="incidentPageBody">{children}</div>
-      {draft && <div className="incidentWatermark">DRAFT</div>}
+      {draft && <div className={`incidentWatermark${watermarkVariant ? ` incidentWatermark--${watermarkVariant}` : ''}`}>DRAFT</div>}
     </div>
   );
 }

@@ -65,20 +65,31 @@ html[data-theme='dark'] .yesNoToggle button.active.yes { color: #8bd48f; }
 .cardRowHeader strong { font-size: 14.5px; }
 
 .signaturePad { display: grid; gap: 8px; }
+/* Full-width block so SignaturePad's own resize measurement (wrapRef in
+   SignaturePad.jsx) reads the real available width of whatever container
+   holds it -- a half-width column when paired with a date field, the full
+   field width on a narrow/stacked layout -- rather than a fixed guess. */
+.signatureCanvasWrap { width: 100%; }
 .signatureCanvas {
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: #fff;
   touch-action: none;
   max-width: 100%;
+  display: block;
 }
 .signaturePreviewWrap { display: grid; gap: 8px; }
+/* Enlarged from 320x90 (v0.1.4 polish pass) so a saved signature is actually
+   legible for review before export, not just a thumbnail -- still capped at
+   a sane max-width so it doesn't dominate the form on a wide desktop
+   viewport, and still object-fit: contain so nothing stretches/distorts. */
 .signaturePreview {
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: #fff;
-  max-width: 320px;
-  height: 90px;
+  width: 100%;
+  max-width: 420px;
+  height: 120px;
   object-fit: contain;
 }
 .signaturePreviewEmpty { display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 12.5px; }
@@ -161,31 +172,59 @@ html[data-theme='dark'] .incidentReadinessItem.ok .checkIcon { color: #8bd48f; }
 .incidentHeaderPageNum { text-align: right; font-size: 8.5pt; color: #333; white-space: nowrap; }
 .incidentRedRule { height: 3px; background: #c1121f; margin-top: 4px; }
 
-.incidentPageBody { flex: 1 1 auto; display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+.incidentPageBody { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
 
-/* One flex `gap` on .incidentPageBody is the ONLY vertical spacing mechanism
-   between sections now -- every direct child (gray bar, table, text block)
-   is separated by the exact same 6px regardless of what precedes/follows it.
-   A previous `.incInfoTable + .incInfoTable { margin-top: -1px }` hack tried
-   to visually "fuse" two adjacent tables with no gray bar between them into
-   one continuous grid (a pre-flexbox-gap trick for collapsing double
-   borders), but once .incidentPageBody switched to `display:flex` + `gap`,
-   that negative margin only ate 1px of the 6px gap (leaving an inconsistent
-   4px gap there vs. 6px everywhere else) instead of truly fusing anything --
-   see the v0.1.3 typography/spacing pass. Removed rather than "fixed" since
-   a uniform 6px between all sections already reads as consistent and
-   intentional; there is no correctness reason two tables need to look
-   different from a table following a gray bar. */
+/* v0.1.4 section rhythm: space belongs ABOVE a new section, and a gray bar
+   must connect directly (zero gap) to the content it labels -- no floating
+   header, no white strip underneath. A flex `gap` can't express "6px here,
+   0px there" since it applies uniformly between every pair of children, so
+   spacing moved to per-child `margin-top` instead: every direct child of
+   .incidentPageBody gets 6px above it (the "space before a new section"
+   rule) EXCEPT the page's first child (nothing to separate from) and
+   whatever immediately follows a gray bar (the bar owns getting space above
+   IT; its own connected content sits flush underneath it). This replaces
+   the old uniform 6px `gap` from the v0.1.3 pass -- same rhythm everywhere
+   a gray bar isn't involved, zero gap where one is. */
+.incidentPageBody > * { margin-top: 6px; }
+.incidentPageBody > *:first-child { margin-top: 0; }
+.incidentPageBody > .incGrayBar + * { margin-top: 0; }
 
+/* Border ownership for a gray-bar/content pair sitting flush against each
+   other (see above): without this, the bar's own bottom border (1px) and
+   the connected table/text-box's top border (1px) would stack into a
+   visibly darker/doubled 2px seam. The bar owns the shared edge; directly-
+   connected content drops its own top border so there is exactly one clean
+   1px line between them. Scoped to elements that can actually follow a bar
+   in the real markup (info tables, the witness signature table, and
+   text-block boxes, which may sit behind a help-text line -- hence the
+   descendant selector) -- see IncidentPdf.jsx's WitnessBlock/Page6Content. */
+.incGrayBar + .incInfoTable th,
+.incGrayBar + .incInfoTable td {
+  border-top: 0;
+}
+.incGrayBar + .incTextBlockWrap .incTextBlock {
+  border-top: 0;
+}
+
+/* True vertical + horizontal centering via flex, not padding/line-height
+   (padding-only centering drifts off-center the moment font metrics or
+   box-sizing rounding shift slightly -- see the v0.1.4 polish pass). A
+   fixed min-height (rather than the old vertical padding) gives every bar
+   on every page the same footprint regardless of incidental text-baseline
+   differences between browsers/fonts. */
 .incGrayBar {
   background: #c9cecc;
   border: 1px solid #000;
-  padding: 4.5px 8px;
+  min-height: 24px;
+  padding: 0 8px;
   font-size: 9.5pt;
   line-height: 1.3;
   font-weight: 700;
   text-align: center;
   text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Compact information-table cells: horizontally left, vertically centered,
@@ -213,7 +252,11 @@ html[data-theme='dark'] .incidentReadinessItem.ok .checkIcon { color: #8bd48f; }
 .incInfoTable td { font-weight: 400; font-size: 10pt; line-height: 1.3; }
 .incInfoTable tr + tr th, .incInfoTable tr + tr td { border-top: 0; }
 
-.incTextBlockWrap { display: flex; flex-direction: column; gap: 4px; }
+/* 5px gap between title/help text and the writing box below it -- enough
+   breathing room that the italic help text (Page 6's supervisor-notes
+   helper) never touches or rides the box's top border, without adding so
+   much space it reads as a separate section (see v0.1.4 polish pass). */
+.incTextBlockWrap { display: flex; flex-direction: column; gap: 5px; }
 .incTextBlockTitle { font-weight: 700; font-size: 9.5pt; text-transform: uppercase; }
 .incTextBlockHelp { font-size: 8.3pt; line-height: 1.3; color: #333; font-style: italic; }
 /* Large narrative/writing boxes (description, statements, notes): text stays
@@ -298,21 +341,26 @@ html[data-theme='dark'] .incidentReadinessItem.ok .checkIcon { color: #8bd48f; }
   text-align: center;
   text-transform: uppercase;
 }
-.incCauseTable td { border: 1px solid #000; padding: 3px 6px; line-height: 1.25; vertical-align: top; }
+.incCauseTable td { border: 1px solid #000; padding: 4px 6px; line-height: 1.3; vertical-align: top; }
 .incCauseTable td.incCauseChecked { background: #f4e7e9; }
+/* Checkbox aligns with the FIRST LINE of its (possibly wrapped) item text,
+   not the cell's own vertical center -- vertical-align: text-top lines its
+   box up with the top of the current line box the same way a real form
+   checkbox sits next to the first line of a wrapped label. A consistent
+   4px gap (margin-right) separates it from the wording at every row. */
 .incCheckbox {
   display: inline-block;
-  width: 9px;
-  height: 9px;
+  width: 10px;
+  height: 10px;
   border: 1px solid #000;
   text-align: center;
-  line-height: 8px;
-  font-size: 7.5px;
-  margin-right: 4px;
-  vertical-align: middle;
+  line-height: 9px;
+  font-size: 8px;
+  margin-right: 5px;
+  vertical-align: text-top;
 }
 .incCheckbox.checked { background: #000; color: #fff; }
-.incCauseItemText { vertical-align: middle; }
+.incCauseItemText { vertical-align: text-top; }
 
 /* All 4 rows get the same height (enough for a normal signature image at
    .incSignatureImage's 34px height plus padding) whether or not they're
@@ -354,4 +402,22 @@ html[data-theme='dark'] .incidentReadinessItem.ok .checkIcon { color: #8bd48f; }
   pointer-events: none;
   white-space: nowrap;
   z-index: 0;
+}
+
+/* Per-page-type placement (v0.1.4 polish pass): the default 45% center
+   position is fine for pages 1/2/5, whose lower half is either blank
+   writing room or the cause table itself, but pages 3/4/6 keep their most
+   important marks (witness signatures, investigation-team signatures) in
+   the bottom third -- shifting the stamp up onto the statement/notes
+   boxes above keeps it off those cells without moving it off the page or
+   making it any less visible. Page 5's cause table has no calm blank
+   region at all, so it gets a slightly lower alpha instead of a repositon,
+   so a selected row's shading + checkmark stay legible under it. */
+.incidentWatermark--page3,
+.incidentWatermark--page4,
+.incidentWatermark--page6 {
+  top: 30%;
+}
+.incidentWatermark--page5 {
+  color: rgba(197, 31, 58, 0.08);
 }

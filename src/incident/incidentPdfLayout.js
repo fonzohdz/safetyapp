@@ -85,9 +85,14 @@ export const MIN_NOTE_BOX_HEIGHT_PX = 40;
 // page 6's genuine leftover space (after notes get what they actually need)
 // can go into taller rows -- generous enough to visibly use the space
 // (v0.1.2's "ends halfway down the sheet" report) without rows growing
-// "absurdly tall" for a 4-row name/title/signature/date table.
+// "absurdly tall" for a 4-row name/title/signature/date table. Lowered from
+// 90 to 68 in the v0.1.4 polish pass (rows at 90px read as artificially
+// stretched for a 4-row table); any leftover budget above the new cap flows
+// back into the Supervisor/Safety Consultant notes boxes instead (see
+// buildIncidentPagePlan in incidentPdfGenerate.jsx -- this rebalancing is
+// automatic, not a separate change).
 export const MIN_TEAM_ROW_HEIGHT_PX = 40;
-export const MAX_TEAM_ROW_HEIGHT_PX = 90;
+export const MAX_TEAM_ROW_HEIGHT_PX = 68;
 
 // Small buffer subtracted from every measured budget before it's handed to a
 // flexible box. The measurement skeleton (incidentPdfMeasure.js) and the

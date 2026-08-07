@@ -288,7 +288,7 @@ export function IncidentPdfExportRoot({ incident, pageRefsRef }) {
         }
         const Content = PAGE_COMPONENTS[p.type];
         return (
-          <IncidentPageShell key={p.key} pageRef={setRef} pageNumber={pageNumber} totalPages={totalPages} draft={draft}>
+          <IncidentPageShell key={p.key} pageRef={setRef} pageNumber={pageNumber} totalPages={totalPages} draft={draft} watermarkVariant={p.type}>
             <Content incident={incident} {...p.props} />
           </IncidentPageShell>
         );

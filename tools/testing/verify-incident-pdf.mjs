@@ -342,6 +342,43 @@ async function runFixture(browser, fixture) {
     const bodyZ = await page.locator('.incidentPage').first().locator('.incidentPageBody').evaluate((elBody) => getComputedStyle(elBody).zIndex);
     const wmZ = await page.locator('.incidentWatermark').first().evaluate((elWm) => getComputedStyle(elWm).zIndex);
     a.check(Number(bodyZ) > Number(wmZ), `expected page body z-index (${bodyZ}) above watermark z-index (${wmZ}) so content paints on top`);
+
+    // ── v0.1.4 watermark placement: must stay clear of the witness
+    // signature row (page 3, Witness 1 is signed in this fixture) and the
+    // investigation-team table (page 6, member 1 is signed). ──
+    function rectsOverlap(r1, r2) {
+      if (!r1 || !r2) return false;
+      return r1.x < r2.x + r2.width && r1.x + r1.width > r2.x && r1.y < r2.y + r2.height && r1.y + r1.height > r2.y;
+    }
+    const page3Watermark = await page.locator('.incidentPage').nth(2).locator('.incidentWatermark').boundingBox();
+    const witness1SigRow = await page.locator('.incidentPage').nth(2).locator('.incSignatureTable').first().boundingBox();
+    a.check(!rectsOverlap(page3Watermark, witness1SigRow), 'expected the DRAFT watermark on page 3 not to overlap the witness signature row');
+
+    const page6Watermark = await page.locator('.incidentPage').nth(5).locator('.incidentWatermark').boundingBox();
+    const teamTableBoxForWatermark = await page.locator('.incidentPage').nth(5).locator('.incTeamTable').boundingBox();
+    a.check(!rectsOverlap(page6Watermark, teamTableBoxForWatermark), 'expected the DRAFT watermark on page 6 not to overlap the investigation-team table');
+
+    // ── v0.1.4 page 6 helper-text breathing room ──
+    // The italic help line under "SUPERINTENDENT/SUPERVISOR NOTES & SUMMARY"
+    // must not touch or overlap the notes box's top border.
+    const helpGap = await page.locator('.incidentPage').nth(5).evaluate(() => {
+      const help = document.querySelector('.incTextBlockHelp');
+      if (!help) return null;
+      const box = help.parentElement.querySelector('.incTextBlock');
+      if (!box) return null;
+      const helpRect = help.getBoundingClientRect();
+      const boxRect = box.getBoundingClientRect();
+      return boxRect.top - helpRect.bottom;
+    });
+    if (helpGap != null) {
+      a.check(helpGap >= 2 && helpGap <= 10, `expected 3-5px-ish breathing room between page 6's helper text and the notes box (got ${helpGap.toFixed(1)}px)`);
+    }
+
+    // ── v0.1.4 investigation-team row height cap ──
+    const teamRowHeightsForCap = await page.locator('.incTeamTable tbody tr').evaluateAll((rows) => rows.map((r) => r.getBoundingClientRect().height));
+    if (teamRowHeightsForCap.length) {
+      a.check(Math.max(...teamRowHeightsForCap) <= 72, `expected investigation-team rows to stay within the ~65-72px cap, got up to ${Math.max(...teamRowHeightsForCap).toFixed(1)}px`);
+    }
   }
 
   // Cause-analysis page assertions apply to every fixture (page 5 is always
@@ -355,6 +392,19 @@ async function runFixture(browser, fixture) {
     const causeFontPx = await causePage.locator('.incCauseTable').first().evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
     // 9pt == 12px at the standard 96dpi/72pt browser conversion used throughout this module.
     a.check(causeFontPx >= 12, `expected cause table body font-size >= 9pt (12px), computed ${causeFontPx}px`);
+
+    // ── v0.1.4 cause-checkbox alignment ──
+    const firstCheckbox = causePage.locator('.incCheckbox').first();
+    if (await firstCheckbox.count()) {
+      const checkboxMetrics = await firstCheckbox.evaluate((elCb) => {
+        const rect = elCb.getBoundingClientRect();
+        const cs = getComputedStyle(elCb);
+        return { width: rect.width, height: rect.height, marginRight: parseFloat(cs.marginRight), verticalAlign: cs.verticalAlign };
+      });
+      a.check(checkboxMetrics.width >= 8 && checkboxMetrics.height >= 8, `expected cause-table checkbox to be at least 8x8px, got ${checkboxMetrics.width.toFixed(1)}x${checkboxMetrics.height.toFixed(1)}`);
+      a.check(checkboxMetrics.marginRight >= 3, `expected a consistent checkbox-to-wording gap (>=3px), got ${checkboxMetrics.marginRight}px`);
+      a.check(checkboxMetrics.verticalAlign === 'text-top', `expected the checkbox to align with its item text's first line (text-top), computed vertical-align="${checkboxMetrics.verticalAlign}"`);
+    }
   }
 
   // ── v0.1.3 typography/alignment/visual-cleanliness computed-layout checks ──
@@ -380,6 +430,46 @@ async function runFixture(browser, fixture) {
       };
     });
     a.check(cellStyle.verticalAlign === 'middle', `expected compact table cells to be vertically centered, computed vertical-align="${cellStyle.verticalAlign}"`);
+
+    // ── v0.1.4 gray-bar / connected-content checks ──
+    // Uses page 1's "SUPERINTENDENT/SUPERVISOR CONTACT INFORMATION" bar,
+    // present and populated in every fixture.
+    const grayBarCentering = await page.locator('.incidentPage').first().evaluate(() => {
+      const bar = document.querySelector('.incGrayBar');
+      if (!bar) return null;
+      const barRect = bar.getBoundingClientRect();
+      const textNode = bar.firstChild;
+      let textCenter = null;
+      if (textNode) {
+        const range = document.createRange();
+        range.selectNodeContents(textNode);
+        const textRect = range.getBoundingClientRect();
+        textCenter = textRect.top + textRect.height / 2;
+      }
+      const next = bar.nextElementSibling;
+      let gap = null;
+      let borderTopWidth = null;
+      if (next) {
+        const nextRect = next.getBoundingClientRect();
+        gap = nextRect.top - barRect.bottom;
+        const firstCell = next.querySelector('th, td');
+        const borderSource = firstCell || next;
+        borderTopWidth = parseFloat(getComputedStyle(borderSource).borderTopWidth);
+      }
+      return { barCenter: barRect.top + barRect.height / 2, textCenter, gap, borderTopWidth };
+    });
+    if (grayBarCentering) {
+      if (grayBarCentering.textCenter != null) {
+        a.check(
+          Math.abs(grayBarCentering.barCenter - grayBarCentering.textCenter) <= 3,
+          `expected gray-bar title vertically centered (within 3px), bar center=${grayBarCentering.barCenter.toFixed(1)} text center=${grayBarCentering.textCenter.toFixed(1)}`,
+        );
+      }
+      if (grayBarCentering.gap != null) {
+        a.check(Math.abs(grayBarCentering.gap) <= 1, `expected zero gap between a gray bar and its connected content, got ${grayBarCentering.gap.toFixed(1)}px`);
+        a.check(grayBarCentering.borderTopWidth === 0, `expected content directly after a gray bar to omit its own top border (avoid a doubled shared edge), computed border-top-width=${grayBarCentering.borderTopWidth}px`);
+      }
+    }
     a.check(cellStyle.textAlign === 'left', `expected compact table cells to stay left-aligned, computed text-align="${cellStyle.textAlign}"`);
     a.check(Math.abs(cellStyle.paddingTop - cellStyle.paddingBottom) <= 1, `expected balanced top/bottom cell padding, got top=${cellStyle.paddingTop}px bottom=${cellStyle.paddingBottom}px`);
     a.check(cellStyle.height >= 26, `expected compact table rows to meet the ~27-30px minimum height target, got ${cellStyle.height}px`);

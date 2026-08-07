@@ -6,6 +6,7 @@ dist/
 # but their output artifacts are throwaway and regenerated on demand.
 tools/testing/output/
 tools/testing/output-before/
+tools/testing/output-before-v0.1.4/
 
 # Local-only source-of-truth reference documents (e.g. the incident report
 # Word template). Never bundled into production, never committed.
