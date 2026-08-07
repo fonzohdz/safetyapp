@@ -249,7 +249,23 @@ const PAGE_COMPONENTS = {
    first, then measuring every wrapper against that fully-reset layout,
    then applying every computed padding, means every measurement reflects
    the table's true natural (unpadded) geometry, not a partially-updated
-   in-between state. */
+   in-between state.
+
+   v0.1.7 -- OPTICAL_UPSHIFT_PX: an intentional design adjustment, not a
+   centering-math correction (v0.1.6's raster audit already confirmed true
+   mathematical centering renders correctly). Requested because true center
+   read as too low to the eye against the letter's baseline-heavy glyphs.
+   Implemented by biasing the SAME already-proven padding split toward the
+   top (more padding-top, less padding-bottom) rather than introducing a
+   new positioning technique (transform/position:relative) -- v0.1.6 spent
+   several rounds discovering that vertical-align and flex centering are
+   not reliably honored by html2canvas for table-cell text, so a new,
+   untested positioning property here would carry the same risk. Padding is
+   confirmed reliable, so reusing it for the shift keeps that guarantee.
+   Clamped to never exceed the cell's own real slack (half), so a tight
+   cell with little/no room simply doesn't move rather than clipping. */
+const OPTICAL_UPSHIFT_PX = 2;
+
 function centerCompactCellContent(renderedPages) {
   const wraps = [];
   renderedPages.forEach(({ el }) => {
@@ -284,7 +300,8 @@ function centerCompactCellContent(renderedPages) {
     const extra = availableH - contentH - 1;
     if (extra <= 1) return null;
     const half = Math.floor(extra / 2);
-    return { wrap, top: half, bottom: half };
+    const shift = Math.min(OPTICAL_UPSHIFT_PX, half);
+    return { wrap, top: half - shift, bottom: half + shift };
   });
 
   adjustments.forEach((adj) => {
