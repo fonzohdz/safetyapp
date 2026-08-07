@@ -104,6 +104,47 @@ function makeAssertions() {
   };
 }
 
+// ── v0.1.5 compact-cell vertical-centering check ──
+// Generic across every compact-table cell (info tables, signature/date
+// rows, property-damage table, investigation-team table, cause-table
+// checkbox+text) -- uses Range.selectNodeContents() to get the real
+// bounding box of everything inside the cell (a bare text node, a wrapped
+// multi-line label, or the cause table's checkbox+text pair), rather than
+// hand-picking a first text node, so one helper covers every shape of cell
+// content called out in the v0.1.5 spec. Silently no-ops if the locator
+// doesn't match anything in a given fixture (e.g. a page that doesn't
+// exist for that fixture) rather than failing -- callers only pass
+// locators for structure that always renders regardless of data (see
+// Page1Content/Page2Content/Page3Content/Page4Content/Page6Content, which
+// always render their full table structure even when fields are N/A).
+async function assertCellVerticallyCentered(a, cellLocator, label, tolerance = 4) {
+  if (!(await cellLocator.count())) return;
+  const info = await cellLocator.first().evaluate((elCell) => {
+    const cellRect = elCell.getBoundingClientRect();
+    if (cellRect.height === 0) return null;
+    const range = document.createRange();
+    range.selectNodeContents(elCell);
+    const contentRect = range.getBoundingClientRect();
+    if (contentRect.width === 0 && contentRect.height === 0) return null;
+    return {
+      cellCenter: cellRect.top + cellRect.height / 2,
+      contentCenter: contentRect.top + contentRect.height / 2,
+      contentTop: contentRect.top,
+      contentBottom: contentRect.bottom,
+      cellTop: cellRect.top,
+      cellBottom: cellRect.bottom,
+    };
+  });
+  if (!info) return;
+  a.check(
+    Math.abs(info.cellCenter - info.contentCenter) <= tolerance,
+    `expected ${label} vertically centered (within ${tolerance}px), cell center=${info.cellCenter.toFixed(1)} content center=${info.contentCenter.toFixed(1)}`,
+  );
+  a.check(info.contentTop >= info.cellTop - 0.5 && info.contentBottom <= info.cellBottom + 0.5, `expected ${label} content to stay fully inside its cell (no clipping)`);
+  a.check(info.contentTop - info.cellTop >= 0.5, `expected ${label} text not to touch the cell's top border`);
+  a.check(info.cellBottom - info.contentBottom >= 0.5, `expected ${label} text not to touch the cell's bottom border`);
+}
+
 async function runFixture(browser, fixture) {
   const draftJson = readFileSync(path.join(__dirname, 'fixtures', fixture.file), 'utf8');
   JSON.parse(draftJson); // fail fast on invalid fixture JSON
@@ -405,6 +446,15 @@ async function runFixture(browser, fixture) {
       a.check(checkboxMetrics.marginRight >= 3, `expected a consistent checkbox-to-wording gap (>=3px), got ${checkboxMetrics.marginRight}px`);
       a.check(checkboxMetrics.verticalAlign === 'text-top', `expected the checkbox to align with its item text's first line (text-top), computed vertical-align="${checkboxMetrics.verticalAlign}"`);
     }
+
+    // ── v0.1.5 cause-table row centering ──
+    // The checkbox+text group centers as a unit within its row (td's own
+    // vertical-align, not a flex wrapper -- see incident.css), while the
+    // checkbox itself stays pinned to the first line of the (possibly
+    // wrapped) text via text-top, already checked above.
+    await assertCellVerticallyCentered(a, causePage.locator('.incCauseTable td').first(), 'page 5 cause-table checkbox+text cell (row 1)');
+    const wrappedCauseCell = causePage.locator('.incCauseTable td').nth(3); // 2nd data row -- some items wrap to 2 lines
+    await assertCellVerticallyCentered(a, wrappedCauseCell, 'page 5 cause-table checkbox+text cell (row 2)');
   }
 
   // ── v0.1.3 typography/alignment/visual-cleanliness computed-layout checks ──
@@ -430,6 +480,50 @@ async function runFixture(browser, fixture) {
       };
     });
     a.check(cellStyle.verticalAlign === 'middle', `expected compact table cells to be vertically centered, computed vertical-align="${cellStyle.verticalAlign}"`);
+
+    // ── v0.1.5 cell vertical-centering checks ──
+    // Every locator below targets table structure that always renders
+    // regardless of data (Yes/No answers print N/A, unset witnesses/team
+    // members print blank rows -- see Page1Content..Page6Content), so these
+    // run identically across every fixture, including wrapped-label rows
+    // called out explicitly in the v0.1.5 spec.
+    const page1 = page.locator('.incidentPage').first();
+    const page1TopTable = page1.locator('.incInfoTable').first();
+    await assertCellVerticallyCentered(a, page1TopTable.locator('tbody tr').nth(0).locator('td').first(), 'page 1 Workplace Location value');
+    await assertCellVerticallyCentered(a, page1TopTable.locator('tbody tr').nth(3).locator('th').first(), 'page 1 wrapped label "Date/Time Reported to Supervisor"');
+    await assertCellVerticallyCentered(a, page1TopTable.locator('tbody tr').nth(3).locator('td').first(), 'page 1 Date/Time Reported to Supervisor value');
+    const page1SupervisorTable = page1.locator('.incInfoTable').nth(1);
+    await assertCellVerticallyCentered(a, page1SupervisorTable.locator('tbody tr').nth(0).locator('th').first(), 'page 1 wrapped label "Reporting Supervisor/Investigator Name"');
+    const page1LocationTable = page1.locator('.incInfoTable').nth(2);
+    await assertCellVerticallyCentered(a, page1LocationTable.locator('tbody tr').nth(0).locator('th').first(), 'page 1 incident-location label');
+    await assertCellVerticallyCentered(a, page1LocationTable.locator('tbody tr').nth(0).locator('td').first(), 'page 1 incident-location value');
+
+    const page2 = page.locator('.incidentPage').nth(1);
+    const page2Table = page2.locator('.incInfoTable').first();
+    await assertCellVerticallyCentered(a, page2Table.locator('tbody tr').nth(0).locator('th').first(), 'page 2 wrapped label "Name, Title, Years in Company & Current Trade"');
+    await assertCellVerticallyCentered(a, page2Table.locator('tbody tr').nth(0).locator('td').first(), 'page 2 injured-party name/title value (or N/A)');
+
+    const page3 = page.locator('.incidentPage').nth(2);
+    const page3ContactTable = page3.locator('.incInfoTable').first();
+    await assertCellVerticallyCentered(a, page3ContactTable.locator('tbody tr').nth(0).locator('th').first(), 'page 3 witness 1 Name label');
+    await assertCellVerticallyCentered(a, page3ContactTable.locator('tbody tr').nth(0).locator('td').first(), 'page 3 witness 1 Name value');
+    const page3SigRow = page3.locator('.incSignatureTable').first();
+    await assertCellVerticallyCentered(a, page3SigRow.locator('tr').first().locator('th').nth(1), 'page 3 witness 1 Date label');
+    await assertCellVerticallyCentered(a, page3SigRow.locator('tr').first().locator('td').nth(1), 'page 3 witness 1 Date value');
+
+    const page4 = page.locator('.incidentPage').nth(3);
+    const page4PropertyTable = page4.locator('.incInfoTable:not(.incSignatureTable):not(.incTeamTable)').last();
+    await assertCellVerticallyCentered(a, page4PropertyTable.locator('tbody tr').nth(2).locator('th').first(), 'page 4 wrapped label "Object(s)/Machine(s)/Tool(s)/Substance(s) Inflicting Damage"');
+    await assertCellVerticallyCentered(a, page4PropertyTable.locator('tbody tr').nth(2).locator('td').first(), 'page 4 property-damage inflicting-object value (or N/A)');
+
+    const page6 = page.locator('.incidentPage').nth(5);
+    const teamHeaderRow = page6.locator('.incTeamTable thead tr').first();
+    await assertCellVerticallyCentered(a, teamHeaderRow.locator('th').nth(0), 'page 6 Investigation Team header "Name"');
+    await assertCellVerticallyCentered(a, teamHeaderRow.locator('th').nth(1), 'page 6 Investigation Team header "Title"');
+    await assertCellVerticallyCentered(a, teamHeaderRow.locator('th').nth(3), 'page 6 Investigation Team header "Date"');
+    const teamFirstRow = page6.locator('.incTeamTable tbody tr').first();
+    await assertCellVerticallyCentered(a, teamFirstRow.locator('td').nth(0), 'page 6 Investigation Team first row Name cell');
+    await assertCellVerticallyCentered(a, teamFirstRow.locator('td').nth(1), 'page 6 Investigation Team first row Title cell');
 
     // ── v0.1.4 gray-bar / connected-content checks ──
     // Uses page 1's "SUPERINTENDENT/SUPERVISOR CONTACT INFORMATION" bar,

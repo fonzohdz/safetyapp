@@ -341,7 +341,12 @@ html[data-theme='dark'] .incidentReadinessItem.ok .checkIcon { color: #8bd48f; }
   text-align: center;
   text-transform: uppercase;
 }
-.incCauseTable td { border: 1px solid #000; padding: 4px 6px; line-height: 1.3; vertical-align: top; }
+/* v0.1.5: the checkbox+text group centers as a single unit within the row
+   (vertical-align on the <td> itself, not a layout change) -- .incCheckbox's
+   own vertical-align: text-top below is relative to ITS line box, not the
+   cell, so this only moves where that line box sits in the row; it does not
+   change the checkbox's alignment to the first line of wrapped text. */
+.incCauseTable td { border: 1px solid #000; padding: 4px 6px; line-height: 1.3; vertical-align: middle; }
 .incCauseTable td.incCauseChecked { background: #f4e7e9; }
 /* Checkbox aligns with the FIRST LINE of its (possibly wrapped) item text,
    not the cell's own vertical center -- vertical-align: text-top lines its
