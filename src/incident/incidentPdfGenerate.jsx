@@ -251,21 +251,19 @@ const PAGE_COMPONENTS = {
    the table's true natural (unpadded) geometry, not a partially-updated
    in-between state.
 
-   v0.1.7 -- OPTICAL_UPSHIFT_PX: an intentional design adjustment, not a
-   centering-math correction (v0.1.6's raster audit already confirmed true
-   mathematical centering renders correctly). Requested because true center
-   read as too low to the eye against the letter's baseline-heavy glyphs.
-   Implemented by biasing the SAME already-proven padding split toward the
-   top (more padding-top, less padding-bottom) rather than introducing a
-   new positioning technique (transform/position:relative) -- v0.1.6 spent
-   several rounds discovering that vertical-align and flex centering are
-   not reliably honored by html2canvas for table-cell text, so a new,
-   untested positioning property here would carry the same risk. Padding is
-   confirmed reliable, so reusing it for the shift keeps that guarantee.
-   Clamped to never exceed the cell's own real slack (half), so a tight
-   cell with little/no room simply doesn't move rather than clipping. */
-const OPTICAL_UPSHIFT_PX = 2;
-
+   v0.1.7 tried layering an intentional design bias into this same padding
+   split (more padding-top, less padding-bottom) so the math-centered result
+   would read as shifted upward. Removed in v0.1.8: biasing padding is
+   inherently clamped to each cell's own real slack, so a tight cell (most
+   compact cells with short single-line content, which is most of them)
+   had little or no room to move and the requested shift wasn't visible
+   where it mattered most. This function now does ONLY true mathematical
+   centering again -- the intentional visual-design shift is a separate,
+   fixed, slack-independent CSS offset on .incCellContent itself (see
+   incident.css) applied on top of whatever centered position this
+   function establishes. Two separate concepts, two separate mechanisms:
+   this establishes the stable baseline; the CSS offset is the deliberate
+   bias on top of it. */
 function centerCompactCellContent(renderedPages) {
   const wraps = [];
   renderedPages.forEach(({ el }) => {
@@ -300,8 +298,7 @@ function centerCompactCellContent(renderedPages) {
     const extra = availableH - contentH - 1;
     if (extra <= 1) return null;
     const half = Math.floor(extra / 2);
-    const shift = Math.min(OPTICAL_UPSHIFT_PX, half);
-    return { wrap, top: half - shift, bottom: half + shift };
+    return { wrap, top: half, bottom: half };
   });
 
   adjustments.forEach((adj) => {

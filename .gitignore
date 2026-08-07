@@ -8,6 +8,7 @@ tools/testing/output/
 tools/testing/output-before/
 tools/testing/output-before-v0.1.4/
 tools/testing/output-v017-comparison/
+tools/testing/output-v018-comparison/
 
 # Local-only source-of-truth reference documents (e.g. the incident report
 # Word template). Never bundled into production, never committed.

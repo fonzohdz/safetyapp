@@ -226,6 +226,14 @@ html[data-theme='dark'] .incidentReadinessItem.ok .checkIcon { color: #8bd48f; }
   align-items: center;
   justify-content: center;
 }
+/* v0.1.8 -- tested independently from compact cells per the v0.1.8 spec
+   rather than assumed to match (compact cells ended up needing -3px;
+   -1px was tested here first and judged too subtle at this bar's already-
+   near-accurate baseline, so -2px). Applied to an inner span (not
+   .incGrayBar itself) so the bar's own border/background/min-height --
+   its real geometry -- stay completely fixed; only the painted title text
+   moves. */
+.incGrayBarTitle { position: relative; top: -2px; }
 
 /* Compact information-table cells: horizontally left, vertically centered,
    with balanced padding so text never appears to ride the bottom border
@@ -273,9 +281,26 @@ html[data-theme='dark'] .incidentReadinessItem.ok .checkIcon { color: #8bd48f; }
    -- see centerCompactCellContent() in incidentPdfGenerate.jsx, which runs
    after every render. This wrapper itself is deliberately NOT flex/absolute
    -- it must stay a plain block so its scrollHeight reports its true
-   unstretched natural height for that measurement to be meaningful. */
-.incCellContent { display: block; }
+   unstretched natural height for that measurement to be meaningful.
+
+   v0.1.8 -- COMPACT_CELL_SHIFT_PX: a fixed, deliberate visual-design offset
+   layered on top of the centering above, NOT mixed into it. v0.1.7 tried
+   biasing the centering padding itself, but that bias is clamped by each
+   cell's own real slack -- most compact cells are short single-line
+   content with little slack, so they barely moved, which was the exact
+   complaint. `position: relative; top` moves the painted text independent
+   of slack, row height, or how many lines wrap -- confirmed (real
+   html2canvas raster capture, not DOM measurement) to render reliably,
+   unlike vertical-align/flex for stretched table-cell text (see the note
+   above). Reset to 0 inside .incSignatureCell and the team table's
+   Signature column below -- this offset is for TEXT only; signature
+   images must stay exactly where centerCompactCellContent() puts them. */
+.incCellContent { display: block; position: relative; top: -3px; }
 .incCellContent.center { text-align: center; }
+.incSignatureCell .incCellContent,
+.incTeamTable td:nth-child(3) .incCellContent {
+  top: 0;
+}
 
 /* 5px gap between title/help text and the writing box below it -- enough
    breathing room that the italic help text (Page 6's supervisor-notes

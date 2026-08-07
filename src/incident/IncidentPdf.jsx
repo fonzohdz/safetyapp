@@ -77,7 +77,7 @@ function IncidentHeader({ pageNumber, totalPages, continuationLabel }) {
 }
 
 export function GrayBar({ children }) {
-  return <div className="incGrayBar">{children}</div>;
+  return <div className="incGrayBar"><span className="incGrayBarTitle">{children}</span></div>;
 }
 
 /* CellContent wraps every piece of compact-cell text in a flex-centered
