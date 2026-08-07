@@ -104,7 +104,7 @@ function makeAssertions() {
   };
 }
 
-// ── v0.1.5 compact-cell vertical-centering check ──
+// ── v0.1.5/v0.1.6 compact-cell vertical-centering check ──
 // Generic across every compact-table cell (info tables, signature/date
 // rows, property-damage table, investigation-team table, cause-table
 // checkbox+text) -- uses Range.selectNodeContents() to get the real
@@ -117,6 +117,23 @@ function makeAssertions() {
 // locators for structure that always renders regardless of data (see
 // Page1Content/Page2Content/Page3Content/Page4Content/Page6Content, which
 // always render their full table structure even when fields are N/A).
+//
+// IMPORTANT (v0.1.6): this is a live-DOM measurement, and v0.1.5 shipped
+// with this exact check passing while the real exported PDF still looked
+// wrong -- native vertical-align: middle (and, tried next, flex
+// align-items: center) both measure as perfectly centered here but are not
+// reliably honored by html2canvas, which is what actually rasterizes every
+// exported page (a documented html2canvas limitation, confirmed by
+// comparing the real raster pixel-for-pixel; see incidentPdfGenerate.jsx's
+// centerCompactCellContent() and its comment for the full story). v0.1.6
+// switched to computing centering as literal padding-top/padding-bottom
+// from real measured slack -- padding WAS confirmed (same side-by-side
+// raster comparison) to render identically in the DOM and in html2canvas,
+// which is what makes this DOM-based check trustworthy again. If a future
+// change ever moves centering back to vertical-align or flex, this check
+// passing would once more NOT prove the exported PDF is correct -- verify
+// against a real generated PDF/raster, not just this assertion, before
+// trusting a different technique.
 async function assertCellVerticallyCentered(a, cellLocator, label, tolerance = 4) {
   if (!(await cellLocator.count())) return;
   const info = await cellLocator.first().evaluate((elCell) => {
@@ -611,9 +628,13 @@ async function runFixture(browser, fixture) {
     // Investigation-team table: header cells vertically centered, Signature
     // column horizontally centered, populated data cells' text vertically
     // centered within the (often much taller, dynamically-grown) row.
+    // v0.1.6: horizontal centering for this column lives on the inner
+    // .incCellContent wrapper now (see incident.css), not the <th> itself
+    // -- the <th>'s own text-align stays 'left' by design, so this checks
+    // the wrapper that actually controls what renders.
     const teamHeaderSig = page.locator('.incTeamTable thead th').nth(2);
     if (await teamHeaderSig.count()) {
-      const headerTextAlign = await teamHeaderSig.evaluate((elTh) => getComputedStyle(elTh).textAlign);
+      const headerTextAlign = await teamHeaderSig.locator('.incCellContent').first().evaluate((elWrap) => getComputedStyle(elWrap).textAlign);
       a.check(headerTextAlign === 'center', `expected investigation-team Signature column header to be centered, computed text-align="${headerTextAlign}"`);
     }
     const populatedNameCell = page.locator('.incTeamTable tbody tr').first().locator('td').first();

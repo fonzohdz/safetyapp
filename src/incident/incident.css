@@ -245,12 +245,37 @@ html[data-theme='dark'] .incidentReadinessItem.ok .checkIcon { color: #8bd48f; }
   padding: 5px 8px;
   height: 28px;
   text-align: left;
-  vertical-align: middle;
   word-break: break-word;
 }
 .incInfoTable th { background: #efefef; font-weight: 700; font-size: 9.5pt; line-height: 1.25; width: 32%; }
 .incInfoTable td { font-weight: 400; font-size: 10pt; line-height: 1.3; }
 .incInfoTable tr + tr th, .incInfoTable tr + tr td { border-top: 0; }
+
+/* v0.1.6 -- SEE incident.css TOP-OF-FILE NOTE. Native `vertical-align:
+   middle` on a <td>/<th> is what v0.1.4/v0.1.5 relied on, and it measures
+   as correctly centered in every live-DOM technique (getBoundingClientRect,
+   Range, getClientRects). A flex-wrapper variant of this rule was tried
+   next (align-items: center + height: 100%) since flex is what already
+   makes .incGrayBar render correctly in html2canvas -- but comparing the
+   REAL exported raster pixel-for-pixel before/after proved it made zero
+   visual difference. html2canvas simply does not honor either technique
+   for text inside a table cell once that cell's rendered height exceeds
+   its own content's natural height (a wrapped sibling cell, a
+   dynamically-grown row like Investigation Team's, or a fixed floor taller
+   than one line of text) -- a documented html2canvas limitation, not a CSS
+   mistake (see tools/testing/output/v016-audit/ from the v0.1.6 audit for
+   the side-by-side full-page raster comparison).
+
+   What DOES render correctly in the real raster, confirmed the same way:
+   padding. So centering here is computed in JS from real measured slack
+   (cell's available content height minus this wrapper's own natural
+   height, read via scrollHeight) and applied as padding-top/padding-bottom
+   -- see centerCompactCellContent() in incidentPdfGenerate.jsx, which runs
+   after every render. This wrapper itself is deliberately NOT flex/absolute
+   -- it must stay a plain block so its scrollHeight reports its true
+   unstretched natural height for that measurement to be meaningful. */
+.incCellContent { display: block; }
+.incCellContent.center { text-align: center; }
 
 /* 5px gap between title/help text and the writing box below it -- enough
    breathing room that the italic help text (Page 6's supervisor-notes
@@ -323,11 +348,10 @@ html[data-theme='dark'] .incidentReadinessItem.ok .checkIcon { color: #8bd48f; }
    floating mark pasted below the statement box. Height is a hair taller
    than the compact-table default (28px) to comfortably frame the 34px-tall
    signature image with even space above/below; the signature cell centers
-   its content both ways (text-align here, .incSignatureImage's own
-   margin:0 auto + the row's vertical-align:middle) so a signature or an
-   N/A placeholder both land in the same visual spot regardless of witness. */
-.incSignatureTable td, .incSignatureTable th { height: 40px; vertical-align: middle; }
-.incSignatureCell { text-align: center; }
+   its content both ways (.incCellContent.center wrapper, see v0.1.6) so a
+   signature or an N/A placeholder both land in the same visual spot
+   regardless of witness. */
+.incSignatureTable td, .incSignatureTable th { height: 40px; }
 .incSignatureCell .incNotApplicableInline { display: block; }
 
 .incCauseIntro { font-size: 9pt; font-weight: 700; line-height: 1.3; border: 1px solid #000; padding: 5px 8px; text-align: center; }
@@ -341,18 +365,8 @@ html[data-theme='dark'] .incidentReadinessItem.ok .checkIcon { color: #8bd48f; }
   text-align: center;
   text-transform: uppercase;
 }
-/* v0.1.5: the checkbox+text group centers as a single unit within the row
-   (vertical-align on the <td> itself, not a layout change) -- .incCheckbox's
-   own vertical-align: text-top below is relative to ITS line box, not the
-   cell, so this only moves where that line box sits in the row; it does not
-   change the checkbox's alignment to the first line of wrapped text. */
-.incCauseTable td { border: 1px solid #000; padding: 4px 6px; line-height: 1.3; vertical-align: middle; }
+.incCauseTable td { border: 1px solid #000; padding: 4px 6px; line-height: 1.3; }
 .incCauseTable td.incCauseChecked { background: #f4e7e9; }
-/* Checkbox aligns with the FIRST LINE of its (possibly wrapped) item text,
-   not the cell's own vertical center -- vertical-align: text-top lines its
-   box up with the top of the current line box the same way a real form
-   checkbox sits next to the first line of a wrapped label. A consistent
-   4px gap (margin-right) separates it from the wording at every row. */
 .incCheckbox {
   display: inline-block;
   width: 10px;
@@ -362,9 +376,17 @@ html[data-theme='dark'] .incidentReadinessItem.ok .checkIcon { color: #8bd48f; }
   line-height: 9px;
   font-size: 8px;
   margin-right: 5px;
-  vertical-align: text-top;
 }
 .incCheckbox.checked { background: #000; color: #fff; }
+/* Checkbox aligns with the FIRST LINE of its (possibly wrapped) item text
+   via normal inline flow + vertical-align: text-top (this part was never
+   the html2canvas problem -- only the GROUP's position within the taller
+   cell was, see the .incCellContent comment above). The checkbox+text pair
+   is wrapped in one .incCellContent span (JSX) so the same JS-computed
+   padding pass that centers every other compact cell also centers this
+   group as a whole; text-top keeps the checkbox pinned to line 1 within
+   that group regardless of how much padding gets added around it. */
+.incCheckbox { vertical-align: text-top; }
 .incCauseItemText { vertical-align: text-top; }
 
 /* All 4 rows get the same height (enough for a normal signature image at
@@ -377,15 +399,7 @@ html[data-theme='dark'] .incidentReadinessItem.ok .checkIcon { color: #8bd48f; }
    short of the page's bottom margin -- see the v0.1.2 full-page-utilization
    pass. 40px remains the default/floor if the property is ever omitted. */
 .incTeamTable th, .incTeamTable td { width: 25%; }
-.incTeamTable td { height: var(--incTeamRowHeight, 40px); vertical-align: middle; }
-/* Signature is the one column whose content (an image, or nothing) should
-   read as centered rather than left-aligned like Name/Title/Date -- matches
-   the "signature cells: horizontally + vertically centered" rule applied to
-   every other signature cell in the document (see .incSignatureCell above).
-   nth-child(3) targets it directly since the table has no header/column
-   metadata to key off otherwise (Name, Title, Signature, Date in that
-   fixed order -- see Page6Content in IncidentPdf.jsx). */
-.incTeamTable th:nth-child(3), .incTeamTable td:nth-child(3) { text-align: center; }
+.incTeamTable td { height: var(--incTeamRowHeight, 40px); }
 
 .incContinuationMeta { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 8.5pt; color: #333; border-bottom: 1px solid #999; padding-bottom: 3px; margin-bottom: 4px; }
 

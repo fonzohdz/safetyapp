@@ -217,6 +217,83 @@ const PAGE_COMPONENTS = {
   page6: Page6Content,
 };
 
+/* v0.1.6 -- html2canvas (the library that actually rasterizes every
+   exported PDF page -- see generateIncidentPdf() below) does not honor
+   vertical-align OR flex centering for text inside a table cell once that
+   cell's rendered height exceeds its own content's natural height. This
+   was proven by comparing the REAL html2canvas raster pixel-for-pixel
+   before/after trying both techniques (see tools/testing/output/v016-audit/
+   from the v0.1.6 audit) -- the live DOM measures as perfectly centered
+   either way, but the actual exported page still shows text pinned toward
+   the top. What DOES render correctly in the raster, confirmed the same
+   way: padding. So every compact cell's content (wrapped in a shared
+   .incCellContent span -- see IncidentPdf.jsx) gets its vertical centering
+   computed here, from real measured slack, and applied as literal
+   padding-top/padding-bottom -- the same "measure the real DOM, don't
+   guess" approach this module already uses for page-budget allocation
+   (measurePage1Budget etc. in incidentPdfMeasure.js) and for Investigation
+   Team's row height (teamRowHeightPx), just applied one level deeper.
+   Runs after every render (useLayoutEffect, before paint) so there's no
+   visible flash -- cost is a handful of already-cached layout reads per
+   cell, no more expensive than the other measurement passes in this file.
+
+   Three separate passes over every wrapper, deliberately not combined into
+   one loop: a table ROW's rendered height is the max of every cell sharing
+   that row, so resetting+measuring+applying one cell at a time lets an
+   still-padded sibling (not yet reached in the loop) keep the row taller
+   than its true natural height -- inflating that cell's measured "extra"
+   slack, which inflates ITS applied padding, which keeps the row inflated
+   for the NEXT cell too. That compounds into runaway growth across a row
+   (caught during the v0.1.6 visual audit: page 5's first cause-table row
+   grew to several times its correct height). Resetting every wrapper
+   first, then measuring every wrapper against that fully-reset layout,
+   then applying every computed padding, means every measurement reflects
+   the table's true natural (unpadded) geometry, not a partially-updated
+   in-between state. */
+function centerCompactCellContent(renderedPages) {
+  const wraps = [];
+  renderedPages.forEach(({ el }) => {
+    if (!el) return;
+    el.querySelectorAll('.incCellContent').forEach((wrap) => wraps.push(wrap));
+  });
+
+  wraps.forEach((wrap) => {
+    wrap.style.paddingTop = '';
+    wrap.style.paddingBottom = '';
+  });
+
+  const adjustments = wraps.map((wrap) => {
+    const cell = wrap.parentElement;
+    if (!cell) return null;
+    const cellStyle = getComputedStyle(cell);
+    const availableH = cell.clientHeight - parseFloat(cellStyle.paddingTop) - parseFloat(cellStyle.paddingBottom);
+    const contentH = wrap.scrollHeight;
+    // wrap.scrollHeight is always an integer (browser-rounded), while
+    // availableH can be fractional (real cell heights throughout this
+    // module are sub-pixel, e.g. "42.66px") -- splitting the raw
+    // difference in half and applying it as padding can therefore push the
+    // wrapper's true rendered height a hair past availableH once the
+    // browser re-lays it out, even though the arithmetic looks exact on
+    // paper. That's harmless on its own (table cells don't clip), but it
+    // was measured to compound across many cells into a real few-px page
+    // overflow on witness-heavy pages (see the v0.1.6 audit). Floor BOTH
+    // halves (never round up) and reserve an extra 1px buffer so applied
+    // padding always totals strictly less than the measured slack --
+    // trades an imperceptible sub-pixel asymmetry for a hard guarantee
+    // against overflow.
+    const extra = availableH - contentH - 1;
+    if (extra <= 1) return null;
+    const half = Math.floor(extra / 2);
+    return { wrap, top: half, bottom: half };
+  });
+
+  adjustments.forEach((adj) => {
+    if (!adj) return;
+    adj.wrap.style.paddingTop = `${adj.top}px`;
+    adj.wrap.style.paddingBottom = `${adj.bottom}px`;
+  });
+}
+
 export function IncidentPdfExportRoot({ incident, pageRefsRef }) {
   const elRefs = useRef({});
   const draft = !isIncidentPrintFinal(incident);
@@ -266,6 +343,7 @@ export function IncidentPdfExportRoot({ incident, pageRefsRef }) {
 
   useLayoutEffect(() => {
     pageRefsRef.current = pages.map(p => ({ type: p.type, el: elRefs.current[p.key] }));
+    centerCompactCellContent(pageRefsRef.current);
   });
 
   return (

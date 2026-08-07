@@ -80,6 +80,18 @@ export function GrayBar({ children }) {
   return <div className="incGrayBar">{children}</div>;
 }
 
+/* CellContent wraps every piece of compact-cell text in a flex-centered
+   inner span -- see the .incCellContent comment in incident.css for why:
+   native vertical-align: middle on the <td>/<th> itself measures correctly
+   centered in the live DOM but renders bottom-biased in the actual
+   html2canvas raster once a cell's height is stretched taller than its own
+   content (a wrapped sibling, a dynamically-grown row). The <td>/<th> stays
+   a real table cell (border-collapse, column widths, height all still work
+   normally); only how its content centers within that cell changes. */
+function CellContent({ children, center }) {
+  return <span className={`incCellContent${center ? ' center' : ''}`}>{children}</span>;
+}
+
 export function InfoTable({ rows }) {
   return (
     <table className="incInfoTable">
@@ -88,8 +100,8 @@ export function InfoTable({ rows }) {
           <tr key={i}>
             {row.map((cell, j) => (
               cell.isLabel
-                ? <th key={j} style={cell.width ? { width: cell.width } : undefined} colSpan={cell.colSpan}>{cell.text}</th>
-                : <td key={j} colSpan={cell.colSpan}>{cell.text}</td>
+                ? <th key={j} style={cell.width ? { width: cell.width } : undefined} colSpan={cell.colSpan}><CellContent>{cell.text}</CellContent></th>
+                : <td key={j} colSpan={cell.colSpan}><CellContent>{cell.text}</CellContent></td>
             ))}
           </tr>
         ))}
@@ -226,14 +238,16 @@ export function WitnessBlock({ index, witness, statementText, statementBoxHeight
       <table className="incInfoTable incSignatureTable">
         <tbody>
           <tr>
-            <th style={{ width: '18%' }}>Signature</th>
+            <th style={{ width: '18%' }}><CellContent>Signature</CellContent></th>
             <td className="incSignatureCell">
-              {w.signatureData
-                ? <img src={w.signatureData} alt="Witness signature" className="incSignatureImage" />
-                : <span className="incNotApplicableInline">{witness ? 'Not signed' : 'N/A'}</span>}
+              <CellContent center>
+                {w.signatureData
+                  ? <img src={w.signatureData} alt="Witness signature" className="incSignatureImage" />
+                  : <span className="incNotApplicableInline">{witness ? 'Not signed' : 'N/A'}</span>}
+              </CellContent>
             </td>
-            <th style={{ width: '14%' }}>Date</th>
-            <td>{witness && w.signatureDate ? fmtDate(w.signatureDate) : 'N/A'}</td>
+            <th style={{ width: '14%' }}><CellContent>Date</CellContent></th>
+            <td><CellContent>{witness && w.signatureDate ? fmtDate(w.signatureDate) : 'N/A'}</CellContent></td>
           </tr>
         </tbody>
       </table>
@@ -298,7 +312,7 @@ export function Page5Content({ incident }) {
       </div>
       <table className="incCauseTable">
         <thead>
-          <tr>{CAUSE_CATEGORIES.map(c => <th key={c.id}>{c.label}</th>)}</tr>
+          <tr>{CAUSE_CATEGORIES.map(c => <th key={c.id}><CellContent center>{c.label}</CellContent></th>)}</tr>
         </thead>
         <tbody>
           {Array.from({ length: maxRows }).map((_, rowIdx) => (
@@ -312,10 +326,18 @@ export function Page5Content({ incident }) {
                 const isOtherRow = item === 'Other';
                 return (
                   <td key={cat.id} className={checked ? 'incCauseChecked' : ''}>
-                    <span className={`incCheckbox${checked ? ' checked' : ''}`}>{checked ? '\u2713' : ''}</span>
-                    <span className="incCauseItemText">
-                      {isOtherRow ? `Other (specify): ${incident[cat.otherField] || ''}` : item}
-                      {isPrimary ? ' *' : ''}
+                    {/* The checkbox+text pair is wrapped as one group so the
+                        JS-computed padding pass (centerCompactCellContent in
+                        incidentPdfGenerate.jsx) centers it as a unit within
+                        the cell; vertical-align: text-top on the checkbox
+                        (incident.css) keeps it pinned to the first line
+                        inside that group regardless of applied padding. */}
+                    <span className="incCellContent">
+                      <span className={`incCheckbox${checked ? ' checked' : ''}`}>{checked ? '\u2713' : ''}</span>
+                      <span className="incCauseItemText">
+                        {isOtherRow ? `Other (specify): ${incident[cat.otherField] || ''}` : item}
+                        {isPrimary ? ' *' : ''}
+                      </span>
                     </span>
                   </td>
                 );
@@ -356,15 +378,20 @@ export function Page6Content({
       <GrayBar>INVESTIGATION TEAM</GrayBar>
       <table className="incInfoTable incTeamTable" style={{ '--incTeamRowHeight': `${teamRowHeightPx || MIN_TEAM_ROW_HEIGHT_PX}px` }}>
         <thead>
-          <tr><th>Name</th><th>Title</th><th>Signature</th><th>Date</th></tr>
+          <tr>
+            <th><CellContent>Name</CellContent></th>
+            <th><CellContent>Title</CellContent></th>
+            <th><CellContent center>Signature</CellContent></th>
+            <th><CellContent>Date</CellContent></th>
+          </tr>
         </thead>
         <tbody>
           {rows.map((m, i) => (
             <tr key={m?.id || `empty-${i}`}>
-              <td>{m?.name || ''}</td>
-              <td>{m?.title || ''}</td>
-              <td>{m?.signatureData ? <img src={m.signatureData} alt="Signature" className="incSignatureImage" /> : ''}</td>
-              <td>{m?.date ? fmtDate(m.date) : ''}</td>
+              <td><CellContent>{m?.name || ''}</CellContent></td>
+              <td><CellContent>{m?.title || ''}</CellContent></td>
+              <td><CellContent center>{m?.signatureData ? <img src={m.signatureData} alt="Signature" className="incSignatureImage" /> : ''}</CellContent></td>
+              <td><CellContent>{m?.date ? fmtDate(m.date) : ''}</CellContent></td>
             </tr>
           ))}
         </tbody>
