@@ -102,7 +102,10 @@ export const incidentCopy = {
   },
   notes: {
     title: 'Notes & Investigation Team',
-    supervisorNotes: 'Superintendent/supervisor notes & summary (immediate actions taken & how to help prevent recurrence)',
+    immediateActionsTitle: 'Immediate Actions Taken',
+    immediateActionsPrompt: 'What was done immediately following the incident?',
+    correctiveActionsTitle: 'Corrective / Preventive Actions',
+    correctiveActionsPrompt: 'What was corrected, assigned, or changed to help prevent recurrence?',
     safetyConsultantNotes: 'Safety consultant notes & summary',
     teamSectionTitle: 'Investigation Team',
     addMember: 'Add team member',

@@ -1,0 +1,60 @@
+{
+  "id": "fixture-legacy-0001",
+  "schemaVersion": 1,
+  "status": "draft",
+  "createdAt": "2026-08-01T08:00:00.000Z",
+  "lastSavedAt": "",
+  "completedAt": "",
+  "reportNumber": "",
+
+  "workplaceLocation": "Legacy Draft Test Site (pre-Phase-2)",
+  "incidentDate": "2026-08-02",
+  "incidentTime": "10:30",
+  "writtenReportDateTime": "2026-08-02T11:00",
+  "reportedToSupervisorDateTime": "2026-08-02T10:40",
+  "investigatorName": "Original Investigator",
+  "investigatorTitle": "Foreman",
+  "investigatorPhone": "601-555-0188",
+  "investigatorEmail": "",
+  "incidentSpecificLocation": "West laydown yard",
+  "detailedIncidentDescription": "A pallet of materials shifted while being staged, striking a nearby barricade. No injuries occurred.",
+
+  "injuryOccurred": "no",
+  "injuredPartyName": "",
+  "injuredPartyTitle": "",
+  "injuredPartyYearsWithCompany": "",
+  "injuredPartyCurrentTrade": "",
+  "injuredPartyPhone": "",
+  "injuredPartyEmail": "",
+  "injuryNature": [],
+  "injuryNatureOther": "",
+  "bodyPartsAffectedText": "",
+  "treatmentLevel": "unselected",
+  "treatingPhysicianOrClinic": "",
+  "injuryRemarks": "",
+  "bodyDiagramMarks": [],
+
+  "witnesses": [],
+
+  "propertyDamageOccurred": "no",
+  "propertyOrMaterialDamaged": "",
+  "natureOfDamage": "",
+  "objectMachineToolOrSubstance": "",
+  "approximateDamageCost": "",
+
+  "selectedCauses": [
+    "unsafeConditions::Improper material storage"
+  ],
+  "primaryCause": "unsafeConditions::Improper material storage",
+  "unsafeActsOther": "",
+  "unsafeConditionsOther": "",
+  "managementDeficienciesOther": "",
+
+  "supervisorNotes": "LEGACY COMBINED NOTE -- DO NOT LOSE THIS TEXT. Crew re-staged the pallet immediately and roped off the area. Reviewed proper staging distances with the crew at the next toolbox talk and added a placement check to the daily yard walk.",
+  "safetyConsultantNotes": "",
+  "investigationTeam": [
+    { "id": "legacy-t1", "name": "Pat Ashford", "title": "Safety Coordinator", "signatureData": null, "date": "2026-08-02" }
+  ],
+
+  "notes": ""
+}

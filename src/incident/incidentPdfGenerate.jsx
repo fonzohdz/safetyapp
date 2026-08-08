@@ -14,6 +14,26 @@ import {
 import { paginateText, measureNaturalHeight } from './textFit';
 import { measurePage1Budget, measurePage3Budget, measurePage4Budget, measurePage6NotesBudget } from './incidentPdfMeasure';
 
+/* Phase 2 -- Page 6's "Superintendent/Supervisor Notes & Summary" box is
+   fed by two separate, plainly-worded UI prompts (Immediate Actions Taken /
+   Corrective & Preventive Actions -- see IncidentWorkflow.jsx's StepNotes)
+   instead of one vague combined field, but the box ITSELF is unchanged:
+   this just formats both answers into the one string the existing
+   measurement/pagination pipeline below already knows how to handle,
+   exactly the same as the old single supervisorNotes string was. Headings
+   are only included for a field that actually has content -- an empty
+   field is never given a heading with nothing under it (no fabricated
+   content, see the "empty/partial answers" requirement), and if both are
+   blank this returns '' (same as an empty supervisorNotes did before). */
+export function buildSuperintendentResponseText(incident) {
+  const immediate = String(incident.immediateActionsTaken || '').trim();
+  const corrective = String(incident.correctivePreventiveActions || '').trim();
+  const sections = [];
+  if (immediate) sections.push(`IMMEDIATE ACTIONS TAKEN:\n${immediate}`);
+  if (corrective) sections.push(`CORRECTIVE / PREVENTIVE ACTIONS:\n${corrective}`);
+  return sections.join('\n\n');
+}
+
 /* Every base-page flexible box (description, witness statements, page-6
    notes) is paginated the same way: fit as much as possible into the box
    height buildIncidentPagePlan() computed for it from a real measurement of
@@ -129,7 +149,7 @@ export function buildIncidentPagePlan(incident) {
   // bottom margin. If the notes need MORE than the budget allows, team rows
   // stay at their floor and the excess spills to a continuation page, same
   // as before.
-  const supervisorText = incident.supervisorNotes;
+  const supervisorText = buildSuperintendentResponseText(incident);
   const safetyConsultantText = incident.safetyConsultantNotes;
   const notesBudgetPx = Math.max(0, measurePage6NotesBudget(incident.investigationTeam) - PAGE_BOTTOM_SAFETY_PX);
   const supervisorNeed = measureNaturalHeight(supervisorText, textStyle);
@@ -337,7 +357,8 @@ export function IncidentPdfExportRoot({ incident, pageRefsRef }) {
   const { pages } = useMemo(() => buildIncidentPagePlan(incident), [
     incident.detailedIncidentDescription,
     incident.witnesses,
-    incident.supervisorNotes,
+    incident.immediateActionsTaken,
+    incident.correctivePreventiveActions,
     incident.safetyConsultantNotes,
     incident.workplaceLocation,
     incident.incidentDate,

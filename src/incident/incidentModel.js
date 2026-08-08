@@ -243,6 +243,16 @@ export function emptyIncident() {
     managementDeficienciesOther: '',
 
     // PAGE 6 -- Notes and investigation team
+    // Phase 2 split the single combined "Superintendent/Supervisor Notes &
+    // Summary" free-text field into two separate, plainly-worded prompts --
+    // see migrateIncidentShape() below for how an older saved draft's
+    // combined supervisorNotes content is preserved, not discarded.
+    immediateActionsTaken: '',
+    correctivePreventiveActions: '',
+    // Legacy (pre-Phase-2) combined field. The UI no longer reads or writes
+    // this -- kept in the shape only as the migration source in
+    // migrateIncidentShape() and so an old draft's own stored JSON is never
+    // silently stripped of a field it already had.
     supervisorNotes: '',
     safetyConsultantNotes: '',
     investigationTeam: [], // max 4, see emptyTeamMember()
@@ -255,6 +265,35 @@ export function emptyIncident() {
     // Internal-only, never printed (mirrors the JSA's "notes" field)
     notes: '',
   };
+}
+
+/* Migrates a raw (possibly pre-Phase-2) incident object so the app can
+   safely read the new immediateActionsTaken / correctivePreventiveActions
+   fields regardless of which shape it was saved in. Pre-Phase-2 drafts
+   only have the old combined `supervisorNotes` field; splitting that
+   existing free text into the two new prompts automatically would require
+   guessing where "what was done immediately" ends and "what was corrected"
+   begins -- this app does not guess at a user's own report content (see
+   the "no rough estimates" precedent throughout incidentPdfMeasure.js/
+   textFit.js). Instead, if a draft has legacy supervisorNotes content and
+   neither new field has been filled in yet, the ENTIRE legacy text is
+   preserved verbatim in immediateActionsTaken (the first/primary prompt) --
+   nothing is discarded, nothing is invented, and re-running this on an
+   already-migrated (or brand new) incident is a no-op. `supervisorNotes`
+   itself is left untouched in the returned object (not deleted) so the
+   original text is never destructively removed from a draft's own stored
+   JSON.
+
+   Called wherever a raw saved draft is loaded for real use (see
+   loadSavedIncidentDraft() in main.jsx) -- NOT inside emptyIncident(),
+   which has nothing to migrate. */
+export function migrateIncidentShape(raw) {
+  if (!raw) return raw;
+  const has = v => String(v || '').trim().length > 0;
+  if (has(raw.immediateActionsTaken) || has(raw.correctivePreventiveActions) || !has(raw.supervisorNotes)) {
+    return raw;
+  }
+  return { ...raw, immediateActionsTaken: raw.supervisorNotes };
 }
 
 function localDateTimeNow() {
@@ -301,7 +340,7 @@ export function getIncidentReadinessChecks(incident) {
     { key: 'injuryOccurred', label: 'Injury Yes/No selected', ok: incident.injuryOccurred === 'yes' || incident.injuryOccurred === 'no' },
     { key: 'propertyDamageOccurred', label: 'Property Damage Yes/No selected', ok: incident.propertyDamageOccurred === 'yes' || incident.propertyDamageOccurred === 'no' },
     { key: 'cause', label: 'At least one cause selected', ok: (incident.selectedCauses || []).length > 0 },
-    { key: 'supervisorNotes', label: 'Supervisor notes', ok: has(incident.supervisorNotes) },
+    { key: 'superintendentResponse', label: 'Immediate actions and/or corrective/preventive actions', ok: has(incident.immediateActionsTaken) || has(incident.correctivePreventiveActions) },
     { key: 'investigationTeam', label: 'At least one investigation-team member', ok: (incident.investigationTeam || []).some(m => has(m.name)) },
   ];
 
@@ -386,7 +425,7 @@ export function incidentStepStatus(incident, stepId) {
     case 'cause':
       return (incident.selectedCauses || []).length > 0 ? 'complete' : 'needs-info';
     case 'notes':
-      return has(incident.supervisorNotes) && (incident.investigationTeam || []).some(m => has(m.name)) ? 'complete' : 'needs-info';
+      return (has(incident.immediateActionsTaken) || has(incident.correctivePreventiveActions)) && (incident.investigationTeam || []).some(m => has(m.name)) ? 'complete' : 'needs-info';
     case 'photos':
       return 'complete'; // always optional
     case 'review':

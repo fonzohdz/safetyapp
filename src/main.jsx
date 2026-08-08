@@ -4,7 +4,7 @@ import html2canvas from 'html2canvas';
 import { PDFDocument } from 'pdf-lib';
 import './styles.css';
 import './incident/incident.css';
-import { emptyIncident, hasMeaningfulIncidentContent, incidentStepProgress, incidentNextStepHint, isIncidentReady, isIncidentPrintFinal } from './incident/incidentModel';
+import { emptyIncident, hasMeaningfulIncidentContent, incidentStepProgress, incidentNextStepHint, isIncidentReady, isIncidentPrintFinal, migrateIncidentShape } from './incident/incidentModel';
 import { loadIncidentDraft, saveIncidentDraft, clearIncidentDraft, upsertIncidentRecord } from './incident/incidentStorage';
 import { deletePhotosForIncident } from './incident/incidentPhotoStorage';
 import { incidentCopy } from './incident/incidentCopy';
@@ -1129,7 +1129,7 @@ function App() {
   const [jsaStep, setJsaStep] = useState('job');
 
   // ── Incident Report state (fully separate from JSA state/storage above) ──
-  const [savedIncidentDraft, setSavedIncidentDraft] = useState(() => loadIncidentDraft());
+  const [savedIncidentDraft, setSavedIncidentDraft] = useState(() => migrateIncidentShape(loadIncidentDraft()));
   const [incident, setIncident] = useState(() => emptyIncident());
   const [incidentStep, setIncidentStep] = useState('details');
   const [incidentSaveStatus, setIncidentSaveStatus] = useState('idle');
@@ -1287,7 +1287,7 @@ function App() {
   function loadSavedIncidentDraft() {
     const raw = loadIncidentDraft() || savedIncidentDraft;
     if (!raw) { showToast('No saved incident report found on this device.'); return; }
-    const normalized = { ...emptyIncident(), ...raw };
+    const normalized = { ...emptyIncident(), ...migrateIncidentShape(raw) };
     setIncident(normalized);
     setSavedIncidentDraft(normalized);
     setIncidentPdfExportState(null);

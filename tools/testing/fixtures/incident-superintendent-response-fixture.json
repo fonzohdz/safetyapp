@@ -1,0 +1,62 @@
+{
+  "id": "fixture-superintendent-response-0001",
+  "schemaVersion": 1,
+  "status": "ready",
+  "createdAt": "2026-08-01T08:00:00.000Z",
+  "lastSavedAt": "",
+  "completedAt": "",
+  "reportNumber": "",
+
+  "workplaceLocation": "Superintendent Response Test Site",
+  "incidentDate": "2026-08-06",
+  "incidentTime": "08:15",
+  "writtenReportDateTime": "2026-08-06T09:00",
+  "reportedToSupervisorDateTime": "2026-08-06T08:20",
+  "investigatorName": "Casey Bowlin",
+  "investigatorTitle": "Site Superintendent",
+  "investigatorPhone": "601-555-0166",
+  "investigatorEmail": "cbowlin@shackelfordch.com",
+  "incidentSpecificLocation": "North staging area",
+  "detailedIncidentDescription": "A forklift operator struck a stack of empty pallets while backing up, knocking them into an adjacent walkway. No one was in the walkway at the time.",
+
+  "injuryOccurred": "no",
+  "injuredPartyName": "",
+  "injuredPartyTitle": "",
+  "injuredPartyYearsWithCompany": "",
+  "injuredPartyCurrentTrade": "",
+  "injuredPartyPhone": "",
+  "injuredPartyEmail": "",
+  "injuryNature": [],
+  "injuryNatureOther": "",
+  "bodyPartsAffectedText": "",
+  "treatmentLevel": "unselected",
+  "treatingPhysicianOrClinic": "",
+  "injuryRemarks": "",
+  "bodyDiagramMarks": [],
+
+  "witnesses": [],
+
+  "propertyDamageOccurred": "yes",
+  "propertyOrMaterialDamaged": "Empty pallets",
+  "natureOfDamage": "Several pallets broken",
+  "objectMachineToolOrSubstance": "Forklift",
+  "approximateDamageCost": "$40",
+
+  "selectedCauses": [
+    "unsafeActs::Operating at improper speeds"
+  ],
+  "primaryCause": "unsafeActs::Operating at improper speeds",
+  "unsafeActsOther": "",
+  "unsafeConditionsOther": "",
+  "managementDeficienciesOther": "",
+
+  "immediateActionsTaken": "Operator stopped the forklift immediately and radioed the yard lead. The walkway was cleared and taped off until the pallets could be restacked.",
+  "correctivePreventiveActions": "Reviewed backing-up procedures with the operator and required a spotter for backing near the staging walkway going forward. Added a reminder to the morning huddle checklist.",
+  "supervisorNotes": "",
+  "safetyConsultantNotes": "SAFETY-ONLY CONTENT -- must never be auto-filled or merged with superintendent responses.",
+  "investigationTeam": [
+    { "id": "sr-t1", "name": "Casey Bowlin", "title": "Site Superintendent", "signatureData": null, "date": "2026-08-06" }
+  ],
+
+  "notes": ""
+}

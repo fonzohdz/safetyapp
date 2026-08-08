@@ -349,7 +349,8 @@ function StepNotes({ incident, upd, prev, next }) {
   }
   return (
     <StepPanel title={c.title}>
-      <TextAreaField label={c.supervisorNotes} rows={4} value={incident.supervisorNotes} onChange={v => upd({ supervisorNotes: v })} />
+      <TextAreaField label={c.immediateActionsTitle} help={c.immediateActionsPrompt} rows={5} value={incident.immediateActionsTaken} onChange={v => upd({ immediateActionsTaken: v })} />
+      <TextAreaField label={c.correctiveActionsTitle} help={c.correctiveActionsPrompt} rows={5} value={incident.correctivePreventiveActions} onChange={v => upd({ correctivePreventiveActions: v })} />
       <TextAreaField label={c.safetyConsultantNotes} rows={4} value={incident.safetyConsultantNotes} onChange={v => upd({ safetyConsultantNotes: v })} />
 
       <div className="formSection">
