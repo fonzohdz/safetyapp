@@ -6,6 +6,7 @@ import {
 import { incidentCopy as t } from './incidentCopy';
 import SignaturePad from './SignaturePad';
 import BodyDiagram from './BodyDiagram';
+import IncidentPhotos from './IncidentPhotos';
 
 /* ── Small local presentational primitives ──
    Deliberately not imported from main.jsx (which exports nothing) -- kept
@@ -452,7 +453,7 @@ function StepReview({ incident, prev, pdfExportState, isPdfStale, onGeneratePdf,
 /* ── Top-level workflow shell ── */
 export default function IncidentWorkflow({
   incident, setIncident, step, setStep, goDocs, saveStatus, saveStatusState, onSaveNow,
-  pdfExportState, isPdfStale, onGeneratePdf, onShare, onDownload, onMarkReady, onStartNew,
+  pdfExportState, isPdfStale, onGeneratePdf, onShare, onDownload, onMarkReady, onStartNew, showToast,
 }) {
   const idx = INCIDENT_STEPS.findIndex(s => s.id === step);
   function upd(patch) {
@@ -503,6 +504,7 @@ export default function IncidentWorkflow({
           {step === 'property' && <StepProperty incident={incident} upd={upd} prev={prev} next={next} />}
           {step === 'cause' && <StepCause incident={incident} upd={upd} prev={prev} next={next} />}
           {step === 'notes' && <StepNotes incident={incident} upd={upd} prev={prev} next={next} />}
+          {step === 'photos' && <IncidentPhotos incident={incident} upd={upd} showToast={showToast} prev={prev} next={next} />}
           {step === 'review' && (
             <StepReview
               incident={incident}

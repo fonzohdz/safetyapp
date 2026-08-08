@@ -6,6 +6,7 @@ import './styles.css';
 import './incident/incident.css';
 import { emptyIncident, hasMeaningfulIncidentContent, incidentStepProgress, incidentNextStepHint, isIncidentReady, isIncidentPrintFinal } from './incident/incidentModel';
 import { loadIncidentDraft, saveIncidentDraft, clearIncidentDraft, upsertIncidentRecord } from './incident/incidentStorage';
+import { deletePhotosForIncident } from './incident/incidentPhotoStorage';
 import { incidentCopy } from './incident/incidentCopy';
 import IncidentWorkflow from './incident/IncidentWorkflow';
 import { IncidentPdfExportRoot, generateIncidentPdf, incidentPdfFingerprint, buildIncidentExportName, getIncidentPdfOverflowFields } from './incident/incidentPdfGenerate';
@@ -1252,13 +1253,20 @@ function App() {
   // Shared reset used by every "start fresh" entry point -- clears BOTH the
   // persisted draft and the in-memory/autosave-tracking state, so a
   // subsequent autosave can never silently overwrite the just-discarded
-  // saved report with new blank-report edits.
+  // saved report with new blank-report edits. Also cleans up any photo
+  // blobs the discarded draft owned in IndexedDB (see
+  // incidentPhotoStorage.js) -- single-draft-slot model, so the report
+  // being replaced here is gone for good and must not leave orphaned photo
+  // blobs behind. Best-effort: a cleanup failure must never block starting
+  // the new report.
   function resetIncidentToBlank() {
+    const discardedId = incident.id;
     clearIncidentDraft();
     setSavedIncidentDraft(null);
     setIncident(emptyIncident());
     setIncidentPdfExportState(null);
     lastIncidentAutoSaveSnapshot.current = '';
+    if (discardedId) deletePhotosForIncident(discardedId).catch(() => { /* non-fatal */ });
   }
   function startIncidentBlank() {
     resetIncidentToBlank();
@@ -1681,7 +1689,7 @@ function App() {
               goDocs={goDocs} saveStatus={incidentSaveStatusLabel} saveStatusState={incidentSaveStatus} onSaveNow={saveIncidentNow}
               pdfExportState={incidentPdfExportState} isPdfStale={isIncidentPdfStale}
               onGeneratePdf={exportIncidentPdf} onShare={shareIncidentPdfClick} onDownload={downloadIncidentPdfClick}
-              onMarkReady={markIncidentReady} onStartNew={startNewIncidentReport}
+              onMarkReady={markIncidentReady} onStartNew={startNewIncidentReport} showToast={showToast}
             />
           )}
           {tab === 'drafts' && <DraftsView savedDraft={savedDraft} loadSavedDraft={loadSavedDraft} goJsaStart={goJsaStart} clearDraft={() => { if (!savedDraft) return; if (!confirm('Delete this draft?')) return; setJsa(emptyJsa()); localStorage.removeItem(KEYS.draft); setSavedDraft(null); showToast('Draft deleted.'); }} />}

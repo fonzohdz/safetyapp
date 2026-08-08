@@ -4,7 +4,9 @@ import { PDFDocument } from 'pdf-lib';
 import { isIncidentPrintFinal, printedIncidentFingerprint } from './incidentModel';
 import {
   IncidentPageShell, Page1Content, Page2Content, Page3Content, Page4Content, Page5Content, Page6Content, ContinuationPage,
+  PhotoAppendixContent,
 } from './IncidentPdf';
+import { useIncidentPhotoUrls } from './useIncidentPhotoUrls';
 import {
   textBlockMeasureStyle, MIN_DESCRIPTION_HEIGHT_PX, MIN_STATEMENT_HEIGHT_PX, MIN_NOTE_BOX_HEIGHT_PX,
   MIN_TEAM_ROW_HEIGHT_PX, MAX_TEAM_ROW_HEIGHT_PX, PAGE_BOTTOM_SAFETY_PX, CONTINUATION_BODY_HEIGHT_PX,
@@ -196,6 +198,24 @@ export function buildIncidentPagePlan(incident) {
     pages.push({ key: `p6cc${i}`, type: 'continuation', props: { sectionLabel: 'Safety Consultant Notes & Summary', text: chunk } });
   });
 
+  // INCIDENT PHOTO APPENDIX -- always appended LAST, after every base page
+  // and every text-overflow continuation page above, and only when the
+  // report actually has photos (see the "Empty state" rule: zero photos
+  // must never add a page or change the existing six-page count). Two
+  // photos per page (see PHOTO_FRAME_HEIGHT_PX in incidentPdfLayout.js for
+  // why a fixed-per-page count is safe here, unlike the real-measurement
+  // pagination the base pages use above).
+  const photos = incident.photos || [];
+  for (let i = 0; i < photos.length; i += 2) {
+    const chunk = photos.slice(i, i + 2);
+    pages.push({
+      key: `photoAppendix${i / 2}`,
+      type: 'photoAppendix',
+      headerLabel: 'INCIDENT PHOTO APPENDIX',
+      props: { photos: chunk },
+    });
+  }
+
   return { pages, overflowFields };
 }
 
@@ -215,6 +235,7 @@ const PAGE_COMPONENTS = {
   page4: Page4Content,
   page5: Page5Content,
   page6: Page6Content,
+  photoAppendix: PhotoAppendixContent,
 };
 
 /* v0.1.6 -- html2canvas (the library that actually rasterizes every
@@ -311,6 +332,7 @@ function centerCompactCellContent(renderedPages) {
 export function IncidentPdfExportRoot({ incident, pageRefsRef }) {
   const elRefs = useRef({});
   const draft = !isIncidentPrintFinal(incident);
+  const photoUrls = useIncidentPhotoUrls(incident.photos);
 
   const { pages } = useMemo(() => buildIncidentPagePlan(incident), [
     incident.detailedIncidentDescription,
@@ -352,6 +374,7 @@ export function IncidentPdfExportRoot({ incident, pageRefsRef }) {
     incident.unsafeConditionsOther,
     incident.managementDeficienciesOther,
     incident.investigationTeam,
+    incident.photos,
   ]);
   const totalPages = pages.length;
 
@@ -380,8 +403,8 @@ export function IncidentPdfExportRoot({ incident, pageRefsRef }) {
         }
         const Content = PAGE_COMPONENTS[p.type];
         return (
-          <IncidentPageShell key={p.key} pageRef={setRef} pageNumber={pageNumber} totalPages={totalPages} draft={draft} watermarkVariant={p.type}>
-            <Content incident={incident} {...p.props} />
+          <IncidentPageShell key={p.key} pageRef={setRef} pageNumber={pageNumber} totalPages={totalPages} draft={draft} watermarkVariant={p.type} headerLabel={p.headerLabel}>
+            <Content incident={incident} photoUrls={photoUrls} {...p.props} />
           </IncidentPageShell>
         );
       })}
@@ -395,6 +418,27 @@ function dataUrlToUint8Array(dataUrl) {
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
   return bytes;
+}
+
+/* Incident Photo Appendix images load asynchronously (blob -> IndexedDB
+   read -> object URL, see useIncidentPhotoUrls.js) -- by the time a user
+   reaches Review & Export this has almost always already settled (the
+   always-mounted export root has been rendering in the background since
+   the photo was added), but nothing guarantees it (e.g. a page reload
+   landing straight on Review). Waiting for every real <img> in a page to
+   finish loading (or fail) before handing that page to html2canvas is the
+   same "measure/verify the real DOM, don't assume" philosophy the rest of
+   this module already uses -- it also cheaply no-ops for pages whose
+   images (signatures, the body diagram, the logo) are already loaded. */
+function waitForImages(el) {
+  const imgs = Array.from(el.querySelectorAll('img'));
+  return Promise.all(imgs.map((img) => {
+    if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+    return new Promise((resolve) => {
+      img.addEventListener('load', resolve, { once: true });
+      img.addEventListener('error', resolve, { once: true }); // never block export on one broken image
+    });
+  }));
 }
 
 /* Deterministic client-side PDF assembly -- same approach as the JSA's
@@ -427,6 +471,8 @@ export async function generateIncidentPdf(pageRefsRef, onProgress) {
     if (rect.width <= 0 || rect.height <= 0) {
       throw new Error(`Page ${i + 1} of ${pages.length} (${type}) has no measurable size -- export aborted.`);
     }
+
+    await waitForImages(el);
 
     let canvas;
     try {

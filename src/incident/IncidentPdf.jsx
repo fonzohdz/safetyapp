@@ -1,6 +1,6 @@
 import { CAUSE_CATEGORIES, causeKey } from './incidentModel';
 import { BODY_DIAGRAM_SRC, BODY_DIAGRAM_ASPECT } from './BodyDiagram';
-import { SUPERVISOR_NOTES_HELP, MIN_NOTE_BOX_HEIGHT_PX, MIN_TEAM_ROW_HEIGHT_PX } from './incidentPdfLayout';
+import { SUPERVISOR_NOTES_HELP, MIN_NOTE_BOX_HEIGHT_PX, MIN_TEAM_ROW_HEIGHT_PX, PHOTO_FRAME_HEIGHT_PX, PHOTO_BLOCK_GAP_PX } from './incidentPdfLayout';
 
 /* Print/PDF rendering for the Incident Report. Mirrors the reference
    document ("SCH Blank incident report (1).docx") section-for-section:
@@ -50,24 +50,31 @@ export function fmtTime(v) {
    investigation-team signature rows on some pages -- see the v0.1.4 polish
    pass. Deterministic (keyed off page type, not content), simple, and the
    default (no variant) still renders identically to before. */
-export function IncidentPageShell({ pageRef, pageNumber, totalPages, draft, children, className = '', watermarkVariant }) {
+export function IncidentPageShell({ pageRef, pageNumber, totalPages, draft, children, className = '', watermarkVariant, headerLabel }) {
   return (
     <div ref={pageRef} className={`incidentPage ${className}`}>
-      <IncidentHeader pageNumber={pageNumber} totalPages={totalPages} />
+      <IncidentHeader pageNumber={pageNumber} totalPages={totalPages} headerLabel={headerLabel} />
       <div className="incidentPageBody">{children}</div>
       {draft && <div className={`incidentWatermark${watermarkVariant ? ` incidentWatermark--${watermarkVariant}` : ''}`}>DRAFT</div>}
     </div>
   );
 }
 
-function IncidentHeader({ pageNumber, totalPages, continuationLabel }) {
+/* headerLabel is the FULL h2 text, verbatim -- callers that want the
+   "CONTINUATION — X" wording (the text-overflow continuation pages) pass
+   that whole string themselves (see ContinuationPage's own inline header
+   below, which doesn't go through this component at all). The Incident
+   Photo Appendix (see IncidentPageShell/buildIncidentPagePlan) is NOT a
+   continuation of anything -- it's its own labeled section -- so it passes
+   just "INCIDENT PHOTO APPENDIX" with no prefix. */
+function IncidentHeader({ pageNumber, totalPages, headerLabel }) {
   return (
     <header className="incidentHeader">
       <div className="incidentHeaderBar">
         <img src={SHACKELFORD_LOGO} alt="Shackelford Construction and Hauling" className="incidentHeaderLogo" />
         <div className="incidentHeaderTitles">
           <h1>{FORM_TITLE}</h1>
-          {continuationLabel && <h2>CONTINUATION &mdash; {continuationLabel}</h2>}
+          {headerLabel && <h2>{headerLabel}</h2>}
         </div>
         <div className="incidentHeaderPageNum">Page {pageNumber} of {totalPages}</div>
       </div>
@@ -397,6 +404,47 @@ export function Page6Content({
         </tbody>
       </table>
     </>
+  );
+}
+
+/* ── Incident Photo Appendix ──
+   Appended AFTER all six base pages and any text-overflow continuation
+   pages -- never mixed into them (see buildIncidentPagePlan in
+   incidentPdfGenerate.jsx, which only adds these when the incident has at
+   least one photo). Up to two photos per page, stacked vertically so
+   portrait and landscape photos both get the full content width and just
+   use object-fit: contain within a fixed-height frame -- nothing is ever
+   stretched or cropped. photoUrls is `{ [photoId]: { url, status } }` from
+   useIncidentPhotoUrls.js; a photo whose blob hasn't loaded (or is
+   missing/corrupted) renders a plain-language placeholder instead of a
+   broken image, both on screen and in the exported PDF. */
+function PhotoAppendixBlock({ photo, urlEntry }) {
+  const ready = urlEntry?.status === 'ready' && urlEntry.url;
+  const label = urlEntry?.status === 'missing' || urlEntry?.status === 'error' ? 'Photo unavailable' : 'Loading photo…';
+  return (
+    <div className="incPhotoBlock">
+      <div className="incPhotoFrame" style={{ height: `${PHOTO_FRAME_HEIGHT_PX}px` }}>
+        {ready
+          ? <img src={urlEntry.url} alt={photo.caption || photo.category || 'Incident photo'} className="incPhotoImage" />
+          : <div className="incPhotoPlaceholder">{label}</div>}
+      </div>
+      {(photo.category || photo.caption) && (
+        <div className="incPhotoCaptionBar">
+          {photo.category && <span className="incPhotoCategoryTag">{photo.category}</span>}
+          {photo.caption && <span className="incPhotoCaptionText">{photo.caption}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function PhotoAppendixContent({ photos, photoUrls }) {
+  return (
+    <div className="incPhotoAppendixPage" style={{ gap: `${PHOTO_BLOCK_GAP_PX}px` }}>
+      {(photos || []).map(photo => (
+        <PhotoAppendixBlock key={photo.id} photo={photo} urlEntry={photoUrls?.[photo.id]} />
+      ))}
+    </div>
   );
 }
 

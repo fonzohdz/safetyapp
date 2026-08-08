@@ -110,3 +110,21 @@ export const CONTINUATION_BODY_HEIGHT_PX = 760;
 // help text -- if this ever changes, both the printed page and the
 // available-space measurement stay in sync automatically.
 export const SUPERVISOR_NOTES_HELP = 'List immediate actions to be taken & what should be done to help prevent a recurrence of this type of incident.';
+
+// ── Incident Photo Appendix ──
+// Two photo blocks stacked vertically per page (not side-by-side): a
+// side-by-side layout would squeeze a landscape photo's width in half,
+// while stacking lets every photo -- portrait or landscape -- use the
+// page's full content width and just varies how much of the fixed frame
+// height it fills (object-fit: contain, see PhotoAppendixContent in
+// IncidentPdf.jsx). A fixed frame height (rather than measuring real
+// per-photo content like the base pages do) is deliberately simple here:
+// the caption input is capped at 220 characters (see
+// incidentCopy.js/IncidentPhotos.jsx), which at this column width never
+// wraps past a few lines, so two fixed-height blocks reliably fit one
+// page with room to spare -- verified against PAGE_HEIGHT_PX below. If a
+// future change ever removes that caption cap, this budget should go back
+// to real measurement (like textFit.js) instead of staying a fixed guess.
+export const PHOTO_FRAME_HEIGHT_PX = 330;
+export const PHOTO_BLOCK_GAP_PX = 14;
+

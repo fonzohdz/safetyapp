@@ -897,6 +897,16 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   background: var(--surface-2);
   border-radius: var(--radius-sm);
   padding: 3px;
+  /* At 900px+ (see the min-width:128px rule below) the rail's natural
+     content width can exceed its container's actual width once enough
+     steps are added (e.g. the Incident workflow's 8 steps) -- without
+     this, the overflow is not clipped or scrollable, it just visually
+     spills past the container edge, pushing later tabs fully off-screen
+     and unreachable by click/tap. -webkit-overflow-scrolling gives real
+     iPad/iPhone momentum scrolling instead of the default janky scroll. */
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
 }
 .stepperSeg {
   display: flex;

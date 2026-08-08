@@ -143,6 +143,44 @@ export function emptyTeamMember() {
   };
 }
 
+/* Suggested categories for an incident photo -- optional, plain-language,
+   deliberately short (a construction superintendent picking from a list on
+   a phone, not filling out a form field). "Other" always trails the list
+   for the same reason it trails every other category list in this module
+   (injury nature, cause analysis). */
+export const INCIDENT_PHOTO_CATEGORIES = [
+  'Incident Area',
+  'Equipment Involved',
+  'Property Damage',
+  'Injury / Body Area',
+  'Corrective Action',
+  'Other',
+];
+
+/* Metadata for one incident photo. The actual image bytes live in
+   IndexedDB (see incidentPhotoStorage.js), keyed by `id` -- this object is
+   the only thing that lives inside the incident's own JSON (localStorage),
+   so a modern multi-megabyte phone photo never bloats sdc.incident.draft.v1.
+   width/height are the POST-resize dimensions (see
+   incidentPhotoProcessing.js) -- used for aspect-correct layout in both the
+   on-screen thumbnail and the PDF appendix without having to load the blob
+   first. sourceName/sourceSize are the ORIGINAL file's name/size, kept only
+   for duplicate-upload detection (see incidentPhotoProcessing.js) -- never
+   printed. */
+export function emptyIncidentPhoto() {
+  return {
+    id: makeId(),
+    category: '',
+    caption: '',
+    mimeType: 'image/jpeg',
+    width: 0,
+    height: 0,
+    createdAt: new Date().toISOString(),
+    sourceName: '',
+    sourceSize: 0,
+  };
+}
+
 /* The canonical shape of an Incident Report. Every field the reference
    document prints (or that this app's approved deviations add, e.g.
    multi-select injury nature) lives here so nothing is invented ad hoc in
@@ -209,6 +247,11 @@ export function emptyIncident() {
     safetyConsultantNotes: '',
     investigationTeam: [], // max 4, see emptyTeamMember()
 
+    // INCIDENT PHOTO APPENDIX -- printed AFTER all six base pages (and any
+    // continuation pages), never inside them. See emptyIncidentPhoto() for
+    // shape; blob bytes live in IndexedDB, not here.
+    photos: [],
+
     // Internal-only, never printed (mirrors the JSA's "notes" field)
     notes: '',
   };
@@ -233,7 +276,8 @@ export function hasMeaningfulIncidentContent(incident) {
     || incident.propertyDamageOccurred !== 'unselected'
     || (incident.witnesses || []).length > 0
     || (incident.selectedCauses || []).length > 0
-    || (incident.investigationTeam || []).length > 0;
+    || (incident.investigationTeam || []).length > 0
+    || (incident.photos || []).length > 0;
 }
 
 /* Readiness checks for the "Mark Ready" action and export checklist --
@@ -324,6 +368,7 @@ export const INCIDENT_STEPS = [
   { id: 'property', label: 'Property Damage', helper: 'Damaged property and cost' },
   { id: 'cause', label: 'Cause Analysis', helper: 'Unsafe acts, conditions, and management factors' },
   { id: 'notes', label: 'Notes & Team', helper: 'Summaries and investigation team' },
+  { id: 'photos', label: 'Photos', helper: 'Attach incident photos (optional)' },
   { id: 'review', label: 'Review & Export', helper: 'Save, generate, and share the PDF' },
 ];
 
@@ -342,6 +387,8 @@ export function incidentStepStatus(incident, stepId) {
       return (incident.selectedCauses || []).length > 0 ? 'complete' : 'needs-info';
     case 'notes':
       return has(incident.supervisorNotes) && (incident.investigationTeam || []).some(m => has(m.name)) ? 'complete' : 'needs-info';
+    case 'photos':
+      return 'complete'; // always optional
     case 'review':
       return isIncidentReady(incident) ? 'complete' : 'needs-info';
     default:
