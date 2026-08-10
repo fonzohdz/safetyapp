@@ -2075,7 +2075,6 @@ function MobileBottomNav({ tab, goHome, goDocs, setTab }) {
    are not disabled buttons pretending to be buttons, they're plain rows. */
 const PLANNED_DOCUMENT_TYPES = [
   { name: 'BBS Observation', desc: 'Behavior-based safety observations and coaching notes.' },
-  { name: 'Unplanned Event', desc: 'Capture unplanned events before they escalate.' },
   { name: 'Sign-In Sheet', desc: 'Standalone sign-in sheet for meetings and training.' },
   { name: 'Toolbox Talk', desc: 'Short-form safety talks and crew acknowledgement.' },
   { name: 'SOP', desc: 'Standard operating procedures for recurring tasks.' },

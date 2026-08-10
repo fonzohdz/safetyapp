@@ -45,6 +45,11 @@ const ALL_SIX_TITLES = [
   'Employee Medical Event', 'Employee Disciplinary Notice', 'Employee Separation',
 ];
 
+// "Unplanned Event" was removed from PLANNED_DOCUMENT_TYPES (main.jsx) once
+// the live Uncontrolled Event Report shipped and took over that functional
+// category -- these five are what should remain.
+const PLANNED_TITLES = ['BBS Observation', 'Sign-In Sheet', 'Toolbox Talk', 'SOP', 'Inspection'];
+
 async function main() {
   console.log('[1/4] Starting vite preview server...');
   const server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], {
@@ -77,6 +82,19 @@ async function main() {
       const employeeActionGroup = await page.locator('text=Employee Action').count();
       check(fieldSafetyGroup >= 1, 'Field Safety category heading present');
       check(employeeActionGroup >= 1, 'Employee Action category heading present');
+
+      // Planned Document Library: exactly the five intended future types,
+      // "Unplanned Event" gone now that Uncontrolled Event Report is live.
+      const plannedRows = page.locator('.libraryRow');
+      check(await plannedRows.count() === PLANNED_TITLES.length, `Exactly ${PLANNED_TITLES.length} planned document rows shown, got ${await plannedRows.count()}`);
+      check(await page.locator('.libraryRow', { hasText: 'Unplanned Event' }).count() === 0, '"Unplanned Event" is absent from the planned list');
+      for (const title of PLANNED_TITLES) {
+        check(await page.locator('.libraryRow', { hasText: title }).count() === 1, `Planned document "${title}" present exactly once`);
+      }
+      // Uncontrolled Event Report is live and startable, not just listed.
+      const uncontrolledRow = page.locator('.listItem', { hasText: 'Uncontrolled Event Report' });
+      check(await uncontrolledRow.locator('button', { hasText: 'Start' }).count() === 1, 'Live Uncontrolled Event Report has a working Start button');
+
       check(pageErrors.length === 0, `No page errors (${pageErrors.length} found)`);
       await context.close();
     }
