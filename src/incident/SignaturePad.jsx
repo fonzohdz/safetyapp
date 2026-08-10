@@ -172,6 +172,13 @@ export default function SignaturePad({ value, onChange, label, disabled }) {
     <div className="signaturePad">
       {label ? <div className="fieldLabel">{label}</div> : null}
       <div className="signatureCanvasWrap" ref={wrapRef}>
+        {/* No onPointerLeave: with setPointerCapture in place, pointerup
+            already reaches this element no matter where the pointer is
+            released. iOS Safari has fired spurious pointerleave mid-touch-
+            drag on captured elements, which silently ends the stroke after
+            the very first move -- the touch-drawing-draws-nothing bug.
+            pointercancel (e.g. an interrupting system gesture) is handled
+            explicitly instead of leaving drawingRef stuck true. */}
         <canvas
           ref={canvasRef}
           className="signatureCanvas"
@@ -179,7 +186,7 @@ export default function SignaturePad({ value, onChange, label, disabled }) {
           onPointerDown={pointerDown}
           onPointerMove={pointerMove}
           onPointerUp={pointerUp}
-          onPointerLeave={pointerUp}
+          onPointerCancel={pointerUp}
         />
       </div>
       <div className="signaturePadActions">

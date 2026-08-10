@@ -21,9 +21,21 @@
 // an <img> inside the Witness 2 signature cell on the real generated page --
 // proving the whole capture -> save -> print pipeline, not just the canvas.
 //
+// Also runs the same viewport suite under WebKit (best-effort -- some hosts
+// can't launch the WebKit binary at all; that's logged as a skip, not a
+// failure) plus a dedicated real-touch-gesture pass on Chromium mobile
+// emulation (via CDP Input.dispatchTouchEvent, not synthetic JS events) that
+// specifically regression-guards the iOS Safari fix in SignaturePad.jsx:
+// removing onPointerLeave as a stroke-ending trigger (WebKit has fired
+// spurious pointerleave mid-touch-drag on a pointer-captured element, ending
+// the stroke after the first move) in favor of onPointerCancel, which is
+// also exercised directly (mid-stroke touchcancel) to prove drawing recovers
+// cleanly on the next gesture instead of leaving state stuck.
+//
 // Exits nonzero on any assertion failure, console error, or page error.
+// WebKit being unavailable on the host is a skip (logged), not a failure.
 
-import { chromium } from 'playwright';
+import { chromium, webkit } from 'playwright';
 import { spawn } from 'node:child_process';
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -92,6 +104,111 @@ async function drawScribble(page, canvasBox) {
     await page.mouse.move(px, py, { steps: 6 });
   }
   await page.mouse.up();
+}
+
+/* Real native touch input via CDP (Chromium only -- WebKit exposes no CDP
+   session) rather than page.mouse or synthetic JS-dispatched events, so this
+   goes through the browser's actual touch-action / pointer-capture pipeline
+   the way a finger on glass would, not just SignaturePad's JS logic. */
+async function touchDrag(session, points) {
+  await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: points[0][0], y: points[0][1] }] });
+  for (const [px, py] of points.slice(1)) {
+    await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: px, y: py }] });
+  }
+  await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+}
+
+/* Regression-guards the actual iOS Safari fix: draws with real touch input
+   on a mobile-emulated Chromium page, deliberately moving the touch point
+   ABOVE the canvas's own bounding box mid-gesture (out of its bounds) and
+   back inside before lifting -- the exact shape of gesture that exposed
+   WebKit firing a spurious pointerleave on a pointer-captured element and
+   silently ending the stroke early. Also proves a mid-gesture touchcancel
+   (onPointerCancel) leaves the pad able to draw again immediately, instead
+   of leaving drawingRef stuck true. */
+async function runTouchGestureCheck(browser, fixtureJson) {
+  const a = makeAssertions();
+  console.log('\n=== Touch-gesture pass (Chromium mobile emulation, real CDP touch input) ===');
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  await context.addInitScript((json) => { window.localStorage.setItem('sdc.incident.draft.v1', json); }, fixtureJson);
+  const page = await context.newPage();
+  const consoleErrors = []; const pageErrors = [];
+  page.on('console', (msg) => { if (msg.type() === 'error') consoleErrors.push(msg.text()); });
+  page.on('pageerror', (err) => pageErrors.push(err.message));
+
+  await page.goto(BASE_URL, { waitUntil: 'networkidle' });
+  await page.getByRole('button', { name: 'Continue Incident Report' }).click();
+  await page.getByRole('tab', { name: /^Witnesses/ }).click();
+  await page.getByRole('button', { name: 'Add signature' }).first().click();
+  const canvas = page.locator('.signatureCanvas').first();
+  await canvas.waitFor({ state: 'visible' });
+  const box = await canvas.boundingBox();
+
+  const session = await context.newCDPSession(page);
+
+  console.log('  [1/3] Drawing with real touch input, crossing above the canvas top edge mid-stroke...');
+  await touchDrag(session, [
+    [box.x + box.width * 0.1, box.y + box.height * 0.6],
+    [box.x + box.width * 0.3, box.y + box.height * 0.2],
+    [box.x + box.width * 0.5, box.y - 25], // outside the canvas bounds, still mid-gesture
+    [box.x + box.width * 0.7, box.y + box.height * 0.3],
+    [box.x + box.width * 0.9, box.y + box.height * 0.6],
+  ]);
+
+  const inkSpread = await canvas.evaluate((el) => {
+    const ctx = el.getContext('2d');
+    const { width, height } = el;
+    const data = ctx.getImageData(0, 0, width, height).data;
+    let minX = width; let maxX = 0;
+    for (let px = 0; px < width; px += 2) {
+      for (let py = 0; py < height; py += 4) {
+        if (data[(py * width + px) * 4 + 3] > 10) { if (px < minX) minX = px; if (px > maxX) maxX = px; }
+      }
+    }
+    return { minX, maxX, width };
+  });
+  a.check(inkSpread.maxX > inkSpread.minX, 'expected touch-drawn ink to span a real horizontal range');
+  a.check(inkSpread.minX < inkSpread.width * 0.35, `expected touch ink to reach near the left side, leftmost at x=${inkSpread.minX} of ${inkSpread.width}`);
+  a.check(inkSpread.maxX > inkSpread.width * 0.65, `expected touch ink to reach near the right side (stroke survives crossing above the canvas mid-gesture), rightmost at x=${inkSpread.maxX} of ${inkSpread.width}`);
+
+  console.log('  [2/3] Clearing, then interrupting a new stroke with touchcancel...');
+  await page.locator('.signaturePadActions button', { hasText: /^Clear$/ }).click();
+  await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: box.x + box.width * 0.2, y: box.y + box.height * 0.5 }] });
+  await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: box.x + box.width * 0.35, y: box.y + box.height * 0.5 }] });
+  await session.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
+
+  console.log('  [3/3] Drawing a fresh stroke immediately after the cancel...');
+  await touchDrag(session, [
+    [box.x + box.width * 0.15, box.y + box.height * 0.5],
+    [box.x + box.width * 0.5, box.y + box.height * 0.3],
+    [box.x + box.width * 0.85, box.y + box.height * 0.5],
+  ]);
+  const recoverySpread = await canvas.evaluate((el) => {
+    const ctx = el.getContext('2d');
+    const { width, height } = el;
+    const data = ctx.getImageData(0, 0, width, height).data;
+    let minX = width; let maxX = 0;
+    for (let px = 0; px < width; px += 2) {
+      for (let py = 0; py < height; py += 4) {
+        if (data[(py * width + px) * 4 + 3] > 10) { if (px < minX) minX = px; if (px > maxX) maxX = px; }
+      }
+    }
+    return { minX, maxX, width };
+  });
+  a.check(recoverySpread.maxX > recoverySpread.minX, 'expected a fresh stroke drawn right after a mid-gesture touchcancel to actually render ink (drawingRef not left stuck)');
+
+  a.check(consoleErrors.length === 0, `no console errors (${consoleErrors.length} found)${consoleErrors.length ? ': ' + consoleErrors.join(' | ') : ''}`);
+  a.check(pageErrors.length === 0, `no page errors (${pageErrors.length} found)${pageErrors.length ? ': ' + pageErrors.join(' | ') : ''}`);
+
+  if (a.failures.length) {
+    console.error('  FAILED ASSERTIONS for touch-gesture pass:');
+    a.failures.forEach((f) => console.error(`    - ${f}`));
+  } else {
+    console.log('  All assertions passed.');
+  }
+
+  await context.close();
+  return { pass: 'touch-gesture', assertionFailures: a.failures, consoleErrors, pageErrors };
 }
 
 async function runViewport(browser, fixtureJson, viewport) {
@@ -240,32 +357,59 @@ async function main() {
     const fixtureJson = readFileSync(path.join(__dirname, 'fixtures', 'incident-full-fixture.json'), 'utf8');
     JSON.parse(fixtureJson); // fail fast on invalid fixture JSON
 
-    const browser = await chromium.launch();
     const summaries = [];
+    let webkitSkippedReason = null;
+
+    const chromiumBrowser = await chromium.launch();
     try {
       for (const viewport of VIEWPORTS) {
-        const summary = await runViewport(browser, fixtureJson, viewport);
-        summaries.push(summary);
+        summaries.push(await runViewport(chromiumBrowser, fixtureJson, viewport));
       }
+      summaries.push(await runTouchGestureCheck(chromiumBrowser, fixtureJson));
     } finally {
       // Always close the browser, even if a viewport throws -- an open
       // browser<->page connection is a live handle that keeps the Node
       // process running indefinitely, which turns one bad assertion into a
       // silently hung script instead of a clean nonzero exit.
-      await browser.close();
+      await chromiumBrowser.close();
+    }
+
+    // WebKit is best-effort: some hosts have the binary installed
+    // (`npx playwright install webkit`) but it still can't launch (seen on
+    // this project's Windows dev machine -- launches then exits immediately
+    // with a native crash unrelated to app code). That's a skip, not a
+    // regression failure; real WebKit/iPhone Safari coverage should still be
+    // run wherever it's actually available.
+    console.log('\n=== Attempting WebKit (real Safari/WebKit engine) ===');
+    let webkitBrowser = null;
+    try {
+      webkitBrowser = await webkit.launch();
+    } catch (err) {
+      webkitSkippedReason = err.message.split('\n')[0];
+      console.warn(`  SKIPPED: WebKit could not be launched on this host (${webkitSkippedReason}). Falling back to Chromium-only coverage for this run -- verify on a real iPhone Safari or a working WebKit host before shipping.`);
+    }
+    if (webkitBrowser) {
+      try {
+        for (const viewport of VIEWPORTS) {
+          summaries.push({ ...(await runViewport(webkitBrowser, fixtureJson, { ...viewport, name: `webkit-${viewport.name}` })) });
+        }
+      } finally {
+        await webkitBrowser.close();
+      }
     }
 
     console.log('\n=== OVERALL SUMMARY ===');
     console.log(JSON.stringify(summaries.map((s) => ({
-      viewport: s.viewport, assertionFailures: s.assertionFailures.length, consoleErrors: s.consoleErrors.length, pageErrors: s.pageErrors.length,
+      viewport: s.viewport ?? s.pass, assertionFailures: s.assertionFailures.length, consoleErrors: s.consoleErrors.length, pageErrors: s.pageErrors.length,
     })), null, 2));
+    if (webkitSkippedReason) console.log(`WebKit: SKIPPED (${webkitSkippedReason})`);
 
     const anyErrors = summaries.some((s) => s.consoleErrors.length || s.pageErrors.length || s.assertionFailures.length);
     if (anyErrors) {
-      console.error('\nFAILED: console/page errors or assertion failures were captured during at least one viewport run (see per-viewport summary.json).');
+      console.error('\nFAILED: console/page errors or assertion failures were captured during at least one run (see per-viewport summary.json).');
       process.exitCode = 1;
     } else {
-      console.log('\nAll viewports passed all assertions with zero console/page errors.');
+      console.log('\nAll runs passed all assertions with zero console/page errors.' + (webkitSkippedReason ? ' (WebKit skipped -- see above.)' : ''));
     }
   } finally {
     server.kill();
