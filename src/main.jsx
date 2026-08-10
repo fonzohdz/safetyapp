@@ -4,12 +4,26 @@ import html2canvas from 'html2canvas';
 import { PDFDocument } from 'pdf-lib';
 import './styles.css';
 import './incident/incident.css';
+import './documents/docPdf.css';
 import { emptyIncident, hasMeaningfulIncidentContent, incidentStepProgress, incidentNextStepHint, isIncidentReady, isIncidentPrintFinal, migrateIncidentShape } from './incident/incidentModel';
 import { loadIncidentDraft, saveIncidentDraft, clearIncidentDraft, upsertIncidentRecord } from './incident/incidentStorage';
 import { deletePhotosForIncident } from './incident/incidentPhotoStorage';
 import { incidentCopy } from './incident/incidentCopy';
 import IncidentWorkflow from './incident/IncidentWorkflow';
 import { IncidentPdfExportRoot, generateIncidentPdf, incidentPdfFingerprint, buildIncidentExportName, getIncidentPdfOverflowFields } from './incident/incidentPdfGenerate';
+import { DOCUMENT_REGISTRY, DOCUMENT_CATEGORIES } from './documents/registry';
+import { DOCUMENT_STORAGE_KEYS } from './documents/storage';
+import { useDraftDocument, saveStatusLabel } from './documents/useDraftDocument';
+import { usePdfExport } from './documents/usePdfExport';
+import { printedFingerprint } from './documents/printedFingerprint';
+import {
+  emptyDisciplinary, hasMeaningfulDisciplinaryContent, isDisciplinaryReady,
+  buildDisciplinaryExportName, warningLevelLabel,
+} from './documents/disciplinary/disciplinaryModel';
+import DisciplinaryWorkflow from './documents/disciplinary/DisciplinaryWorkflow';
+import { DisciplinaryPdfExportRoot } from './documents/disciplinary/DisciplinaryPdf';
+
+const DOCUMENT_CATEGORY_ORDER = ['fieldSafety', 'employeeAction'];
 
 /* ── Storage keys ── */
 const KEYS = {
@@ -1142,6 +1156,23 @@ function App() {
     : incidentSaveStatus === 'error' ? incidentCopy.autosaveError
     : incidentSaveStatus === 'saved' ? incidentCopy.autosaveSaved
     : (incident.lastSavedAt ? incidentCopy.autosaveSaved : 'Not saved yet');
+  // ── Employee Disciplinary Notice state (fully separate storage/state from
+  // JSA/Incident above — see useDraftDocument.js for the shared shape this
+  // and the other three new documents all use). ──
+  const disciplinary = useDraftDocument({
+    storageKey: DOCUMENT_STORAGE_KEYS.disciplinary,
+    emptyModel: emptyDisciplinary,
+    hasMeaningfulContent: hasMeaningfulDisciplinaryContent,
+    firstStepId: 'notice',
+    active: activeDoc === 'disciplinary',
+  });
+  const disciplinaryPdf = usePdfExport({
+    buildFilename: () => `${buildDisciplinaryExportName(disciplinary.model)}.pdf`,
+    fingerprint: printedFingerprint(disciplinary.model),
+    onGenerated: () => disciplinary.markCompleted(),
+    showToast: msg => showToast(msg),
+  });
+
   const [templateId, setTemplateId] = useState('blank-jsa');
   const [saveName, setSaveName] = useState('');
   const [toast, setToast] = useState('');
@@ -1249,6 +1280,43 @@ function App() {
   function goJsaStart() { setTab('documents'); setActiveDoc('jsa-start'); }
   function goJsa(step = 'job') { setTab('documents'); setActiveDoc('jsa'); setJsaStep(step); }
   function goIncident(step = 'details') { setTab('documents'); setActiveDoc('incident'); setIncidentStep(step); }
+  function goDisciplinary() { setTab('documents'); setActiveDoc('disciplinary'); }
+
+  // Shared entry-point builder for the four new useDraftDocument-backed
+  // documents — same "confirm before replacing meaningful existing content"
+  // contract JSA/Incident's own requestStartBlank functions implement by
+  // hand, generalized once instead of copy-pasted per document. `activate`
+  // is the doc's own goX() above (sets tab/activeDoc so its builder mounts).
+  function makeDraftEntryPoints(doc, activate, confirmMessage) {
+    function startBlank() {
+      doc.resetToBlank();
+      activate();
+    }
+    function requestStartBlank() {
+      if (doc.hasExistingContent() && !confirm(confirmMessage)) return;
+      startBlank();
+    }
+    function loadSavedDraft() {
+      if (!doc.loadSaved()) { showToast('No saved draft found on this device.'); return; }
+      activate();
+      showToast('Saved draft loaded.');
+    }
+    return { startBlank, requestStartBlank, loadSavedDraft };
+  }
+
+  const disciplinaryEntry = makeDraftEntryPoints(
+    disciplinary, goDisciplinary,
+    'Starting a new disciplinary notice will replace the current draft. Continue?'
+  );
+  function markDisciplinaryReady() {
+    if (disciplinary.markReady(isDisciplinaryReady)) showToast('Marked ready for final export.');
+    else showToast(disciplinary.saveStatus === 'error' ? 'Save failed. Check available storage on this device.' : 'Complete all required fields before marking ready.');
+  }
+  function startNewDisciplinary() {
+    if (disciplinary.hasExistingContent() && !confirm('Start a new disciplinary notice? The current one will be cleared from this device.')) return;
+    disciplinaryEntry.startBlank();
+    showToast('Started a new disciplinary notice.');
+  }
 
   // Shared reset used by every "start fresh" entry point -- clears BOTH the
   // persisted draft and the in-memory/autosave-tracking state, so a
@@ -1627,15 +1695,50 @@ function App() {
 
   const selectedTemplate = allTemplates.find(t => t.id === templateId);
   const draftLabel = savedDraft?.lastSavedAt ? `Draft saved ${nowNice(new Date(savedDraft.lastSavedAt))}` : 'No active saved draft';
+
+  // One row descriptor per document type with an active draft — feeds both
+  // the Drafts tab (see DraftsView above) and, once a document also wants a
+  // Home "Continue Current Work" card, the same data. JSA and Incident wrap
+  // their own existing state/handlers; the four new documents each reuse
+  // their useDraftDocument instance directly.
+  const draftEntries = [
+    {
+      id: 'jsa',
+      savedDraft,
+      draftTitle: savedDraft?.jobSite || savedDraft?.templateName || 'JSA Draft',
+      metaLine: `Next: ${savedDraft ? nextStepHint(savedDraft) : ''} · ${savedDraft?.lastSavedAt ? `Last saved ${nowNice(new Date(savedDraft.lastSavedAt))}` : 'Saved on this device'}`,
+      onOpen: loadSavedDraft,
+      onDelete: () => { if (!savedDraft) return; if (!confirm('Delete this draft?')) return; setJsa(emptyJsa()); localStorage.removeItem(KEYS.draft); setSavedDraft(null); showToast('Draft deleted.'); },
+    },
+    {
+      id: 'incident',
+      savedDraft: savedIncidentDraft,
+      draftTitle: savedIncidentDraft?.workplaceLocation || 'Untitled Incident Report',
+      metaLine: `Next: ${savedIncidentDraft ? incidentNextStepHint(savedIncidentDraft) : ''} · ${savedIncidentDraft?.lastSavedAt ? `Last saved ${nowNice(new Date(savedIncidentDraft.lastSavedAt))}` : 'Saved on this device'}`,
+      onOpen: loadSavedIncidentDraft,
+      onDelete: () => { if (!savedIncidentDraft) return; if (!confirm('Delete this draft?')) return; resetIncidentToBlank(); showToast('Draft deleted.'); },
+    },
+    {
+      id: 'disciplinary',
+      savedDraft: disciplinary.savedDraft,
+      draftTitle: disciplinary.savedDraft?.employeeName || 'Untitled Disciplinary Notice',
+      metaLine: `Warning level: ${warningLevelLabel(disciplinary.savedDraft?.warningLevel) || 'Not selected'} · ${disciplinary.savedDraft?.lastSavedAt ? `Last saved ${nowNice(new Date(disciplinary.savedDraft.lastSavedAt))}` : 'Saved on this device'}`,
+      onOpen: disciplinaryEntry.loadSavedDraft,
+      onDelete: () => { if (!disciplinary.savedDraft) return; if (!confirm('Delete this draft?')) return; disciplinary.discard(); showToast('Draft deleted.'); },
+    },
+  ];
   // Phone bottom nav stands in for the sidebar only at the tab level — inside
   // a document flow the workflow's own header/back button and sticky action
   // bar already own wayfinding, so it's not rendered there (see .mobileBottomNav).
-  const isDocFlow = activeDoc === 'jsa-start' || activeDoc === 'jsa' || activeDoc === 'incident';
+  // Driven by DOCUMENT_REGISTRY (plus JSA's own separate "-start" picker
+  // screen) so a newly-registered document is automatically treated as a
+  // document flow without another edit here.
+  const isDocFlow = activeDoc === 'jsa-start' || DOCUMENT_REGISTRY.some(d => d.id === activeDoc);
 
   return (
     <>
       <div className="appShell">
-        <aside className={`sidebar${activeDoc === 'jsa' || activeDoc === 'incident' ? ' builderActive' : ''}`}>
+        <aside className={`sidebar${isDocFlow && activeDoc !== 'jsa-start' ? ' builderActive' : ''}`}>
           <div className="sidebarBrand">
             <span className="sidebarBrandName">{APP_NAME}</span>
             <span className="sidebarBrandSub">{APP_SUB}</span>
@@ -1670,7 +1773,14 @@ function App() {
               savedIncidentDraft={savedIncidentDraft} startIncidentBlank={requestStartIncidentBlank} loadSavedIncidentDraft={loadSavedIncidentDraft}
             />
           )}
-          {tab === 'documents' && !activeDoc && <DocCenterView goJsaStart={goJsaStart} goIncidentStart={requestStartIncidentBlank} />}
+          {tab === 'documents' && !activeDoc && (
+            <DocCenterView startHandlers={{
+              jsa: goJsaStart,
+              incident: requestStartIncidentBlank,
+              disciplinary: disciplinaryEntry.requestStartBlank,
+            }}
+            />
+          )}
           {tab === 'documents' && activeDoc === 'jsa-start' && (
             <JsaStartView allTemplates={allTemplates} selectedTemplate={selectedTemplate} templateId={templateId} setTemplateId={setTemplateId} loadTemplate={requestLoadTemplate} loadSavedDraft={loadSavedDraft} startBlank={requestStartBlank} savedDraft={savedDraft} />
           )}
@@ -1696,7 +1806,17 @@ function App() {
               onMarkReady={markIncidentReady} onStartNew={startNewIncidentReport} showToast={showToast}
             />
           )}
-          {tab === 'drafts' && <DraftsView savedDraft={savedDraft} loadSavedDraft={loadSavedDraft} goJsaStart={goJsaStart} clearDraft={() => { if (!savedDraft) return; if (!confirm('Delete this draft?')) return; setJsa(emptyJsa()); localStorage.removeItem(KEYS.draft); setSavedDraft(null); showToast('Draft deleted.'); }} />}
+          {tab === 'documents' && activeDoc === 'disciplinary' && (
+            <DisciplinaryWorkflow
+              model={disciplinary.model} upd={disciplinary.upd} step={disciplinary.step} setStep={disciplinary.setStep}
+              goDocs={goDocs} saveStatus={saveStatusLabel(disciplinary.saveStatus, disciplinary.model.lastSavedAt)}
+              saveStatusState={disciplinary.saveStatus} onSaveNow={disciplinary.saveNow}
+              pdfExportState={disciplinaryPdf.pdfExportState} isPdfStale={disciplinaryPdf.isPdfStale}
+              onGeneratePdf={disciplinaryPdf.generate} onShare={disciplinaryPdf.shareClick} onDownload={disciplinaryPdf.downloadClick}
+              onMarkReady={markDisciplinaryReady} onStartNew={startNewDisciplinary}
+            />
+          )}
+          {tab === 'drafts' && <DraftsView entries={draftEntries} goDocs={goDocs} />}
           {tab === 'templates' && <TemplatesView allTemplates={allTemplates} customTemplates={customTemplates} loadTemplate={requestLoadTemplate} deleteTemplate={deleteTemplate} startBlank={requestStartBlank} />}
           {tab === 'settings' && <SettingsView settings={settings} setSettings={setSettings} />}
         </main>
@@ -1718,6 +1838,7 @@ function App() {
       <PrintableJsa jsa={jsa} />
       <PdfExportRoot jsa={jsa} plan={pdfExportPlan} pageRefsRef={pdfExportPageRefsRef} />
       <IncidentPdfExportRoot incident={incident} pageRefsRef={incidentPdfPageRefsRef} />
+      <DisciplinaryPdfExportRoot model={disciplinary.model} pageRefsRef={disciplinaryPdf.pageRefsRef} />
       {toast && <div className="toast">{toast}</div>}
     </>
   );
@@ -1900,8 +2021,22 @@ function HomeView({ savedDraft, customTemplates, startBlank, setTab, loadSavedDr
   );
 }
 
-/* ── Document center ── */
-function DocCenterView({ goJsaStart, goIncidentStart }) {
+/* ── Document center ──
+   Renders the "Available Now" section from DOCUMENT_REGISTRY (see
+   src/documents/registry.js) grouped by category, instead of one hardcoded
+   .listItem per document type — adding a new document to the registry is
+   enough for it to appear here with no further Documents-tab changes.
+   `startHandlers` maps registry id -> the App()-level function that begins
+   that document (JSA and Incident keep their own existing entry-point
+   functions; the four new documents each get a requestStart* function from
+   their own useDraftDocument instance). */
+function DocCenterView({ startHandlers }) {
+  const grouped = DOCUMENT_CATEGORY_ORDER.map(catId => ({
+    catId,
+    label: DOCUMENT_CATEGORIES[catId],
+    docs: DOCUMENT_REGISTRY.filter(d => d.status === 'available' && d.category === catId),
+  })).filter(g => g.docs.length);
+
   return (
     <div className="sectionStack">
       <div className="sectionTitle">
@@ -1910,29 +2045,23 @@ function DocCenterView({ goJsaStart, goIncidentStart }) {
         <p>Start or open a document type that's available now. Planned types will arrive in later releases.</p>
       </div>
 
-      <section className="homeSection">
-        <span className="homeSectionEyebrow">Available Now</span>
-        <div className="listItem">
-          <div className="itemInfo">
-            <strong>Job Safety Analysis</strong>
-            <p>Start blank, load a saved template, or continue a draft.</p>
-          </div>
-          <div className="itemActions">
-            <span className="badge avail">Available</span>
-            <button className="btn secondary sm" onClick={goJsaStart}>Start</button>
-          </div>
-        </div>
-        <div className="listItem">
-          <div className="itemInfo">
-            <strong>Incident Report</strong>
-            <p>Document and investigate a workplace incident, step by step.</p>
-          </div>
-          <div className="itemActions">
-            <span className="badge avail">Available</span>
-            <button className="btn secondary sm" onClick={goIncidentStart}>Start</button>
-          </div>
-        </div>
-      </section>
+      {grouped.map(g => (
+        <section className="homeSection" key={g.catId}>
+          <span className="homeSectionEyebrow">{g.label}</span>
+          {g.docs.map(doc => (
+            <div className="listItem" key={doc.id}>
+              <div className="itemInfo">
+                <strong>{doc.title}</strong>
+                <p>{doc.description}</p>
+              </div>
+              <div className="itemActions">
+                <span className="badge avail">Available</span>
+                <button className="btn secondary sm" onClick={startHandlers[doc.id]}>Start</button>
+              </div>
+            </div>
+          ))}
+        </section>
+      ))}
 
       <section className="homeSection">
         <span className="homeSectionEyebrow">Planned</span>
@@ -2755,32 +2884,46 @@ function StepFooter({ prev, next, hasPrev, hasNext }) {
 }
 
 /* ── Drafts view ── */
-function DraftsView({ savedDraft, loadSavedDraft, goJsaStart, clearDraft }) {
+/* ── Drafts view ──
+   `entries` is one row descriptor per document type that supportsDrafts in
+   DOCUMENT_REGISTRY (see App()'s draftEntries) — a new document only needs
+   to add its own entry object to that array to show up here, instead of
+   this component growing a hardcoded block per document type. Only
+   documents with an actual saved draft render a row; if none exist, one
+   shared empty state points at Documents. */
+function DraftsView({ entries, goDocs }) {
+  const withDrafts = entries.filter(e => e.savedDraft);
   return (
     <div className="sectionStack">
       <div className="sectionTitle">
         <div className="eyebrow">Drafts</div>
         <h2>Saved Drafts</h2>
-        <p>Drafts are editable JSAs saved on this device. Export final PDFs outside the app.</p>
+        <p>Drafts are editable documents saved on this device. Export final PDFs outside the app.</p>
       </div>
-      {savedDraft ? (
-        <div className="listItem">
-          <div className="itemInfo">
-            <div className="itemInfoTitleRow">
-              <strong>{savedDraft.jobSite || savedDraft.templateName || 'JSA Draft'}</strong>
-              <span className={`badge ${savedDraft.status === 'ready' ? 'ready' : 'draft'}`}>{savedDraft.status === 'ready' ? 'Ready to Export' : 'Draft'}</span>
+      {withDrafts.length ? (
+        <div className="listStack">
+          {withDrafts.map(e => (
+            <div className="listItem" key={e.id}>
+              <div className="itemInfo">
+                <div className="itemInfoTitleRow">
+                  <strong>{e.draftTitle}</strong>
+                  <span className={`badge ${e.savedDraft.status === 'ready' || e.savedDraft.status === 'completed' ? 'ready' : 'draft'}`}>
+                    {e.savedDraft.status === 'completed' ? 'Completed' : e.savedDraft.status === 'ready' ? 'Ready to Export' : 'Draft'}
+                  </span>
+                </div>
+                <p>{e.metaLine}</p>
+              </div>
+              <div className="itemActions">
+                <button className="btn secondary sm" onClick={e.onOpen}>Open Draft</button>
+                <button className="btn ghost sm" onClick={e.onDelete}>Delete</button>
+              </div>
             </div>
-            <p>Next: {nextStepHint(savedDraft)} &middot; {savedDraft.lastSavedAt ? `Last saved ${nowNice(new Date(savedDraft.lastSavedAt))}` : 'Saved on this device'}</p>
-          </div>
-          <div className="itemActions">
-            <button className="btn secondary sm" onClick={loadSavedDraft}>Open Draft</button>
-            <button className="btn ghost sm" onClick={clearDraft}>Delete</button>
-          </div>
+          ))}
         </div>
       ) : (
         <div className="emptyState">
-          <p>No saved JSA draft on this device.</p>
-          <button className="btn primary sm" onClick={goJsaStart}>Start a JSA</button>
+          <p>No saved drafts on this device.</p>
+          <button className="btn primary sm" onClick={goDocs}>Browse Documents</button>
         </div>
       )}
     </div>

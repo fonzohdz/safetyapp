@@ -1,0 +1,302 @@
+import { useRef, useLayoutEffect } from 'react';
+import SignaturePad from '../incident/SignaturePad';
+
+/* ── Shared field-section/builder primitives for the four new documents ──
+   Modeled directly on the local presentational primitives IncidentWorkflow.jsx
+   already defines for itself (Field/TextAreaField/YesNoToggle/StepPanel/
+   StepFooter/Stepper) — those stay exactly as they are (Incident's own
+   comment explains why: zero coupling to anything outside incidentModel.js).
+   This module is the same idea generalized slightly (N-option toggle
+   instead of yes/no-only, generic steps array instead of INCIDENT_STEPS)
+   so the four new documents share ONE copy instead of writing their own
+   four times. JSA and Incident are not touched or retrofitted.
+
+   Reuses existing global CSS classes from styles.css (.field, .stepPanel,
+   .stepFooter, .stepperWrap, .builderHeader*, .helperText) and from
+   incident.css (.yesNoToggle, .chipGrid/.chipToggle, .cardRowHeader,
+   .incidentReadinessList) — those were already app-wide, not incident-only,
+   the moment main.jsx imported both stylesheets globally. Re-exported here
+   under generic names so a Disciplinary/Separation/etc. component never has
+   to reference "incident" in its own code to use them. */
+
+
+export function Field({ label, value, onChange, type = 'text', placeholder = '' }) {
+  return (
+    <label className="field">
+      <span>{label}</span>
+      <input type={type} value={value || ''} placeholder={placeholder} onChange={e => onChange(e.target.value)} />
+    </label>
+  );
+}
+
+export function SelectField({ label, value, onChange, options, placeholder = 'Select…' }) {
+  return (
+    <label className="field">
+      <span>{label}</span>
+      <select value={value || ''} onChange={e => onChange(e.target.value)}>
+        <option value="" disabled>{placeholder}</option>
+        {options.map(opt => (
+          <option key={opt.value} value={opt.value}>{opt.label}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+export function TextAreaField({ label, help, value, onChange, rows = 4, placeholder = '' }) {
+  const ref = useRef(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
+  return (
+    <label className="field">
+      <span>{label}</span>
+      {help && <small>{help}</small>}
+      <textarea ref={ref} rows={rows} value={value || ''} placeholder={placeholder} onChange={e => onChange(e.target.value)} className="autoGrow" />
+    </label>
+  );
+}
+
+/* Generic N-option segmented toggle — YesNoToggle generalized. `options` is
+   [{ value, label, tone }] where tone is 'yes'|'no'|undefined, reusing the
+   same .yesNoToggle button.active.yes/.no color rules for a 2-option case;
+   a 3+ option toggle (e.g. warning level) just omits tone and gets the
+   neutral active state. */
+export function SegmentedToggle({ label: lbl, value, onChange, options }) {
+  return (
+    <div className="field">
+      <span>{lbl}</span>
+      <div className={`yesNoToggle${options.length > 2 ? ' wrap' : ''}`}>
+        {options.map(opt => (
+          <button
+            key={opt.value}
+            type="button"
+            className={`btn${value === opt.value ? ` active${opt.tone ? ` ${opt.tone}` : ''}` : ''}`}
+            onClick={() => onChange(opt.value)}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function YesNoField({ label, value, onChange }) {
+  return (
+    <SegmentedToggle
+      label={label}
+      value={value}
+      onChange={onChange}
+      options={[{ value: 'yes', label: 'Yes', tone: 'yes' }, { value: 'no', label: 'No', tone: 'no' }]}
+    />
+  );
+}
+
+/* Check-all-that-apply chip group — same visual language as Incident's
+   injury-nature chips (.chipGrid/.chipToggle). `selected` is an array of
+   currently-checked option strings. */
+export function ChipGroup({ label, options, selected, onToggle }) {
+  return (
+    <div className="field">
+      {label && <span>{label}</span>}
+      <div className="chipGrid">
+        {options.map(opt => (
+          <button
+            key={opt}
+            type="button"
+            className={`chipToggle${(selected || []).includes(opt) ? ' active' : ''}`}
+            onClick={() => onToggle(opt)}
+          >
+            {opt}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function StepPanel({ title, intro, children }) {
+  return (
+    <div className="stepPanel">
+      <div className="stepPanelHeader">
+        <h3>{title}</h3>
+        {intro && <p>{intro}</p>}
+      </div>
+      <div className="incidentStepGrid">{children}</div>
+    </div>
+  );
+}
+
+/* Numbered sub-section within a StepPanel — used to give a long form
+   (e.g. Disciplinary Notice's 7 numbered sections) clear visual hierarchy
+   instead of one undifferentiated wall of text areas. */
+export function NumberedSection({ number, title, help, children }) {
+  return (
+    <div className="formSection numberedSection">
+      <span className="formSectionHeading">
+        {number != null && <span className="numberedSectionBadge">{number}</span>}
+        {title}
+      </span>
+      {help && <p className="helperText numberedSectionHelp">{help}</p>}
+      {children}
+    </div>
+  );
+}
+
+export function StepFooter({ onBack, onNext, hasBack, hasNext, nextLabel, backLabel }) {
+  return (
+    <div className="stepFooter">
+      <div className="leftBtns">
+        {hasBack && <button type="button" className="btn ghost" onClick={onBack}>{backLabel || 'Back'}</button>}
+      </div>
+      <div className="rightBtns">
+        {hasNext && <button type="button" className="btn primary" onClick={onNext}>{nextLabel || 'Next'}</button>}
+      </div>
+    </div>
+  );
+}
+
+/* Generic step rail — same markup/classes as IncidentWorkflow's own
+   Stepper, generalized to any `steps` array + status function instead of
+   INCIDENT_STEPS/incidentStepStatus. */
+export function Stepper({ steps, activeStepId, getStatus, onJump }) {
+  const idx = Math.max(0, steps.findIndex(s => s.id === activeStepId));
+  return (
+    <div className="stepperWrap">
+      <div className="stepperHead">
+        <span className="stepperCount">Step {idx + 1} of {steps.length}</span>
+      </div>
+      <div className="stepperRail" role="tablist" aria-label="Document steps">
+        {steps.map((s, i) => {
+          const status = getStatus(s.id);
+          const isActive = s.id === activeStepId;
+          const isDone = status === 'complete';
+          return (
+            <button
+              key={s.id}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              aria-current={isActive ? 'step' : undefined}
+              aria-label={`${s.label}: ${isDone ? 'Complete' : 'Needs Info'}`}
+              className={`stepperSeg${isActive ? ' active' : ''}${isDone ? ' done' : ''}`}
+              onClick={() => onJump(s.id)}
+            >
+              <span className="stepperSegDot" aria-hidden="true">{isDone ? '✓' : i + 1}</span>
+              <span className="stepperSegLabel">{s.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* Generic builder top bar — same markup IncidentWorkflow renders inline
+   for itself, extracted so four new documents don't each hand-roll the
+   same header/badge/save-status/back-button/stepper block. */
+export function BuilderHeader({ kicker, title, statusBadgeLabel, statusBadgeClass, saveStatus, saveStatusState, onSaveNow, onBack, backLabel, steps, activeStepId, getStepStatus, onJumpStep }) {
+  return (
+    <div className="builderHeader">
+      <div className="builderHeaderTitleRow">
+        <div className="builderHeaderTitleBlock">
+          <span className="builderHeaderKicker">{kicker}</span>
+          <h1 className="builderHeaderTitle">{title}</h1>
+        </div>
+        <button type="button" className="backBtn" onClick={onBack}>&larr; {backLabel || 'Documents'}</button>
+      </div>
+      <div className="builderHeaderTop">
+        <div className="builderHeaderBadges">
+          <span className={`badge ${statusBadgeClass}`}>{statusBadgeLabel}</span>
+          <span className={`builderHeaderSaved${saveStatusState === 'error' ? ' error' : ''}`}>{saveStatus}</span>
+          <button type="button" className="btn ghost sm" onClick={onSaveNow} disabled={saveStatusState === 'saving'}>Save Now</button>
+        </div>
+      </div>
+      <Stepper steps={steps} activeStepId={activeStepId} getStatus={getStepStatus} onJump={onJumpStep} />
+    </div>
+  );
+}
+
+export function ReadinessChecklist({ checks }) {
+  return (
+    <div className="incidentReadinessList">
+      {checks.map(chk => (
+        <div key={chk.key} className={`incidentReadinessItem ${chk.ok ? 'ok' : 'pending'}`}>
+          <span className="checkIcon">{chk.ok ? '✓' : '•'}</span>
+          <span>{chk.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* Review & Export step body — generic across all four new documents.
+   `status` is 'draft' | 'ready' | 'completed'. */
+export function ReviewExportPanel({
+  title, checks, checklistComplete, status,
+  draftExplainText, markReadyHintText, markReadyLabel, onMarkReady,
+  pdfExportState, isPdfStale, onGeneratePdf, onShare, onDownload,
+  generatingLabel = 'Generating…', generateLabel = 'Generate PDF', regenerateLabel = 'Regenerate PDF',
+  shareLabel = 'Share / Print', downloadLabel = 'Download PDF',
+  onStartNew, startNewLabel = 'Start a new report',
+  onBack,
+}) {
+  const isGenerating = pdfExportState?.phase === 'generating';
+  const isReady = pdfExportState?.phase === 'ready';
+  return (
+    <StepPanel title={title}>
+      <div className="card">
+        <div className="cardHeader">
+          <strong>Readiness</strong>
+        </div>
+        {status === 'draft' && <p className="helperText">{checklistComplete ? markReadyHintText : draftExplainText}</p>}
+        <ReadinessChecklist checks={checks} />
+        {status === 'draft' && (
+          <div className="reviewPrimaryAction">
+            <button type="button" className="btn secondary" onClick={onMarkReady} disabled={!checklistComplete}>{markReadyLabel}</button>
+          </div>
+        )}
+      </div>
+
+      <div className="card">
+        {!isReady && (
+          <div className="reviewPrimaryAction">
+            <button type="button" className="btn primary lg" onClick={onGeneratePdf} disabled={isGenerating} aria-busy={isGenerating}>
+              {isGenerating ? generatingLabel : generateLabel}
+            </button>
+          </div>
+        )}
+
+        {isReady && isPdfStale && (
+          <div className="pdfStaleWarning">
+            <strong>Document changed &mdash; regenerate PDF before sharing.</strong>
+            <button type="button" className="btn primary sm" onClick={onGeneratePdf} disabled={isGenerating} aria-busy={isGenerating}>{regenerateLabel}</button>
+          </div>
+        )}
+
+        {isReady && !isPdfStale && (
+          <div className="pdfReadyPanel">
+            <span className="pdfReadyEyebrow">PDF Ready</span>
+            <strong className="pdfReadyHeadline">{pdfExportState.pageCount} page{pdfExportState.pageCount === 1 ? '' : 's'}</strong>
+            <p className="pdfReadyFilename">{pdfExportState.filename}</p>
+            <div className="pdfReadyActions">
+              <button type="button" className="btn primary lg" onClick={onShare}>{shareLabel}</button>
+              <button type="button" className="btn secondary" onClick={onDownload}>{downloadLabel}</button>
+            </div>
+            <button type="button" className="btn ghost sm pdfReadyRegenerate" onClick={onGeneratePdf} disabled={isGenerating} aria-busy={isGenerating}>{regenerateLabel}</button>
+            {pdfExportState.shareMessage && <p className="pdfShareMessage">{pdfExportState.shareMessage}</p>}
+          </div>
+        )}
+      </div>
+
+      {onStartNew && <button type="button" className="btn ghost" onClick={onStartNew}>{startNewLabel}</button>}
+      <StepFooter hasBack onBack={onBack} />
+    </StepPanel>
+  );
+}
+
+export { SignaturePad };

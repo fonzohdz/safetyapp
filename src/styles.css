@@ -1104,6 +1104,34 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   color: var(--muted);
 }
 
+/* Numbered sections (Disciplinary Notice's 7 sections, Uncontrolled Event's
+   grouped blocks) — same .formSection rhythm plus a small round number
+   badge, so a long form reads as clearly ordered steps instead of one
+   undifferentiated wall of text areas. */
+.numberedSection { position: relative; }
+.numberedSectionBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 10.5px;
+  font-weight: 800;
+  margin-right: 8px;
+  flex: none;
+}
+.numberedSectionHelp { margin-top: -6px; }
+
+/* SegmentedToggle with 3+ options (e.g. warning level) — wraps to a 2-up
+   grid instead of squeezing every option into one row, additive to the
+   existing .yesNoToggle rules above (Incident's own 2-option yes/no
+   toggles are unaffected — they never get this class). */
+.yesNoToggle.wrap { flex-wrap: wrap; }
+.yesNoToggle.wrap button { flex: 1 1 calc(50% - 4px); min-width: 130px; }
+
 /* Paired field row (Date|Job #, Client|Muster Point, Time Issued|Time Expired):
    each row is its own container; one field per row by default, two equal
    columns once the row's actual rendered width has room — based on real
