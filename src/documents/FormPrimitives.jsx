@@ -74,6 +74,7 @@ export function SegmentedToggle({ label: lbl, value, onChange, options }) {
           <button
             key={opt.value}
             type="button"
+            aria-pressed={value === opt.value}
             className={`btn${value === opt.value ? ` active${opt.tone ? ` ${opt.tone}` : ''}` : ''}`}
             onClick={() => onChange(opt.value)}
           >
@@ -108,6 +109,7 @@ export function ChipGroup({ label, options, selected, onToggle }) {
           <button
             key={opt}
             type="button"
+            aria-pressed={(selected || []).includes(opt)}
             className={`chipToggle${(selected || []).includes(opt) ? ' active' : ''}`}
             onClick={() => onToggle(opt)}
           >
@@ -235,13 +237,17 @@ export function ReadinessChecklist({ checks }) {
 }
 
 /* Review & Export step body — generic across all four new documents.
-   `status` is 'draft' | 'ready' | 'completed'. */
+   `status` is 'draft' | 'ready' | 'completed'. One primary action only
+   (Download Document) -- no competing Share/Print choice, and user-facing
+   copy avoids PDF/publication jargon (see the app-wide download/print UX
+   simplification mission). Internal PDF terminology (pdfExportState,
+   onGeneratePdf, etc.) is left as-is; only what the user reads changed. */
 export function ReviewExportPanel({
   title, checks, checklistComplete, status,
   draftExplainText, markReadyHintText, markReadyLabel, onMarkReady,
-  pdfExportState, isPdfStale, onGeneratePdf, onShare, onDownload,
-  generatingLabel = 'Generating…', generateLabel = 'Generate PDF', regenerateLabel = 'Regenerate PDF',
-  shareLabel = 'Share / Print', downloadLabel = 'Download PDF',
+  pdfExportState, isPdfStale, onGeneratePdf, onDownload,
+  generatingLabel = 'Creating…', generateLabel = 'Create Document', regenerateLabel = 'Update Document',
+  downloadLabel = 'Download Document',
   onStartNew, startNewLabel = 'Start a new report',
   onBack,
 }) {
@@ -273,22 +279,20 @@ export function ReviewExportPanel({
 
         {isReady && isPdfStale && (
           <div className="pdfStaleWarning">
-            <strong>Document changed &mdash; regenerate PDF before sharing.</strong>
+            <strong>Document changed &mdash; update it before downloading.</strong>
             <button type="button" className="btn primary sm" onClick={onGeneratePdf} disabled={isGenerating} aria-busy={isGenerating}>{regenerateLabel}</button>
           </div>
         )}
 
         {isReady && !isPdfStale && (
           <div className="pdfReadyPanel">
-            <span className="pdfReadyEyebrow">PDF Ready</span>
+            <span className="pdfReadyEyebrow">Document Ready</span>
             <strong className="pdfReadyHeadline">{pdfExportState.pageCount} page{pdfExportState.pageCount === 1 ? '' : 's'}</strong>
             <p className="pdfReadyFilename">{pdfExportState.filename}</p>
             <div className="pdfReadyActions">
-              <button type="button" className="btn primary lg" onClick={onShare}>{shareLabel}</button>
-              <button type="button" className="btn secondary" onClick={onDownload}>{downloadLabel}</button>
+              <button type="button" className="btn primary lg" onClick={onDownload}>{downloadLabel}</button>
             </div>
-            <button type="button" className="btn ghost sm pdfReadyRegenerate" onClick={onGeneratePdf} disabled={isGenerating} aria-busy={isGenerating}>{regenerateLabel}</button>
-            {pdfExportState.shareMessage && <p className="pdfShareMessage">{pdfExportState.shareMessage}</p>}
+            <p className="helperText pdfReadyHelper">Download the document, then open it to print.</p>
           </div>
         )}
       </div>

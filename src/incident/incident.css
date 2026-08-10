@@ -25,6 +25,14 @@
   cursor: pointer;
   min-height: 44px;
 }
+/* Fallback selected state for neutral (no yes/no tone) options -- e.g.
+   warning level, separation reason, symptom onset. Without this, a
+   SegmentedToggle button with no `tone` only ever gets className
+   "btn active" with no matching CSS rule at all (only .active.yes/.active.no
+   were ever styled), so the selection was completely invisible on screen
+   even though it saved and printed correctly. .active.yes/.active.no below
+   are more specific selectors and still win for genuine yes/no fields. */
+.yesNoToggle button.active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; }
 .yesNoToggle button.active.yes { background: color-mix(in srgb, #2e7d32 18%, transparent); border-color: #2e7d32; color: #1b5e20; }
 .yesNoToggle button.active.no { background: color-mix(in srgb, var(--accent) 16%, transparent); border-color: var(--accent); color: var(--accent); }
 html[data-theme='dark'] .yesNoToggle button.active.yes { color: #8bd48f; }

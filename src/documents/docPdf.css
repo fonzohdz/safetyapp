@@ -82,6 +82,13 @@
 .docPdfTextBlockWrap { display: flex; flex-direction: column; gap: 5px; }
 .docPdfTextBlockTitle { font-weight: 700; font-size: 9.5pt; text-transform: uppercase; }
 .docPdfTextBlockHelp { font-size: 8.3pt; line-height: 1.3; color: #333; font-style: italic; }
+/* Permanent standard: text inside a bordered field/box is vertically
+   centered, not top-pinned -- a short answer in a box sized (via
+   minHeightPx) for several lines used to sit glued to the top with empty
+   space below. flex column + justify-content: center centers short
+   content; once wrapped text fills/exceeds the box, centering has no
+   visible effect and normal padding/line-height governs, so long content
+   is never squeezed. */
 .docPdfTextBlock {
   border: 1px solid #999;
   padding: 5px 8px;
@@ -89,6 +96,10 @@
   line-height: 1.35;
   white-space: pre-wrap;
   word-break: break-word;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .docPdfCheckboxGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 14px; padding: 4px 2px; }

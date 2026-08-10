@@ -15,8 +15,8 @@
 //      this runs before the app's own React code boots, so useState's
 //      lazy localStorage read on first render already sees it.
 //   3. Drives the real UI: Home -> "Continue JSA" -> Review/Export step ->
-//      "Print / Save PDF" (the actual exportPdf() -> generateJsaPdf()
-//      html2canvas+pdf-lib pipeline, not a stub) -> "Download PDF".
+//      "Create Document" (the actual exportPdf() -> generateJsaPdf()
+//      html2canvas+pdf-lib pipeline, not a stub) -> "Download Document".
 //   4. Saves the real generated PDF file.
 //   5. Screenshots each real .pdfExportRoot .printPage DOM element (the
 //      exact nodes html2canvas captures for the PDF) as PNGs, one per
@@ -110,7 +110,7 @@ async function main() {
     console.log(`[6/7] PDF ready: ${readyHeadline} (${readyFilename})`);
 
     const downloadPromise = page.waitForEvent('download');
-    await page.locator('button:has-text("Download PDF")').click();
+    await page.locator('button:has-text("Download Document")').click();
     const download = await downloadPromise;
     const pdfPath = path.join(outDir, 'entergy-taps-generated.pdf');
     await download.saveAs(pdfPath);

@@ -1964,7 +1964,7 @@ function App() {
               incident={incident} setIncident={setIncident} step={incidentStep} setStep={setIncidentStep}
               goDocs={goDocs} saveStatus={incidentSaveStatusLabel} saveStatusState={incidentSaveStatus} onSaveNow={saveIncidentNow}
               pdfExportState={incidentPdfExportState} isPdfStale={isIncidentPdfStale}
-              onGeneratePdf={exportIncidentPdf} onShare={shareIncidentPdfClick} onDownload={downloadIncidentPdfClick}
+              onGeneratePdf={exportIncidentPdf} onDownload={downloadIncidentPdfClick}
               onMarkReady={markIncidentReady} onStartNew={startNewIncidentReport} showToast={showToast}
             />
           )}
@@ -1974,7 +1974,7 @@ function App() {
               goDocs={goDocs} saveStatus={saveStatusLabel(disciplinary.saveStatus, disciplinary.model.lastSavedAt)}
               saveStatusState={disciplinary.saveStatus} onSaveNow={disciplinary.saveNow}
               pdfExportState={disciplinaryPdf.pdfExportState} isPdfStale={disciplinaryPdf.isPdfStale}
-              onGeneratePdf={disciplinaryPdf.generate} onShare={disciplinaryPdf.shareClick} onDownload={disciplinaryPdf.downloadClick}
+              onGeneratePdf={disciplinaryPdf.generate} onDownload={disciplinaryPdf.downloadClick}
               onMarkReady={markDisciplinaryReady} onStartNew={startNewDisciplinary}
             />
           )}
@@ -1984,7 +1984,7 @@ function App() {
               goDocs={goDocs} saveStatus={saveStatusLabel(uncontrolledEvent.saveStatus, uncontrolledEvent.model.lastSavedAt)}
               saveStatusState={uncontrolledEvent.saveStatus} onSaveNow={uncontrolledEvent.saveNow}
               pdfExportState={uncontrolledEventPdf.pdfExportState} isPdfStale={uncontrolledEventPdf.isPdfStale}
-              onGeneratePdf={uncontrolledEventPdf.generate} onShare={uncontrolledEventPdf.shareClick} onDownload={uncontrolledEventPdf.downloadClick}
+              onGeneratePdf={uncontrolledEventPdf.generate} onDownload={uncontrolledEventPdf.downloadClick}
               onMarkReady={markUncontrolledEventReady} onStartNew={startNewUncontrolledEvent}
             />
           )}
@@ -1994,7 +1994,7 @@ function App() {
               goDocs={goDocs} saveStatus={saveStatusLabel(medicalEvent.saveStatus, medicalEvent.model.lastSavedAt)}
               saveStatusState={medicalEvent.saveStatus} onSaveNow={medicalEvent.saveNow}
               pdfExportState={medicalEventPdf.pdfExportState} isPdfStale={medicalEventPdf.isPdfStale}
-              onGeneratePdf={medicalEventPdf.generate} onShare={medicalEventPdf.shareClick} onDownload={medicalEventPdf.downloadClick}
+              onGeneratePdf={medicalEventPdf.generate} onDownload={medicalEventPdf.downloadClick}
               onMarkReady={markMedicalEventReady} onStartNew={startNewMedicalEvent}
             />
           )}
@@ -2004,7 +2004,7 @@ function App() {
               goDocs={goDocs} saveStatus={saveStatusLabel(separation.saveStatus, separation.model.lastSavedAt)}
               saveStatusState={separation.saveStatus} onSaveNow={separation.saveNow}
               pdfExportState={separationPdf.pdfExportState} isPdfStale={separationPdf.isPdfStale}
-              onGeneratePdf={separationPdf.generate} onShare={separationPdf.shareClick} onDownload={separationPdf.downloadClick}
+              onGeneratePdf={separationPdf.generate} onDownload={separationPdf.downloadClick}
               onMarkReady={markSeparationReady} onStartNew={startNewSeparation}
             />
           )}
@@ -2341,26 +2341,26 @@ function pdfExportStatusLabel(state) {
 }
 
 // Compact locations (sticky action bar, Live Preview header) get a single
-// "smart" button rather than the full Share/Download pair StepReview shows
-// — space is tight there, and Review is one tap away for the fuller
-// experience. Every tap on this button is its own fresh user-activation
-// event, so routing straight to shareGeneratedPdfClick when a fresh PDF is
-// already held still satisfies navigator.share()'s activation requirement
-// (the click handler calls share() synchronously, nothing awaited first).
+// "smart" button rather than the full ready-panel StepReview shows — space
+// is tight there, and Review is one tap away for the fuller experience.
+// Download (not Share) is the one primary action app-wide now, and unlike
+// navigator.share() it has no "fresh user activation" timing requirement,
+// so this can safely reuse the same already-generated PDF regardless of
+// how long ago generation finished.
 function compactExportLabel(pdfExportState, isPdfStale) {
   const generating = pdfExportStatusLabel(pdfExportState);
   if (generating) return generating;
-  if (pdfExportState?.phase === 'ready') return isPdfStale ? 'Regenerate PDF' : 'Share / Print PDF';
-  return 'Print / Save PDF';
+  if (pdfExportState?.phase === 'ready') return isPdfStale ? 'Update Document' : 'Download Document';
+  return 'Create Document';
 }
-function compactExportAction(pdfExportState, isPdfStale, exportPdf, shareGeneratedPdfClick) {
-  if (pdfExportState?.phase === 'ready' && !isPdfStale) return shareGeneratedPdfClick;
+function compactExportAction(pdfExportState, isPdfStale, exportPdf, downloadGeneratedPdfClick) {
+  if (pdfExportState?.phase === 'ready' && !isPdfStale) return downloadGeneratedPdfClick;
   return exportPdf;
 }
 
 /* ── Sticky workflow action bar (touch devices): one Back/Next location,
    quiet save status, reachable above the keyboard and Safari's bottom UI. ── */
-function StickyActionBar({ idx, steps, prev, next, exportPdf, pdfExportState, isPdfStale, shareGeneratedPdfClick, showPreview, setShowPreview, saveStatus }) {
+function StickyActionBar({ idx, steps, prev, next, exportPdf, pdfExportState, isPdfStale, downloadGeneratedPdfClick, showPreview, setShowPreview, saveStatus }) {
   const isFirst = idx === 0;
   const isLast = idx === steps.length - 1;
   const nextStep = steps[idx + 1];
@@ -2382,7 +2382,7 @@ function StickyActionBar({ idx, steps, prev, next, exportPdf, pdfExportState, is
         {isLast && (
           <button
             className="btn primary sm"
-            onClick={compactExportAction(pdfExportState, isPdfStale, exportPdf, shareGeneratedPdfClick)}
+            onClick={compactExportAction(pdfExportState, isPdfStale, exportPdf, downloadGeneratedPdfClick)}
             disabled={isGenerating}
             aria-busy={isGenerating}
           >
@@ -2428,7 +2428,7 @@ function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTem
         </div>
         <button
           className="btn sm outline"
-          onClick={compactExportAction(pdfExportState, isPdfStale, exportPdf, shareGeneratedPdfClick)}
+          onClick={compactExportAction(pdfExportState, isPdfStale, exportPdf, downloadGeneratedPdfClick)}
           disabled={pdfExportState?.phase === 'generating'}
           aria-busy={pdfExportState?.phase === 'generating'}
         >
@@ -2519,7 +2519,7 @@ function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTem
           exportPdf={exportPdf}
           pdfExportState={pdfExportState}
           isPdfStale={isPdfStale}
-          shareGeneratedPdfClick={shareGeneratedPdfClick}
+          downloadGeneratedPdfClick={downloadGeneratedPdfClick}
           showPreview={showPreview}
           setShowPreview={setShowPreview}
           saveStatus={saveStatus}
@@ -3021,32 +3021,29 @@ function StepReview({ jsa, upd, fit, saveName, setSaveName, saveTemplate, update
 
           {!isReady && (
             <div className="reviewPrimaryAction">
-              <button className="btn primary lg" onClick={exportPdf} disabled={isGenerating} aria-busy={isGenerating}>{exportLabel || 'Print / Save PDF'}</button>
+              <button className="btn primary lg" onClick={exportPdf} disabled={isGenerating} aria-busy={isGenerating}>{exportLabel || 'Create Document'}</button>
             </div>
           )}
 
-          {!isReady && <p className="helperText">Generates a real multi-page PDF, then opens the share sheet (Print, Save to Files, AirDrop, or email) on supported devices, or offers a direct download. The app does not store final PDFs.</p>}
+          {!isReady && <p className="helperText">Creates the document, ready to download. The app does not store final documents.</p>}
 
           {isReady && isPdfStale && (
             <div className="pdfStaleWarning">
-              <strong>Document changed — regenerate PDF before sharing.</strong>
-              <p>The draft was edited after this PDF was generated, so it no longer reflects the current content.</p>
-              <button className="btn primary sm" onClick={exportPdf} disabled={isGenerating} aria-busy={isGenerating}>{exportLabel || 'Regenerate PDF'}</button>
+              <strong>Document changed — update it before downloading.</strong>
+              <p>The draft was edited after this document was created, so it no longer reflects the current content.</p>
+              <button className="btn primary sm" onClick={exportPdf} disabled={isGenerating} aria-busy={isGenerating}>{exportLabel || 'Update Document'}</button>
             </div>
           )}
 
           {isReady && !isPdfStale && (
             <div className="pdfReadyPanel">
-              <span className="pdfReadyEyebrow">PDF Ready</span>
+              <span className="pdfReadyEyebrow">Document Ready</span>
               <strong className="pdfReadyHeadline">{pdfExportState.pageCount} page{pdfExportState.pageCount === 1 ? '' : 's'}</strong>
               <p className="pdfReadyFilename">{pdfExportState.filename}</p>
-              <p className="helperText">Opens Print, Save to Files, AirDrop, or email on supported devices. The app does not store final PDFs.</p>
               <div className="pdfReadyActions">
-                <button className="btn primary lg" onClick={shareGeneratedPdfClick}>Share / Print PDF</button>
-                <button className="btn secondary" onClick={downloadGeneratedPdfClick}>Download PDF</button>
+                <button className="btn primary lg" onClick={downloadGeneratedPdfClick}>Download Document</button>
               </div>
-              <button className="btn ghost sm pdfReadyRegenerate" onClick={exportPdf} disabled={isGenerating} aria-busy={isGenerating}>Regenerate PDF</button>
-              {pdfExportState.shareMessage && <p className="pdfShareMessage">{pdfExportState.shareMessage}</p>}
+              <p className="helperText pdfReadyHelper">Download the document, then open it to print. The app does not store final documents.</p>
             </div>
           )}
 

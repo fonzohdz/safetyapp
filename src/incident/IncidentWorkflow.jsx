@@ -382,7 +382,7 @@ function StepNotes({ incident, upd, prev, next }) {
 }
 
 /* ── Step: Review & Export ── */
-function StepReview({ incident, prev, pdfExportState, isPdfStale, onGeneratePdf, onShare, onDownload, onMarkReady, onStartNew }) {
+function StepReview({ incident, prev, pdfExportState, isPdfStale, onGeneratePdf, onDownload, onMarkReady, onStartNew }) {
   const c = t.review;
   const checks = getIncidentReadinessChecks(incident);
   const checklistComplete = isIncidentReady(incident);
@@ -424,7 +424,7 @@ function StepReview({ incident, prev, pdfExportState, isPdfStale, onGeneratePdf,
 
         {isReady && isPdfStale && (
           <div className="pdfStaleWarning">
-            <strong>Document changed &mdash; regenerate PDF before sharing.</strong>
+            <strong>Document changed &mdash; update it before downloading.</strong>
             <p>{c.stale}</p>
             <button className="btn primary sm" onClick={onGeneratePdf} disabled={isGenerating} aria-busy={isGenerating}>{c.regeneratePdf}</button>
           </div>
@@ -432,15 +432,13 @@ function StepReview({ incident, prev, pdfExportState, isPdfStale, onGeneratePdf,
 
         {isReady && !isPdfStale && (
           <div className="pdfReadyPanel">
-            <span className="pdfReadyEyebrow">PDF Ready</span>
+            <span className="pdfReadyEyebrow">Document Ready</span>
             <strong className="pdfReadyHeadline">{pdfExportState.pageCount} page{pdfExportState.pageCount === 1 ? '' : 's'}</strong>
             <p className="pdfReadyFilename">{pdfExportState.filename}</p>
             <div className="pdfReadyActions">
-              <button className="btn primary lg" onClick={onShare}>{c.share}</button>
-              <button className="btn secondary" onClick={onDownload}>{c.download}</button>
+              <button className="btn primary lg" onClick={onDownload}>{c.download}</button>
             </div>
-            <button className="btn ghost sm pdfReadyRegenerate" onClick={onGeneratePdf} disabled={isGenerating} aria-busy={isGenerating}>{c.regeneratePdf}</button>
-            {pdfExportState.shareMessage && <p className="pdfShareMessage">{pdfExportState.shareMessage}</p>}
+            <p className="helperText pdfReadyHelper">Download the document, then open it to print.</p>
           </div>
         )}
       </div>
@@ -454,7 +452,7 @@ function StepReview({ incident, prev, pdfExportState, isPdfStale, onGeneratePdf,
 /* ── Top-level workflow shell ── */
 export default function IncidentWorkflow({
   incident, setIncident, step, setStep, goDocs, saveStatus, saveStatusState, onSaveNow,
-  pdfExportState, isPdfStale, onGeneratePdf, onShare, onDownload, onMarkReady, onStartNew, showToast,
+  pdfExportState, isPdfStale, onGeneratePdf, onDownload, onMarkReady, onStartNew, showToast,
 }) {
   const idx = INCIDENT_STEPS.findIndex(s => s.id === step);
   function upd(patch) {
@@ -513,7 +511,6 @@ export default function IncidentWorkflow({
               pdfExportState={pdfExportState}
               isPdfStale={isPdfStale}
               onGeneratePdf={onGeneratePdf}
-              onShare={onShare}
               onDownload={onDownload}
               onMarkReady={onMarkReady}
               onStartNew={onStartNew}

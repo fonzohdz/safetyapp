@@ -130,14 +130,14 @@ async function main() {
       const badgeText = await page.locator('.builderHeaderBadges .badge').innerText();
       check(badgeText.trim().toLowerCase() === 'ready', `Status badge reads "Ready" after Mark Ready (got "${badgeText.trim()}")`);
 
-      await page.getByRole('button', { name: /Generate PDF/ }).click();
+      await page.getByRole('button', { name: /Create Document/ }).click();
       await page.waitForSelector('.pdfReadyPanel', { timeout: 30000 });
       const headline = await page.locator('.pdfReadyHeadline').innerText();
       console.log(`  PDF ready: ${headline}`);
       check(/^1 page$/.test(headline.trim()), `Normal-length content fits on 1 page (got "${headline.trim()}")`);
 
       const downloadPromise = page.waitForEvent('download');
-      await page.locator('button', { hasText: 'Download PDF' }).click();
+      await page.locator('button', { hasText: 'Download Document' }).click();
       const download = await downloadPromise;
       const pdfPath = path.join(outDir, 'ui-workflow-generated.pdf');
       await download.saveAs(pdfPath);
@@ -209,7 +209,7 @@ async function main() {
       await page.getByRole('button', { name: 'Next' }).click().catch(() => {});
       await page.getByRole('button', { name: 'Go to Review' }).click().catch(() => {});
       await page.waitForSelector('text=Readiness', { timeout: 5000 }).catch(() => {});
-      await page.getByRole('button', { name: /Generate PDF/ }).click();
+      await page.getByRole('button', { name: /Create Document/ }).click();
       await page.waitForSelector('.pdfReadyPanel', { timeout: 30000 });
       const headline = (await page.locator('.pdfReadyHeadline').innerText()).trim();
       const pageCount = parseInt(headline, 10);

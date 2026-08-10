@@ -96,7 +96,7 @@ function StepNarrative({ model, upd, prev, next }) {
 /* ── Top-level workflow shell ── */
 export default function UncontrolledEventWorkflow({
   model, upd, step, setStep, goDocs, saveStatus, saveStatusState, onSaveNow,
-  pdfExportState, isPdfStale, onGeneratePdf, onShare, onDownload, onMarkReady, onStartNew,
+  pdfExportState, isPdfStale, onGeneratePdf, onDownload, onMarkReady, onStartNew,
 }) {
   const idx = UNCONTROLLED_EVENT_STEPS.findIndex(s => s.id === step);
   function prev() { if (idx > 0) setStep(UNCONTROLLED_EVENT_STEPS[idx - 1].id); }
@@ -140,7 +140,6 @@ export default function UncontrolledEventWorkflow({
               pdfExportState={pdfExportState}
               isPdfStale={isPdfStale}
               onGeneratePdf={onGeneratePdf}
-              onShare={onShare}
               onDownload={onDownload}
               onStartNew={onStartNew}
               startNewLabel="Start a new uncontrolled event report"
