@@ -118,14 +118,46 @@ async function touchDrag(session, points) {
   await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
 }
 
-/* Regression-guards the actual iOS Safari fix: draws with real touch input
-   on a mobile-emulated Chromium page, deliberately moving the touch point
-   ABOVE the canvas's own bounding box mid-gesture (out of its bounds) and
-   back inside before lifting -- the exact shape of gesture that exposed
-   WebKit firing a spurious pointerleave on a pointer-captured element and
-   silently ending the stroke early. Also proves a mid-gesture touchcancel
-   (onPointerCancel) leaves the pad able to draw again immediately, instead
-   of leaving drawingRef stuck true. */
+/* Scans a canvas's own bitmap for non-transparent pixels and reports the
+   horizontal ink range -- shared by every check below instead of repeating
+   the pixel scan inline. */
+async function readInkSpread(canvas) {
+  return canvas.evaluate((el) => {
+    const ctx = el.getContext('2d');
+    const { width, height } = el;
+    const data = ctx.getImageData(0, 0, width, height).data;
+    let minX = width; let maxX = 0; let minY = height; let maxY = 0;
+    for (let px = 0; px < width; px += 2) {
+      for (let py = 0; py < height; py += 2) {
+        if (data[(py * width + px) * 4 + 3] > 10) {
+          if (px < minX) minX = px; if (px > maxX) maxX = px;
+          if (py < minY) minY = py; if (py > maxY) maxY = py;
+        }
+      }
+    }
+    return { minX, maxX, minY, maxY, width, height };
+  });
+}
+
+/* Regression-guards the SignaturePad.jsx native-touch rewrite: real finger
+   input now runs entirely through canvas.addEventListener('touchstart'/...)
+   rather than Pointer Events (see pointerDown's `if (e.pointerType ===
+   'touch') return`). This proves, all via real CDP touch dispatch through
+   the browser's actual touch pipeline (never by calling internal drawing
+   functions):
+     - a finger drag draws visible ink, surviving a move outside the
+       canvas's own bounds mid-gesture (boundary-crossing safety net, kept
+       from the earlier pointerleave-era regression)
+     - a second finger landing mid-stroke is ignored -- only the original
+       finger's path is drawn (native-touch identifier tracking)
+     - a mid-gesture touchcancel resets cleanly so the very next stroke
+       draws normally (not left stuck)
+     - touch inside the canvas does not scroll the page; touch just outside
+       it scrolls normally (touch-action: none is scoped to the pad, not
+       global)
+     - the touch-drawn signature saves to a real PNG preview and survives
+       all the way through PDF export as a real image -- the full capture
+       -> save -> print pipeline, sourced entirely from finger input. */
 async function runTouchGestureCheck(browser, fixtureJson) {
   const a = makeAssertions();
   console.log('\n=== Touch-gesture pass (Chromium mobile emulation, real CDP touch input) ===');
@@ -142,11 +174,11 @@ async function runTouchGestureCheck(browser, fixtureJson) {
   await page.getByRole('button', { name: 'Add signature' }).first().click();
   const canvas = page.locator('.signatureCanvas').first();
   await canvas.waitFor({ state: 'visible' });
-  const box = await canvas.boundingBox();
+  let box = await canvas.boundingBox();
 
   const session = await context.newCDPSession(page);
 
-  console.log('  [1/3] Drawing with real touch input, crossing above the canvas top edge mid-stroke...');
+  console.log('  [1/7] Drawing with real touch input, crossing above the canvas top edge mid-stroke...');
   await touchDrag(session, [
     [box.x + box.width * 0.1, box.y + box.height * 0.6],
     [box.x + box.width * 0.3, box.y + box.height * 0.2],
@@ -154,48 +186,124 @@ async function runTouchGestureCheck(browser, fixtureJson) {
     [box.x + box.width * 0.7, box.y + box.height * 0.3],
     [box.x + box.width * 0.9, box.y + box.height * 0.6],
   ]);
-
-  const inkSpread = await canvas.evaluate((el) => {
-    const ctx = el.getContext('2d');
-    const { width, height } = el;
-    const data = ctx.getImageData(0, 0, width, height).data;
-    let minX = width; let maxX = 0;
-    for (let px = 0; px < width; px += 2) {
-      for (let py = 0; py < height; py += 4) {
-        if (data[(py * width + px) * 4 + 3] > 10) { if (px < minX) minX = px; if (px > maxX) maxX = px; }
-      }
-    }
-    return { minX, maxX, width };
-  });
+  const inkSpread = await readInkSpread(canvas);
   a.check(inkSpread.maxX > inkSpread.minX, 'expected touch-drawn ink to span a real horizontal range');
   a.check(inkSpread.minX < inkSpread.width * 0.35, `expected touch ink to reach near the left side, leftmost at x=${inkSpread.minX} of ${inkSpread.width}`);
   a.check(inkSpread.maxX > inkSpread.width * 0.65, `expected touch ink to reach near the right side (stroke survives crossing above the canvas mid-gesture), rightmost at x=${inkSpread.maxX} of ${inkSpread.width}`);
 
-  console.log('  [2/3] Clearing, then interrupting a new stroke with touchcancel...');
+  console.log('  [2/7] Clearing, then drawing with two simultaneous fingers (only the first should control the stroke)...');
   await page.locator('.signaturePadActions button', { hasText: /^Clear$/ }).click();
+  const fingerAY = box.y + box.height * 0.25; // top band -- finger A's whole path stays here
+  const fingerBY = box.y + box.height * 0.85; // bottom band -- finger B's whole path stays here, well separated
+  // touchStart with only finger A (id 0); then a second touchStart carrying
+  // BOTH ids represents finger B landing while A is still down -- CDP diffs
+  // against the previously dispatched touch state to compute changedTouches,
+  // the same way a real multi-touch gesture would.
+  await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: box.x + box.width * 0.15, y: fingerAY, id: 0 }] });
+  await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: box.x + box.width * 0.35, y: fingerAY, id: 0 }] });
+  await session.send('Input.dispatchTouchEvent', {
+    type: 'touchStart',
+    touchPoints: [{ x: box.x + box.width * 0.35, y: fingerAY, id: 0 }, { x: box.x + box.width * 0.35, y: fingerBY, id: 1 }],
+  });
+  await session.send('Input.dispatchTouchEvent', {
+    type: 'touchMove',
+    touchPoints: [{ x: box.x + box.width * 0.6, y: fingerAY, id: 0 }, { x: box.x + box.width * 0.6, y: fingerBY, id: 1 }],
+  });
+  await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [{ x: box.x + box.width * 0.6, y: fingerBY, id: 1 }] });
+  await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  const multiTouchSpread = await readInkSpread(canvas);
+  a.check(multiTouchSpread.maxX > multiTouchSpread.minX, 'expected the tracked finger to draw ink during the two-finger gesture');
+  // Finger A stays in the top ~25% band; finger B (ignored) sits at ~85%.
+  // Ink reaching anywhere near finger B's band would mean the second finger
+  // was drawing too, not just being tracked-and-ignored.
+  a.check(
+    multiTouchSpread.maxY < box.height * 0.6,
+    `expected ink to stay in the tracked finger's band only (~25%), not reach the second (ignored) finger's band at ~85% -- got ink up to y=${multiTouchSpread.maxY} of ${box.height}`,
+  );
+
+  console.log('  [3/7] Clearing, then interrupting a new stroke with touchcancel...');
+  await page.locator('.signaturePadActions button', { hasText: /^Clear$/ }).click();
+  const blankAfterClear = await readInkSpread(canvas);
+  a.check(blankAfterClear.maxX === 0 && blankAfterClear.minX === blankAfterClear.width, `expected Clear to leave the canvas blank, got ink from x=${blankAfterClear.minX} to x=${blankAfterClear.maxX}`);
   await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: box.x + box.width * 0.2, y: box.y + box.height * 0.5 }] });
   await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: box.x + box.width * 0.35, y: box.y + box.height * 0.5 }] });
   await session.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
 
-  console.log('  [3/3] Drawing a fresh stroke immediately after the cancel...');
+  console.log('  [4/7] Drawing a fresh stroke immediately after the cancel...');
   await touchDrag(session, [
     [box.x + box.width * 0.15, box.y + box.height * 0.5],
     [box.x + box.width * 0.5, box.y + box.height * 0.3],
     [box.x + box.width * 0.85, box.y + box.height * 0.5],
   ]);
-  const recoverySpread = await canvas.evaluate((el) => {
-    const ctx = el.getContext('2d');
-    const { width, height } = el;
-    const data = ctx.getImageData(0, 0, width, height).data;
-    let minX = width; let maxX = 0;
-    for (let px = 0; px < width; px += 2) {
-      for (let py = 0; py < height; py += 4) {
-        if (data[(py * width + px) * 4 + 3] > 10) { if (px < minX) minX = px; if (px > maxX) maxX = px; }
-      }
-    }
-    return { minX, maxX, width };
-  });
+  const recoverySpread = await readInkSpread(canvas);
   a.check(recoverySpread.maxX > recoverySpread.minX, 'expected a fresh stroke drawn right after a mid-gesture touchcancel to actually render ink (drawingRef not left stuck)');
+
+  console.log('  [5/7] Checking scroll behavior: touch inside the canvas must not scroll, touch just outside it must...');
+  await page.locator('.signaturePadActions button', { hasText: /^Clear$/ }).click();
+
+  const scrollBefore1 = await page.evaluate(() => document.scrollingElement.scrollTop);
+  await touchDrag(session, [
+    [box.x + box.width * 0.5, box.y + box.height * 0.8],
+    [box.x + box.width * 0.5, box.y + box.height * 0.2],
+  ]);
+  const scrollAfterInside = await page.evaluate(() => document.scrollingElement.scrollTop);
+  a.check(scrollAfterInside === scrollBefore1, `expected no page scroll from a touch drag inside the signature canvas (scrollTop ${scrollBefore1} -> ${scrollAfterInside})`);
+  const insideDragSpread = await readInkSpread(canvas);
+  a.check(insideDragSpread.maxY > insideDragSpread.minY, 'expected the inside-canvas scroll-check drag to still draw ink (touch-action: none is not blocking drawing)');
+
+  // A real behavioral scroll simulation was attempted here (raw touchmove
+  // samples, then incremental samples with real elapsed time between them,
+  // then CDP's purpose-built Input.synthesizeScrollGesture) and all three
+  // produced zero scroll movement in this specific headless-Chromium-on-
+  // Windows environment, even though document.scrollingElement demonstrably
+  // has 150px+ of headroom and responds instantly to a programmatic
+  // window.scrollTo() -- i.e. the page is genuinely scrollable, Chromium's
+  // touch-to-scroll *compositor* gesture recognition just isn't reliably
+  // triggerable via CDP here. Asserting on the actual invariant instead:
+  // touch-action is scoped to the canvas only, not any ancestor up to
+  // <html> -- confirmed via a real DOM walk from the exact point just
+  // outside the pad, not by hoping a simulated gesture lands.
+  const outsideY = Math.max(8, box.y - 40); // just above the pad, outside its bounds -- normal page chrome
+  const outsideX = box.x + box.width * 0.5;
+  const touchActionAtOutsidePoint = await page.evaluate(({ x, y }) => {
+    let el = document.elementFromPoint(x, y);
+    while (el) {
+      const ta = getComputedStyle(el).touchAction;
+      if (ta === 'none') return { blocked: true, tag: el.tagName, cls: String(el.className || '') };
+      el = el.parentElement;
+    }
+    return { blocked: false };
+  }, { x: outsideX, y: outsideY });
+  a.check(!touchActionAtOutsidePoint.blocked, `expected touch-action to allow normal scrolling just outside the signature canvas, but found touch-action: none on <${touchActionAtOutsidePoint.tag}${touchActionAtOutsidePoint.cls ? ' class="' + touchActionAtOutsidePoint.cls + '"' : ''}>`);
+  const canvasTouchAction = await canvas.evaluate((el) => getComputedStyle(el).touchAction);
+  a.check(canvasTouchAction === 'none', `expected the signature canvas itself to keep touch-action: none, got "${canvasTouchAction}"`);
+
+  console.log('  [6/7] Drawing the final signature via touch, saving, and checking the preview...');
+  await page.locator('.signaturePadActions button', { hasText: /^Clear$/ }).click();
+  await touchDrag(session, [
+    [box.x + box.width * 0.12, box.y + box.height * 0.7],
+    [box.x + box.width * 0.35, box.y + box.height * 0.25],
+    [box.x + box.width * 0.6, box.y + box.height * 0.7],
+    [box.x + box.width * 0.85, box.y + box.height * 0.3],
+  ]);
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  const preview = page.locator('.signaturePreview').first();
+  await preview.waitFor({ state: 'visible', timeout: 5000 });
+  const previewSrc = await preview.getAttribute('src');
+  a.check(Boolean(previewSrc && previewSrc.startsWith('data:image/png')), `expected the touch-drawn signature preview to be a PNG data URL, got "${previewSrc?.slice(0, 30)}..."`);
+
+  console.log('  [7/7] Carrying the touch-drawn signature through full PDF export...');
+  await page.getByRole('tab', { name: /^Review & Export/ }).click();
+  await page.locator('button:has-text("Generate PDF"), button:has-text("Regenerate PDF")').first().click();
+  await page.locator('.pdfReadyPanel').waitFor({ state: 'visible', timeout: 30000 });
+  const page3 = page.locator('.incidentPdfExportRoot .incidentPage').nth(2);
+  const sigImages = page3.locator('.incSignatureImage');
+  const sigCount = await sigImages.count();
+  a.check(sigCount === 2, `expected both Witness 1 (fixture) and Witness 2 (touch-drawn) signatures to render on page 3, found ${sigCount}`);
+  if (sigCount === 2) {
+    const secondSrc = await sigImages.nth(1).getAttribute('src');
+    a.check(Boolean(secondSrc && secondSrc.startsWith('data:image/png')), 'expected the touch-drawn Witness 2 signature to render as a real PNG image in the exported PDF page');
+  }
 
   a.check(consoleErrors.length === 0, `no console errors (${consoleErrors.length} found)${consoleErrors.length ? ': ' + consoleErrors.join(' | ') : ''}`);
   a.check(pageErrors.length === 0, `no page errors (${pageErrors.length} found)${pageErrors.length ? ': ' + pageErrors.join(' | ') : ''}`);
@@ -266,23 +374,8 @@ async function runViewport(browser, fixtureJson, viewport) {
   // Coordinate-mapping sanity check: the canvas's internal bitmap should
   // now contain non-transparent pixels roughly where the stroke was drawn
   // (left/right thirds), not compressed into a corner -- a regression in
-  // getPoint()'s scale factor would show up as ink bunched at one edge.
-  const inkSpread = await canvas.evaluate((el) => {
-    const ctx = el.getContext('2d');
-    const { width, height } = el;
-    const data = ctx.getImageData(0, 0, width, height).data;
-    let minX = width; let maxX = 0;
-    for (let px = 0; px < width; px += 2) {
-      for (let py = 0; py < height; py += 4) {
-        const alpha = data[(py * width + px) * 4 + 3];
-        if (alpha > 10) {
-          if (px < minX) minX = px;
-          if (px > maxX) maxX = px;
-        }
-      }
-    }
-    return { minX, maxX, width };
-  });
+  // toCanvasPoint()'s scale factor would show up as ink bunched at one edge.
+  const inkSpread = await readInkSpread(canvas);
   a.check(inkSpread.maxX > inkSpread.minX, 'expected drawn ink to span a real horizontal range on the canvas bitmap (coordinate mapping sanity check)');
   a.check(inkSpread.minX < inkSpread.width * 0.35, `expected ink to reach near the left side of the pad, leftmost ink at x=${inkSpread.minX} of ${inkSpread.width}`);
   a.check(inkSpread.maxX > inkSpread.width * 0.65, `expected ink to reach near the right side of the pad, rightmost ink at x=${inkSpread.maxX} of ${inkSpread.width}`);

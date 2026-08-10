@@ -251,7 +251,36 @@ async function main() {
         return !el || getComputedStyle(el).display === 'none';
       });
       check(bottomNavHidden, 'Bottom nav hidden while the builder is open');
+
+      // Smoke-test the shared SignaturePad's native touch listener path
+      // (see src/incident/SignaturePad.jsx) with real CDP touch dispatch,
+      // not synthetic JS calls into the component's internals. Signature
+      // pads render on this same first step, no Next click required.
+      await page.getByRole('textbox', { name: 'Employee Name', exact: true }).fill('Touch Smoke Test');
+      await page.getByRole('textbox', { name: 'Supervisor', exact: true }).fill('Casey Renn');
+      await page.locator('.signaturePad', { hasText: 'Supervisor Signature' }).getByRole('button', { name: 'Add signature' }).click();
+      const canvas = page.locator('canvas.signatureCanvas').first();
+      await canvas.scrollIntoViewIfNeeded();
+      await page.waitForTimeout(200);
+      const box = await canvas.boundingBox();
+      const session = await context.newCDPSession(page);
+      await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: box.x + box.width * 0.15, y: box.y + box.height * 0.5 }] });
+      await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: box.x + box.width * 0.5, y: box.y + box.height * 0.3 }] });
+      await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: box.x + box.width * 0.85, y: box.y + box.height * 0.6 }] });
+      await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      const hasInk = await canvas.evaluate((el) => {
+        const ctx = el.getContext('2d');
+        const data = ctx.getImageData(0, 0, el.width, el.height).data;
+        for (let i = 3; i < data.length; i += 4 * 8) { if (data[i] > 10) return true; }
+        return false;
+      });
+      check(hasInk, 'Touch input (native touch listener path) draws visible ink on the signature canvas');
+      await page.locator('.signaturePadActions button', { hasText: /^Save$/ }).first().click();
+      const previewSrc = await page.locator('.signaturePreview').first().getAttribute('src');
+      check(Boolean(previewSrc && previewSrc.startsWith('data:image/png')), 'Touch-drawn signature saves to a real PNG preview');
+
       check(pageErrors.length === 0, `No page errors on phone (${pageErrors.length} found)`);
+      await page.evaluate(key => window.localStorage.removeItem(key), STORAGE_KEY);
       await context.close();
     }
 

@@ -29,6 +29,10 @@ export default function SignaturePad({ value, onChange, label, disabled }) {
   const drawingRef = useRef(false);
   const hasStrokeRef = useRef(false);
   const lastPointRef = useRef(null);
+  // Identifier of the single finger currently drawing, or null. Only this
+  // Touch is tracked on touchmove/touchend -- a second finger landing on the
+  // pad mid-stroke is ignored rather than corrupting the signature.
+  const activeTouchIdRef = useRef(null);
 
   /* Measures the real available width from the wrapper (a block-level div
      that stretches to the form container, see .signaturePad in
@@ -74,42 +78,131 @@ export default function SignaturePad({ value, onChange, label, disabled }) {
      actual rendered box can differ slightly from that due to sub-pixel
      layout rounding. Without rescaling, a stroke drawn across the full
      *displayed* width could drift from the internal coordinate space. Scaling
-     by the ratio of internal-to-rendered size keeps pointer coordinates
-     correct at any responsive width. */
-  function getPoint(e) {
+     by the ratio of internal-to-rendered size keeps input coordinates
+     correct at any responsive width. Shared by both the pointer (mouse/pen)
+     and native touch (finger) input paths below. */
+  function toCanvasPoint(clientX, clientY) {
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
     const scaleX = rect.width > 0 ? padSize.width / rect.width : 1;
     const scaleY = rect.height > 0 ? padSize.height / rect.height : 1;
-    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+    return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
   }
 
-  function pointerDown(e) {
-    e.preventDefault();
-    const canvas = canvasRef.current;
-    canvas.setPointerCapture?.(e.pointerId);
+  // Shared stroke math for both input paths. A tap alone (down, then up
+  // with no move) leaves a small dot rather than nothing -- for a signature
+  // pad, a mark that never moved should still look like a mark, not vanish.
+  function beginStrokeAt(point) {
     drawingRef.current = true;
-    lastPointRef.current = getPoint(e);
+    lastPointRef.current = point;
+    hasStrokeRef.current = true;
+    const ctx = canvasRef.current.getContext('2d');
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, ctx.lineWidth / 2, 0, Math.PI * 2);
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.fill();
   }
 
-  function pointerMove(e) {
+  function continueStrokeTo(point) {
     if (!drawingRef.current) return;
-    e.preventDefault();
     const ctx = canvasRef.current.getContext('2d');
-    const p = getPoint(e);
-    const last = lastPointRef.current || p;
+    const last = lastPointRef.current || point;
     ctx.beginPath();
     ctx.moveTo(last.x, last.y);
-    ctx.lineTo(p.x, p.y);
+    ctx.lineTo(point.x, point.y);
     ctx.stroke();
-    lastPointRef.current = p;
+    lastPointRef.current = point;
     hasStrokeRef.current = true;
   }
 
-  function pointerUp(e) {
+  function endStroke() {
     drawingRef.current = false;
     lastPointRef.current = null;
   }
+
+  /* Pointer Events own mouse/pen input only. Real finger input is handled
+     exclusively by the native touchstart/touchmove/touchend/touchcancel
+     listeners below (see the touch effect) -- a touch gesture always fires
+     both event families, so processing pointerType 'touch' here too would
+     draw every finger stroke twice. */
+  function pointerDown(e) {
+    if (e.pointerType === 'touch') return;
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    canvas.setPointerCapture?.(e.pointerId);
+    beginStrokeAt(toCanvasPoint(e.clientX, e.clientY));
+  }
+
+  function pointerMove(e) {
+    if (e.pointerType === 'touch') return;
+    if (!drawingRef.current) return;
+    e.preventDefault();
+    continueStrokeTo(toCanvasPoint(e.clientX, e.clientY));
+  }
+
+  function pointerUp(e) {
+    if (e.pointerType === 'touch') return;
+    endStroke();
+  }
+
+  /* Native touch input, bound directly to the canvas DOM node (not React's
+     synthetic touch handlers, which React registers passively by default --
+     see addTrappedEventListener in react-dom -- making preventDefault() on
+     touchmove a silent no-op there). passive: false here is what actually
+     lets preventDefault stop Safari from panning the page while signing. */
+  useEffect(() => {
+    if (!editing) return undefined;
+    const canvas = canvasRef.current;
+    if (!canvas) return undefined;
+
+    function findActiveTouch(touchList) {
+      if (activeTouchIdRef.current == null) return null;
+      for (let i = 0; i < touchList.length; i += 1) {
+        if (touchList[i].identifier === activeTouchIdRef.current) return touchList[i];
+      }
+      return null;
+    }
+
+    function onTouchStart(e) {
+      e.preventDefault();
+      if (activeTouchIdRef.current != null) return; // already drawing with a finger; ignore extra fingers
+      const touch = e.changedTouches[0];
+      activeTouchIdRef.current = touch.identifier;
+      beginStrokeAt(toCanvasPoint(touch.clientX, touch.clientY));
+    }
+
+    function onTouchMove(e) {
+      const touch = findActiveTouch(e.touches);
+      if (!touch) return;
+      e.preventDefault();
+      continueStrokeTo(toCanvasPoint(touch.clientX, touch.clientY));
+    }
+
+    function onTouchEnd(e) {
+      const touch = findActiveTouch(e.changedTouches);
+      if (!touch) return;
+      endStroke();
+      activeTouchIdRef.current = null;
+    }
+
+    function onTouchCancel() {
+      // Reset unconditionally (not gated on matching changedTouches) so an
+      // interrupted gesture can never leave drawing stuck mid-stroke.
+      endStroke();
+      activeTouchIdRef.current = null;
+    }
+
+    canvas.addEventListener('touchstart', onTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', onTouchMove, { passive: false });
+    canvas.addEventListener('touchend', onTouchEnd, { passive: false });
+    canvas.addEventListener('touchcancel', onTouchCancel, { passive: false });
+    return () => {
+      canvas.removeEventListener('touchstart', onTouchStart);
+      canvas.removeEventListener('touchmove', onTouchMove);
+      canvas.removeEventListener('touchend', onTouchEnd);
+      canvas.removeEventListener('touchcancel', onTouchCancel);
+    };
+  }, [editing, padSize.width, padSize.height]);
 
   function clearCanvas() {
     const canvas = canvasRef.current;
@@ -172,13 +265,12 @@ export default function SignaturePad({ value, onChange, label, disabled }) {
     <div className="signaturePad">
       {label ? <div className="fieldLabel">{label}</div> : null}
       <div className="signatureCanvasWrap" ref={wrapRef}>
-        {/* No onPointerLeave: with setPointerCapture in place, pointerup
-            already reaches this element no matter where the pointer is
-            released. iOS Safari has fired spurious pointerleave mid-touch-
-            drag on captured elements, which silently ends the stroke after
-            the very first move -- the touch-drawing-draws-nothing bug.
-            pointercancel (e.g. an interrupting system gesture) is handled
-            explicitly instead of leaving drawingRef stuck true. */}
+        {/* Pointer handlers below cover mouse/pen only (see pointerDown) --
+            finger input is drawn by the native touch listeners attached in
+            the effect above. No onPointerLeave: with setPointerCapture in
+            place, pointerup already reaches this element no matter where
+            the pointer is released; onPointerCancel resets cleanly instead
+            of leaving drawingRef stuck true on an interrupted gesture. */}
         <canvas
           ref={canvasRef}
           className="signatureCanvas"
