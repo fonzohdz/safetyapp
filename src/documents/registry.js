@@ -48,7 +48,7 @@ export const DOCUMENT_REGISTRY = [
     shortTitle: 'Uncontrolled Event',
     description: 'Record a near miss, weather event, equipment failure, or other uncontrolled event.',
     category: 'fieldSafety',
-    status: 'building', // flips to 'available' once Milestone 3 lands
+    status: 'available',
     supportsDrafts: true,
     supportsTemplates: false,
   },
@@ -58,7 +58,7 @@ export const DOCUMENT_REGISTRY = [
     shortTitle: 'Medical Event',
     description: 'Document an employee-reported medical condition or event and the response taken.',
     category: 'fieldSafety',
-    status: 'building', // flips to 'available' once Milestone 4 lands
+    status: 'available',
     supportsDrafts: true,
     supportsTemplates: false,
   },
@@ -78,7 +78,7 @@ export const DOCUMENT_REGISTRY = [
     shortTitle: 'Employee Separation',
     description: 'Document the reason and details of an employee separation.',
     category: 'employeeAction',
-    status: 'building', // flips to 'available' once Milestone 5 lands
+    status: 'available',
     supportsDrafts: true,
     supportsTemplates: false,
   },

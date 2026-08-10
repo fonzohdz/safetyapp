@@ -1,0 +1,23 @@
+{
+  "id": "fixture-separation-no-call-no-show",
+  "schemaVersion": 1,
+  "status": "draft",
+  "createdAt": "2026-08-04T07:00:00.000Z",
+  "lastSavedAt": "2026-08-04T07:15:00.000Z",
+  "completedAt": "",
+  "employeeName": "Regina Poe",
+  "supervisor": "Casey Renn",
+  "position": "Flagger",
+  "separationDate": "2026-08-04",
+  "separationReason": "No Call / No Show",
+  "separationReasonOther": "",
+  "detailedExplanation": "Employee did not report to work and did not contact supervisor for three consecutive scheduled shifts (Aug 1-3). Per company policy this is treated as voluntary resignation.",
+  "warningNoticesGiven": "",
+  "warningNoticesCount": "",
+  "wouldRehire": "no",
+  "supervisorSignatureData": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+  "supervisorSignatureDate": "2026-08-04",
+  "employeeSignatureData": null,
+  "employeeSignatureDate": "",
+  "notes": ""
+}

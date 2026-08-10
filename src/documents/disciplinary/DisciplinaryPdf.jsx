@@ -4,6 +4,7 @@ import {
   label, value, fmtDate,
 } from '../DocPdfShell';
 import { useBlockPagination } from '../useBlockPagination';
+import { buildTextBlocks } from '../splitTextBlocks';
 import { WARNING_LEVELS, warningLevelLabel, isDisciplinaryPrintFinal } from './disciplinaryModel';
 
 const FORM_TITLE = 'EMPLOYEE DISCIPLINARY NOTICE';
@@ -31,13 +32,16 @@ function InfoBlock({ model }) {
   );
 }
 
-function Section({ number, title, text }) {
-  return (
+/* Each numbered section becomes 1+ pagination blocks — split so a
+   pathologically long single section (see splitTextBlocks.js) can never
+   itself be taller than one whole page and silently clip. */
+function sectionBlocks(idPrefix, number, title, text) {
+  return buildTextBlocks(idPrefix, text, (chunk, isFirst) => (
     <>
-      <GrayBar>{number}. {title}</GrayBar>
-      <TextBlock text={text} minHeightPx={40} />
+      <GrayBar>{isFirst ? `${number}. ${title}` : `${number}. ${title} (continued)`}</GrayBar>
+      <TextBlock text={chunk} minHeightPx={isFirst ? 40 : 24} />
     </>
-  );
+  ));
 }
 
 function SignaturesBlock({ model }) {
@@ -60,13 +64,13 @@ export function DisciplinaryPdfExportRoot({ model, pageRefsRef }) {
 
   const blocks = useMemo(() => ([
     { id: 'info', render: () => <InfoBlock model={model} /> },
-    { id: 'sec1', render: () => <Section number={1} title="What Occurred" text={model.whatOccurred} /> },
-    { id: 'sec2', render: () => <Section number={2} title="Earlier Warnings / Discussions" text={model.earlierWarnings} /> },
-    { id: 'sec3', render: () => <Section number={3} title="Company Policy States" text={model.companyPolicyStates} /> },
-    { id: 'sec4', render: () => <Section number={4} title="Employee Statement" text={model.employeeStatement} /> },
-    { id: 'sec5', render: () => <Section number={5} title="Corrective Action Required of Employee" text={model.correctiveActionRequired} /> },
-    { id: 'sec6', render: () => <Section number={6} title="The Company Will" text={model.companyWill} /> },
-    { id: 'sec7', render: () => <Section number={7} title="If Behavior Is Not Corrected / Performance Does Not Improve" text={model.ifNotCorrected} /> },
+    ...sectionBlocks('sec1', 1, 'What Occurred', model.whatOccurred),
+    ...sectionBlocks('sec2', 2, 'Earlier Warnings / Discussions', model.earlierWarnings),
+    ...sectionBlocks('sec3', 3, 'Company Policy States', model.companyPolicyStates),
+    ...sectionBlocks('sec4', 4, 'Employee Statement', model.employeeStatement),
+    ...sectionBlocks('sec5', 5, 'Corrective Action Required of Employee', model.correctiveActionRequired),
+    ...sectionBlocks('sec6', 6, 'The Company Will', model.companyWill),
+    ...sectionBlocks('sec7', 7, 'If Behavior Is Not Corrected / Performance Does Not Improve', model.ifNotCorrected),
     { id: 'signatures', render: () => <SignaturesBlock model={model} /> },
     // eslint-disable-next-line react-hooks/exhaustive-deps
   ]), [
@@ -84,7 +88,7 @@ export function DisciplinaryPdfExportRoot({ model, pageRefsRef }) {
   });
 
   return (
-    <div className="docPdfExportRoot" aria-hidden="true">
+    <div className="docPdfExportRoot" data-doc-id="disciplinary" aria-hidden="true">
       {renderProbe()}
       {pages.map((pageBlocks, i) => (
         <DocPdfPageShell

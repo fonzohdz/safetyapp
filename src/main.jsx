@@ -22,6 +22,24 @@ import {
 } from './documents/disciplinary/disciplinaryModel';
 import DisciplinaryWorkflow from './documents/disciplinary/DisciplinaryWorkflow';
 import { DisciplinaryPdfExportRoot } from './documents/disciplinary/DisciplinaryPdf';
+import {
+  emptyUncontrolledEvent, hasMeaningfulUncontrolledEventContent, isUncontrolledEventReady,
+  buildUncontrolledEventExportName,
+} from './documents/uncontrolledEvent/uncontrolledEventModel';
+import UncontrolledEventWorkflow from './documents/uncontrolledEvent/UncontrolledEventWorkflow';
+import { UncontrolledEventPdfExportRoot } from './documents/uncontrolledEvent/UncontrolledEventPdf';
+import {
+  emptyMedicalEvent, hasMeaningfulMedicalEventContent, isMedicalEventReady,
+  buildMedicalEventExportName,
+} from './documents/medicalEvent/medicalEventModel';
+import MedicalEventWorkflow from './documents/medicalEvent/MedicalEventWorkflow';
+import { MedicalEventPdfExportRoot } from './documents/medicalEvent/MedicalEventPdf';
+import {
+  emptySeparation, hasMeaningfulSeparationContent, isSeparationReady,
+  buildSeparationExportName,
+} from './documents/separation/separationModel';
+import SeparationWorkflow from './documents/separation/SeparationWorkflow';
+import { SeparationPdfExportRoot } from './documents/separation/SeparationPdf';
 
 const DOCUMENT_CATEGORY_ORDER = ['fieldSafety', 'employeeAction'];
 
@@ -1173,6 +1191,51 @@ function App() {
     showToast: msg => showToast(msg),
   });
 
+  // ── Uncontrolled Event Report state ──
+  const uncontrolledEvent = useDraftDocument({
+    storageKey: DOCUMENT_STORAGE_KEYS.uncontrolledEvent,
+    emptyModel: emptyUncontrolledEvent,
+    hasMeaningfulContent: hasMeaningfulUncontrolledEventContent,
+    firstStepId: 'event',
+    active: activeDoc === 'uncontrolledEvent',
+  });
+  const uncontrolledEventPdf = usePdfExport({
+    buildFilename: () => `${buildUncontrolledEventExportName(uncontrolledEvent.model)}.pdf`,
+    fingerprint: printedFingerprint(uncontrolledEvent.model),
+    onGenerated: () => uncontrolledEvent.markCompleted(),
+    showToast: msg => showToast(msg),
+  });
+
+  // ── Employee Medical Event state ──
+  const medicalEvent = useDraftDocument({
+    storageKey: DOCUMENT_STORAGE_KEYS.medicalEvent,
+    emptyModel: emptyMedicalEvent,
+    hasMeaningfulContent: hasMeaningfulMedicalEventContent,
+    firstStepId: 'condition',
+    active: activeDoc === 'medicalEvent',
+  });
+  const medicalEventPdf = usePdfExport({
+    buildFilename: () => `${buildMedicalEventExportName(medicalEvent.model)}.pdf`,
+    fingerprint: printedFingerprint(medicalEvent.model),
+    onGenerated: () => medicalEvent.markCompleted(),
+    showToast: msg => showToast(msg),
+  });
+
+  // ── Employee Separation state ──
+  const separation = useDraftDocument({
+    storageKey: DOCUMENT_STORAGE_KEYS.separation,
+    emptyModel: emptySeparation,
+    hasMeaningfulContent: hasMeaningfulSeparationContent,
+    firstStepId: 'details',
+    active: activeDoc === 'separation',
+  });
+  const separationPdf = usePdfExport({
+    buildFilename: () => `${buildSeparationExportName(separation.model)}.pdf`,
+    fingerprint: printedFingerprint(separation.model),
+    onGenerated: () => separation.markCompleted(),
+    showToast: msg => showToast(msg),
+  });
+
   const [templateId, setTemplateId] = useState('blank-jsa');
   const [saveName, setSaveName] = useState('');
   const [toast, setToast] = useState('');
@@ -1316,6 +1379,48 @@ function App() {
     if (disciplinary.hasExistingContent() && !confirm('Start a new disciplinary notice? The current one will be cleared from this device.')) return;
     disciplinaryEntry.startBlank();
     showToast('Started a new disciplinary notice.');
+  }
+
+  const uncontrolledEventEntry = makeDraftEntryPoints(
+    uncontrolledEvent, () => { setTab('documents'); setActiveDoc('uncontrolledEvent'); },
+    'Starting a new uncontrolled event report will replace the current draft. Continue?'
+  );
+  function markUncontrolledEventReady() {
+    if (uncontrolledEvent.markReady(isUncontrolledEventReady)) showToast('Marked ready for final export.');
+    else showToast(uncontrolledEvent.saveStatus === 'error' ? 'Save failed. Check available storage on this device.' : 'Complete all required fields before marking ready.');
+  }
+  function startNewUncontrolledEvent() {
+    if (uncontrolledEvent.hasExistingContent() && !confirm('Start a new uncontrolled event report? The current one will be cleared from this device.')) return;
+    uncontrolledEventEntry.startBlank();
+    showToast('Started a new uncontrolled event report.');
+  }
+
+  const medicalEventEntry = makeDraftEntryPoints(
+    medicalEvent, () => { setTab('documents'); setActiveDoc('medicalEvent'); },
+    'Starting a new medical event report will replace the current draft. Continue?'
+  );
+  function markMedicalEventReady() {
+    if (medicalEvent.markReady(isMedicalEventReady)) showToast('Marked ready for final export.');
+    else showToast(medicalEvent.saveStatus === 'error' ? 'Save failed. Check available storage on this device.' : 'Complete all required fields before marking ready.');
+  }
+  function startNewMedicalEvent() {
+    if (medicalEvent.hasExistingContent() && !confirm('Start a new medical event report? The current one will be cleared from this device.')) return;
+    medicalEventEntry.startBlank();
+    showToast('Started a new medical event report.');
+  }
+
+  const separationEntry = makeDraftEntryPoints(
+    separation, () => { setTab('documents'); setActiveDoc('separation'); },
+    'Starting a new employee separation record will replace the current draft. Continue?'
+  );
+  function markSeparationReady() {
+    if (separation.markReady(isSeparationReady)) showToast('Marked ready for final export.');
+    else showToast(separation.saveStatus === 'error' ? 'Save failed. Check available storage on this device.' : 'Complete all required fields before marking ready.');
+  }
+  function startNewSeparation() {
+    if (separation.hasExistingContent() && !confirm('Start a new employee separation record? The current one will be cleared from this device.')) return;
+    separationEntry.startBlank();
+    showToast('Started a new employee separation record.');
   }
 
   // Shared reset used by every "start fresh" entry point -- clears BOTH the
@@ -1726,7 +1831,60 @@ function App() {
       onOpen: disciplinaryEntry.loadSavedDraft,
       onDelete: () => { if (!disciplinary.savedDraft) return; if (!confirm('Delete this draft?')) return; disciplinary.discard(); showToast('Draft deleted.'); },
     },
+    {
+      id: 'uncontrolledEvent',
+      savedDraft: uncontrolledEvent.savedDraft,
+      draftTitle: uncontrolledEvent.savedDraft?.workplaceLocation || 'Untitled Uncontrolled Event',
+      metaLine: `${(uncontrolledEvent.savedDraft?.eventClassifications || []).join(', ') || 'Not classified'} · ${uncontrolledEvent.savedDraft?.lastSavedAt ? `Last saved ${nowNice(new Date(uncontrolledEvent.savedDraft.lastSavedAt))}` : 'Saved on this device'}`,
+      onOpen: uncontrolledEventEntry.loadSavedDraft,
+      onDelete: () => { if (!uncontrolledEvent.savedDraft) return; if (!confirm('Delete this draft?')) return; uncontrolledEvent.discard(); showToast('Draft deleted.'); },
+    },
+    {
+      id: 'medicalEvent',
+      savedDraft: medicalEvent.savedDraft,
+      draftTitle: medicalEvent.savedDraft?.employeeName || 'Untitled Medical Event',
+      metaLine: `${medicalEvent.savedDraft?.initialClassification ? 'Classified' : 'Not classified yet'} · ${medicalEvent.savedDraft?.lastSavedAt ? `Last saved ${nowNice(new Date(medicalEvent.savedDraft.lastSavedAt))}` : 'Saved on this device'}`,
+      onOpen: medicalEventEntry.loadSavedDraft,
+      onDelete: () => { if (!medicalEvent.savedDraft) return; if (!confirm('Delete this draft?')) return; medicalEvent.discard(); showToast('Draft deleted.'); },
+    },
+    {
+      id: 'separation',
+      savedDraft: separation.savedDraft,
+      draftTitle: separation.savedDraft?.employeeName || 'Untitled Separation',
+      metaLine: `${separation.savedDraft?.separationReason || 'Reason not selected'} · ${separation.savedDraft?.lastSavedAt ? `Last saved ${nowNice(new Date(separation.savedDraft.lastSavedAt))}` : 'Saved on this device'}`,
+      onOpen: separationEntry.loadSavedDraft,
+      onDelete: () => { if (!separation.savedDraft) return; if (!confirm('Delete this draft?')) return; separation.discard(); showToast('Draft deleted.'); },
+    },
   ];
+
+  // Home's compact "More Documents" quick-start rows — the four new
+  // document types only (JSA/Incident already have their own hero cards
+  // above; six giant hero cards would clutter Home, see the mission's own
+  // "good information hierarchy" guidance). Reuses draftEntries above for
+  // draft state instead of recomputing it, and the same start handlers
+  // DocCenterView uses.
+  const newDocStartHandlers = {
+    disciplinary: disciplinaryEntry.requestStartBlank,
+    uncontrolledEvent: uncontrolledEventEntry.requestStartBlank,
+    medicalEvent: medicalEventEntry.requestStartBlank,
+    separation: separationEntry.requestStartBlank,
+  };
+  const moreDocsEntries = DOCUMENT_REGISTRY
+    .filter(d => d.status === 'available' && d.id in newDocStartHandlers)
+    .map(d => {
+      const entry = draftEntries.find(e => e.id === d.id);
+      const hasDraft = Boolean(entry?.savedDraft);
+      return {
+        id: d.id,
+        shortTitle: d.shortTitle,
+        description: d.description,
+        hasDraft,
+        draftTitle: entry?.draftTitle,
+        onOpen: entry?.onOpen,
+        onStart: newDocStartHandlers[d.id],
+      };
+    });
+
   // Phone bottom nav stands in for the sidebar only at the tab level — inside
   // a document flow the workflow's own header/back button and sticky action
   // bar already own wayfinding, so it's not rendered there (see .mobileBottomNav).
@@ -1771,6 +1929,7 @@ function App() {
             <HomeView
               savedDraft={savedDraft} customTemplates={customTemplates} goJsaStart={goJsaStart} startBlank={requestStartBlank} setTab={setTab} loadSavedDraft={loadSavedDraft}
               savedIncidentDraft={savedIncidentDraft} startIncidentBlank={requestStartIncidentBlank} loadSavedIncidentDraft={loadSavedIncidentDraft}
+              moreDocsEntries={moreDocsEntries}
             />
           )}
           {tab === 'documents' && !activeDoc && (
@@ -1778,6 +1937,9 @@ function App() {
               jsa: goJsaStart,
               incident: requestStartIncidentBlank,
               disciplinary: disciplinaryEntry.requestStartBlank,
+              uncontrolledEvent: uncontrolledEventEntry.requestStartBlank,
+              medicalEvent: medicalEventEntry.requestStartBlank,
+              separation: separationEntry.requestStartBlank,
             }}
             />
           )}
@@ -1816,6 +1978,36 @@ function App() {
               onMarkReady={markDisciplinaryReady} onStartNew={startNewDisciplinary}
             />
           )}
+          {tab === 'documents' && activeDoc === 'uncontrolledEvent' && (
+            <UncontrolledEventWorkflow
+              model={uncontrolledEvent.model} upd={uncontrolledEvent.upd} step={uncontrolledEvent.step} setStep={uncontrolledEvent.setStep}
+              goDocs={goDocs} saveStatus={saveStatusLabel(uncontrolledEvent.saveStatus, uncontrolledEvent.model.lastSavedAt)}
+              saveStatusState={uncontrolledEvent.saveStatus} onSaveNow={uncontrolledEvent.saveNow}
+              pdfExportState={uncontrolledEventPdf.pdfExportState} isPdfStale={uncontrolledEventPdf.isPdfStale}
+              onGeneratePdf={uncontrolledEventPdf.generate} onShare={uncontrolledEventPdf.shareClick} onDownload={uncontrolledEventPdf.downloadClick}
+              onMarkReady={markUncontrolledEventReady} onStartNew={startNewUncontrolledEvent}
+            />
+          )}
+          {tab === 'documents' && activeDoc === 'medicalEvent' && (
+            <MedicalEventWorkflow
+              model={medicalEvent.model} upd={medicalEvent.upd} step={medicalEvent.step} setStep={medicalEvent.setStep}
+              goDocs={goDocs} saveStatus={saveStatusLabel(medicalEvent.saveStatus, medicalEvent.model.lastSavedAt)}
+              saveStatusState={medicalEvent.saveStatus} onSaveNow={medicalEvent.saveNow}
+              pdfExportState={medicalEventPdf.pdfExportState} isPdfStale={medicalEventPdf.isPdfStale}
+              onGeneratePdf={medicalEventPdf.generate} onShare={medicalEventPdf.shareClick} onDownload={medicalEventPdf.downloadClick}
+              onMarkReady={markMedicalEventReady} onStartNew={startNewMedicalEvent}
+            />
+          )}
+          {tab === 'documents' && activeDoc === 'separation' && (
+            <SeparationWorkflow
+              model={separation.model} upd={separation.upd} step={separation.step} setStep={separation.setStep}
+              goDocs={goDocs} saveStatus={saveStatusLabel(separation.saveStatus, separation.model.lastSavedAt)}
+              saveStatusState={separation.saveStatus} onSaveNow={separation.saveNow}
+              pdfExportState={separationPdf.pdfExportState} isPdfStale={separationPdf.isPdfStale}
+              onGeneratePdf={separationPdf.generate} onShare={separationPdf.shareClick} onDownload={separationPdf.downloadClick}
+              onMarkReady={markSeparationReady} onStartNew={startNewSeparation}
+            />
+          )}
           {tab === 'drafts' && <DraftsView entries={draftEntries} goDocs={goDocs} />}
           {tab === 'templates' && <TemplatesView allTemplates={allTemplates} customTemplates={customTemplates} loadTemplate={requestLoadTemplate} deleteTemplate={deleteTemplate} startBlank={requestStartBlank} />}
           {tab === 'settings' && <SettingsView settings={settings} setSettings={setSettings} />}
@@ -1839,6 +2031,9 @@ function App() {
       <PdfExportRoot jsa={jsa} plan={pdfExportPlan} pageRefsRef={pdfExportPageRefsRef} />
       <IncidentPdfExportRoot incident={incident} pageRefsRef={incidentPdfPageRefsRef} />
       <DisciplinaryPdfExportRoot model={disciplinary.model} pageRefsRef={disciplinaryPdf.pageRefsRef} />
+      <UncontrolledEventPdfExportRoot model={uncontrolledEvent.model} pageRefsRef={uncontrolledEventPdf.pageRefsRef} />
+      <MedicalEventPdfExportRoot model={medicalEvent.model} pageRefsRef={medicalEventPdf.pageRefsRef} />
+      <SeparationPdfExportRoot model={separation.model} pageRefsRef={separationPdf.pageRefsRef} />
       {toast && <div className="toast">{toast}</div>}
     </>
   );
@@ -1911,7 +2106,7 @@ function PlannedDocumentList() {
    in-progress draft data when it exists), quick access to the existing
    Documents/Drafts/Templates destinations, and an always-visible (not
    disclosure-hidden) preview of the broader document library roadmap. */
-function HomeView({ savedDraft, customTemplates, startBlank, setTab, loadSavedDraft, savedIncidentDraft, startIncidentBlank, loadSavedIncidentDraft }) {
+function HomeView({ savedDraft, customTemplates, startBlank, setTab, loadSavedDraft, savedIncidentDraft, startIncidentBlank, loadSavedIncidentDraft, moreDocsEntries }) {
   const hasDraft = Boolean(savedDraft);
   const draftTitle = savedDraft?.jobSite || savedDraft?.templateName || 'Untitled JSA Draft';
   const savedLabel = savedDraft?.lastSavedAt ? nowNice(new Date(savedDraft.lastSavedAt)) : 'on this device';
@@ -2009,6 +2204,22 @@ function HomeView({ savedDraft, customTemplates, startBlank, setTab, loadSavedDr
             <span className="accessRowText"><strong>Templates</strong><small>{customTemplates.length > 0 ? `${customTemplates.length} saved` : 'Reusable starting points'}</small></span>
             <IconChevronRight className="accessRowChevron" />
           </button>
+        </div>
+      </section>
+
+      <section className="homeSection">
+        <span className="homeSectionEyebrow">More Documents</span>
+        <div className="workspaceAccessGrid">
+          {moreDocsEntries.map(e => (
+            <button className="accessRow" key={e.id} onClick={e.hasDraft ? e.onOpen : e.onStart}>
+              <IconDocuments className="accessRowIcon" />
+              <span className="accessRowText">
+                <strong>{e.shortTitle}</strong>
+                <small>{e.hasDraft ? `Continue — ${e.draftTitle}` : e.description}</small>
+              </span>
+              <IconChevronRight className="accessRowChevron" />
+            </button>
+          ))}
         </div>
       </section>
 

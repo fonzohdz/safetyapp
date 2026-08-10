@@ -1,11 +1,9 @@
-// Regression coverage for the Employee Disciplinary Notice (Milestone 2 of
-// the Superintendent Document Suite mission). Same pattern as the existing
-// verify-*.mjs scripts: `vite preview` serving the production build, driven
-// with real Playwright interaction (typing, signature drawing) plus direct
-// localStorage seeding for the PDF-content fixture cases. Run standalone
-// (no pipe to tail — see the mobile UX session's postmortem on why piping
-// this kind of script deadlocks stdout):
-//   node tools/testing/verify-disciplinary.mjs
+// Regression coverage for the Uncontrolled Event Report (Milestone 3 of the
+// Superintendent Document Suite mission). Same pattern/lessons as
+// verify-disciplinary.mjs: run standalone (no pipe to tail), getByRole
+// textbox/exact matching to avoid stepper-tab aria-label collisions, badge
+// text compared case-insensitively (text-transform:uppercase in CSS).
+//   node tools/testing/verify-uncontrolled-event.mjs
 
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
@@ -15,12 +13,12 @@ import path from 'node:path';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..', '..');
-const outDir = path.join(__dirname, 'output', 'disciplinary');
+const outDir = path.join(__dirname, 'output', 'uncontrolled-event');
 mkdirSync(outDir, { recursive: true });
 
-const PORT = 4325;
+const PORT = 4326;
 const BASE_URL = `http://localhost:${PORT}`;
-const STORAGE_KEY = 'sdc.discipline.draft.v1';
+const STORAGE_KEY = 'sdc.uncontrolled.draft.v1';
 
 function loadFixture(name) {
   return readFileSync(path.join(__dirname, 'fixtures', name), 'utf8');
@@ -46,7 +44,7 @@ function check(cond, label) {
 }
 
 async function main() {
-  console.log('[1/6] Starting vite preview server...');
+  console.log('[1/5] Starting vite preview server...');
   const server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], {
     cwd: repoRoot, shell: true, stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -56,10 +54,10 @@ async function main() {
 
   try {
     await waitForServer(BASE_URL, 20000);
-    console.log('[2/6] Preview server ready at', BASE_URL);
+    console.log('[2/5] Preview server ready at', BASE_URL);
     const browser = await chromium.launch();
 
-    // ── 1. Real UI workflow: fill, sign, autosave, reload, generate PDF ──
+    // ── 1. Real UI workflow: fill, classify, sign, autosave, reload, generate PDF ──
     console.log('\n=== 1. Real UI workflow ===');
     {
       const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
@@ -70,63 +68,73 @@ async function main() {
 
       await page.goto(BASE_URL, { waitUntil: 'networkidle' });
       await page.getByRole('button', { name: 'Documents', exact: false }).first().click();
-      await page.waitForSelector('text=Employee Disciplinary Notice');
-      const row = page.locator('.listItem', { hasText: 'Employee Disciplinary Notice' });
+      const row = page.locator('.listItem', { hasText: 'Uncontrolled Event Report' });
       await row.getByRole('button', { name: 'Start' }).click();
-      await page.waitForSelector('text=Notice Details');
+      await page.waitForSelector('text=Event Info & Classification');
 
-      // getByRole('textbox', ...) rather than getByLabel — the stepper rail's
-      // own tab buttons carry an aria-label like "Corrective Action: Needs
-      // Info", which substring-collides with getByLabel's default matching
-      // against a same-named field; scoping to the textbox/input role avoids
-      // matching a role="tab" element entirely.
-      await page.getByRole('textbox', { name: 'Employee Name', exact: true }).fill('Jordan Blake');
-      await page.getByRole('textbox', { name: 'Supervisor', exact: true }).fill('Casey Renn');
-      await page.getByRole('textbox', { name: 'Position', exact: true }).fill('Laborer');
-      await page.getByRole('button', { name: 'Written Warning', exact: true }).click();
-      await page.getByRole('textbox', { name: 'Describe what happened', exact: true }).fill('Employee failed to wear required fall protection while working at height on the scaffold.');
+      await page.getByRole('textbox', { name: 'Workplace Location / Project', exact: true }).fill('Ridgeland, MS Test Site');
+      await page.getByRole('button', { name: 'Weather / Natural', exact: true }).click();
+      await page.getByRole('button', { name: 'Near Miss', exact: true }).click();
+
+      const injuryNotice = await page.locator('.pdfStaleWarning', { hasText: 'Injury/Illness' }).count();
+      check(injuryNotice === 0, 'No injury cross-report notice shown when Injury/Illness not selected');
+      await page.getByRole('button', { name: 'Injury / Illness', exact: true }).click();
+      await page.waitForSelector('.pdfStaleWarning:has-text("Injury/Illness")');
+      check(true, 'Injury cross-report notice appears once Injury/Illness outcome is selected');
+      await page.getByRole('button', { name: 'Injury / Illness', exact: true }).click(); // deselect for the rest of this run
 
       await page.getByRole('button', { name: 'Next' }).click();
-      await page.waitForSelector('text=Corrective Action');
-      await page.getByRole('textbox', { name: 'Corrective action', exact: true }).fill('Employee must wear fall protection at all times above six feet, verified daily by the foreman.');
-      await page.getByRole('textbox', { name: 'Company action', exact: true }).fill('The company will retrain the employee on fall protection requirements.');
-      await page.getByRole('textbox', { name: 'Consequence', exact: true }).fill('Further violations will result in suspension or termination.');
+      await page.waitForSelector('text=Narrative & Notifications');
+      await page.getByRole('textbox', { name: 'What Happened / Brief Summary / Timeline', exact: true }).fill('A ladder was found improperly footed near the equipment staging area during a routine walk-through.');
+      await page.getByRole('textbox', { name: 'Immediate Actions Taken', exact: true }).fill('Ladder was removed from service and crew was reminded of proper footing requirements at the next tailgate.');
+      await page.getByRole('button', { name: 'Supervisor', exact: true }).click();
+      await page.getByRole('textbox', { name: 'Reported By — Name', exact: true }).fill('Jordan Blake');
 
-      // Draw both signatures with real pointer input. Button text is scoped
-      // to .signaturePadActions/.signaturePad with an exact "Save" match —
-      // the builder header's own "Save Now" button also contains the
-      // substring "Save", which a loose hasText match would collide with.
-      const sigButtons = page.locator('.signaturePad button', { hasText: 'Add signature' });
-      const sigCount = await sigButtons.count();
-      check(sigCount === 2, `Both signature pads present before signing (found ${sigCount})`);
+      const sigCount = await page.locator('.signaturePad button', { hasText: 'Add signature' }).count();
+      check(sigCount === 2, `Both signature pads present (found ${sigCount})`);
       for (let i = 0; i < sigCount; i += 1) {
         await page.locator('.signaturePad button', { hasText: 'Add signature' }).first().click();
         const canvas = page.locator('canvas.signatureCanvas').first();
-        // A lower signature pad can sit beyond the viewport, and synthetic
-        // mouse coordinates below the viewport bottom never register as a
-        // stroke (see the Uncontrolled Event regression's own postmortem).
+        await canvas.waitFor({ state: 'visible' });
+        // This form's second signature pad sits further down the page than
+        // Disciplinary's (separate Reported By / Supervisor Review sections
+        // rather than one shared Signatures block) — without scrolling it
+        // fully into view first, synthetic mouse coordinates for the lower
+        // part of the canvas land beyond the 900px viewport and never
+        // register as a stroke, so the signature silently fails to save.
         await canvas.scrollIntoViewIfNeeded();
+        // SignaturePad sizes its canvas from a post-mount effect (real
+        // container width, see SignaturePad.jsx) — a short settle avoids
+        // drawing on a canvas that hasn't been sized yet.
+        await page.waitForTimeout(200);
         const box = await canvas.boundingBox();
-        await page.mouse.move(box.x + 20, box.y + box.height / 2);
+        const points = [
+          [box.x + box.width * 0.15, box.y + box.height * 0.7],
+          [box.x + box.width * 0.3, box.y + box.height * 0.25],
+          [box.x + box.width * 0.5, box.y + box.height * 0.75],
+          [box.x + box.width * 0.7, box.y + box.height * 0.3],
+          [box.x + box.width * 0.85, box.y + box.height * 0.6],
+        ];
+        await page.mouse.move(points[0][0], points[0][1]);
         await page.mouse.down();
-        await page.mouse.move(box.x + box.width - 20, box.y + box.height / 2 - 10, { steps: 8 });
+        for (const [px, py] of points.slice(1)) {
+          await page.mouse.move(px, py, { steps: 6 });
+        }
         await page.mouse.up();
+        await page.waitForTimeout(100);
         await page.locator('.signaturePadActions button', { hasText: /^Save$/ }).first().click();
+        await page.waitForTimeout(150);
       }
       const remainingAdd = await page.locator('.signaturePad button', { hasText: 'Add signature' }).count();
-      check(remainingAdd === 0, 'Both signatures captured (no "Add signature" buttons remain)');
+      check(remainingAdd === 0, `Both signatures captured (${remainingAdd} "Add signature" button(s) remain)`);
 
       await page.getByRole('button', { name: 'Go to Review' }).click();
       await page.waitForSelector('text=Readiness');
-
       const pendingItems = await page.locator('.incidentReadinessItem.pending').count();
       check(pendingItems === 0, `Readiness checklist fully satisfied (${pendingItems} pending item(s))`);
 
       await page.getByRole('button', { name: 'Mark Ready' }).click();
       await page.waitForTimeout(300);
-      // .badge renders text-transform:uppercase — innerText reflects that
-      // CSS-rendered casing, so compare case-insensitively against the
-      // underlying "Ready" label the component actually sets.
       const badgeText = await page.locator('.builderHeaderBadges .badge').innerText();
       check(badgeText.trim().toLowerCase() === 'ready', `Status badge reads "Ready" after Mark Ready (got "${badgeText.trim()}")`);
 
@@ -134,77 +142,74 @@ async function main() {
       await page.waitForSelector('.pdfReadyPanel', { timeout: 30000 });
       const headline = await page.locator('.pdfReadyHeadline').innerText();
       console.log(`  PDF ready: ${headline}`);
-      check(/^1 page$/.test(headline.trim()), `Normal-length content fits on 1 page (got "${headline.trim()}")`);
+      // This form has more structured sections than Disciplinary (info +
+      // classification + outcome + narrative + notifications + two full
+      // signature blocks) — 1-2 clean pages for a typical report is the
+      // realistic expectation, not a forced single page (see Section 3's
+      // fixture tests for the same reasoning).
+      check(/^[12] pages?$/.test(headline.trim()), `Normal-length content fits within 2 pages (got "${headline.trim()}")`);
 
       const downloadPromise = page.waitForEvent('download');
       await page.locator('button', { hasText: 'Download PDF' }).click();
       const download = await downloadPromise;
-      const pdfPath = path.join(outDir, 'ui-workflow-generated.pdf');
-      await download.saveAs(pdfPath);
-      console.log('  Saved PDF ->', pdfPath);
+      await download.saveAs(path.join(outDir, 'ui-workflow-generated.pdf'));
 
-      // Reload and confirm the draft (now completed) persisted.
       await page.reload({ waitUntil: 'networkidle' });
       const raw = await page.evaluate(key => window.localStorage.getItem(key), STORAGE_KEY);
       const persisted = JSON.parse(raw || 'null');
-      check(Boolean(persisted) && persisted.employeeName === 'Jordan Blake', 'Draft persisted to localStorage under sdc.discipline.draft.v1 after reload');
-      check(persisted?.status === 'completed', `Status is "completed" after a successful PDF export (got "${persisted?.status}")`);
+      check(Boolean(persisted) && persisted.workplaceLocation === 'Ridgeland, MS Test Site', 'Draft persisted under sdc.uncontrolled.draft.v1 after reload');
+      check(persisted?.status === 'completed', `Status is "completed" after PDF export (got "${persisted?.status}")`);
 
       check(consoleErrors.length === 0, `No console errors (${consoleErrors.length} found)${consoleErrors.length ? ': ' + consoleErrors.join(' | ') : ''}`);
       check(pageErrors.length === 0, `No page errors (${pageErrors.length} found)${pageErrors.length ? ': ' + pageErrors.join(' | ') : ''}`);
 
-      // Clean up this draft so it doesn't leak into later sections.
       await page.evaluate(key => window.localStorage.removeItem(key), STORAGE_KEY);
       await context.close();
     }
 
-    // ── 2. Draft collision isolation: Disciplinary draft must not touch JSA/Incident keys ──
+    // ── 2. Draft key isolation ──
     console.log('\n=== 2. Draft key isolation ===');
     {
       const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
-      await context.addInitScript(json => window.localStorage.setItem('sdc.discipline.draft.v1', json), loadFixture('disciplinary-normal.json'));
+      await context.addInitScript(json => window.localStorage.setItem('sdc.uncontrolled.draft.v1', json), loadFixture('uncontrolled-near-miss.json'));
       const page = await context.newPage();
       await page.goto(BASE_URL, { waitUntil: 'networkidle' });
-      const keys = await page.evaluate(() => Object.keys(window.localStorage));
-      check(keys.includes('sdc.discipline.draft.v1'), 'Disciplinary draft key present');
-      const jsaDraftUntouched = await page.evaluate(() => window.localStorage.getItem('sdc.jsa.draft.v4'));
-      check(jsaDraftUntouched === null, 'Seeding a Disciplinary draft does not create/touch sdc.jsa.draft.v4');
-      const incidentDraftUntouched = await page.evaluate(() => window.localStorage.getItem('sdc.incident.draft.v1'));
-      check(incidentDraftUntouched === null, 'Seeding a Disciplinary draft does not create/touch sdc.incident.draft.v1');
+      const jsaUntouched = await page.evaluate(() => window.localStorage.getItem('sdc.jsa.draft.v4'));
+      check(jsaUntouched === null, 'Does not create/touch sdc.jsa.draft.v4');
+      const incidentUntouched = await page.evaluate(() => window.localStorage.getItem('sdc.incident.draft.v1'));
+      check(incidentUntouched === null, 'Does not create/touch sdc.incident.draft.v1');
+      const discUntouched = await page.evaluate(() => window.localStorage.getItem('sdc.discipline.draft.v1'));
+      check(discUntouched === null, 'Does not create/touch sdc.discipline.draft.v1');
       await page.evaluate(() => window.localStorage.clear());
       await context.close();
     }
 
-    // ── 3. PDF content fixtures: normal / long section / long multi-section ──
+    // ── 3. PDF fixtures: near miss / spill / long timeline ──
     console.log('\n=== 3. PDF fixtures (page count + no clipping) ===');
     const fixtures = [
-      { name: 'disciplinary-normal.json', label: 'normal', expectMaxPages: 1 },
-      { name: 'disciplinary-long-section1.json', label: 'long-section1', expectMaxPages: 2 },
-      // All 7 numbered sections stuffed with long text simultaneously is a
-      // deliberately pathological case (no real disciplinary notice would
-      // ever have every section this long) — the important thing is safe,
-      // uncapped-but-uncupped pagination (verified below via per-page
-      // scrollHeight<=clientHeight), not hitting a specific page count.
-      { name: 'disciplinary-long-multisection.json', label: 'long-multisection', expectMaxPages: 10 },
+      // This form has more structured sections than Disciplinary (info +
+      // classification + outcome + narrative + notifications + two full
+      // signature blocks) — 1-2 clean pages for a typical report is the
+      // realistic expectation, not a forced single page.
+      { name: 'uncontrolled-near-miss.json', label: 'near-miss', expectMaxPages: 2 },
+      { name: 'uncontrolled-spill.json', label: 'spill', expectMaxPages: 2 },
+      { name: 'uncontrolled-long-timeline.json', label: 'long-timeline', expectMaxPages: 8 },
     ];
     const summary = [];
     for (const fx of fixtures) {
       console.log(`\n--- Fixture: ${fx.label} ---`);
       const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
-      await context.addInitScript(json => window.localStorage.setItem('sdc.discipline.draft.v1', json), loadFixture(fx.name));
+      await context.addInitScript(json => window.localStorage.setItem('sdc.uncontrolled.draft.v1', json), loadFixture(fx.name));
       const page = await context.newPage();
       const consoleErrors = []; const pageErrors = [];
       page.on('console', m => { if (m.type() === 'error') consoleErrors.push(m.text()); });
       page.on('pageerror', e => pageErrors.push(String(e)));
 
       await page.goto(BASE_URL, { waitUntil: 'networkidle' });
-      // Load the fixture via the real Drafts -> Open Draft path (the entry
-      // point that actually populates the editable model — "Start" always
-      // begins a blank document, see makeDraftEntryPoints in main.jsx).
       await page.locator('.sidebarNavItem, .mobileNavItem', { hasText: 'Drafts' }).first().click();
-      const draftRow = page.locator('.listItem', { hasText: 'Warning level' });
-      await draftRow.getByRole('button', { name: 'Open Draft' }).click();
-      await page.waitForSelector('text=Notice Details').catch(() => {});
+      const draftRow = page.locator('.listItem', { hasText: 'Ridgeland, MS' }).or(page.locator('.listItem', { hasText: 'Brandon, MS' }));
+      await draftRow.first().getByRole('button', { name: 'Open Draft' }).click();
+      await page.waitForSelector('text=Event Info & Classification').catch(() => {});
 
       await page.getByRole('button', { name: 'Next' }).click().catch(() => {});
       await page.getByRole('button', { name: 'Go to Review' }).click().catch(() => {});
@@ -216,11 +221,8 @@ async function main() {
       console.log(`  PDF ready: ${headline}`);
       check(Number.isFinite(pageCount) && pageCount >= 1 && pageCount <= fx.expectMaxPages, `Page count within expected range (got ${pageCount}, expected 1-${fx.expectMaxPages})`);
 
-      // Check every generated page for clipped content (real DOM measurement
-      // against the .docPdfPage's own fixed geometry, same check the
-      // Incident/Superintendent regressions already use).
       const overflowReport = await page.evaluate(() => {
-        const pages = Array.from(document.querySelectorAll('.docPdfExportRoot[data-doc-id="disciplinary"] .docPdfPage'));
+        const pages = Array.from(document.querySelectorAll('.docPdfExportRoot[data-doc-id="uncontrolledEvent"] .docPdfPage'));
         return pages.map((p, i) => ({ index: i + 1, scrollHeight: p.scrollHeight, clientHeight: p.clientHeight }));
       });
       overflowReport.forEach(p => {
@@ -230,19 +232,14 @@ async function main() {
       check(consoleErrors.length === 0, `No console errors (${consoleErrors.length} found)`);
       check(pageErrors.length === 0, `No page errors (${pageErrors.length} found)`);
 
-      // Reveal the off-screen export root before screenshotting it — same
-      // technique verify-jsa-pdf.mjs uses; a locator screenshot on a
-      // position:fixed;left:-20000px element captures the visible viewport
-      // instead of the element itself, not the intended off-screen page.
-      await page.addStyleTag({ content: '.docPdfExportRoot[data-doc-id="disciplinary"] { position: static !important; left: 0 !important; top: 0 !important; }' });
-      const pngPath = path.join(outDir, `${fx.label}-page1.png`);
-      await page.locator('.docPdfExportRoot[data-doc-id="disciplinary"] .docPdfPage').first().screenshot({ path: pngPath }).catch(() => {});
+      await page.addStyleTag({ content: '.docPdfExportRoot[data-doc-id="uncontrolledEvent"] { position: static !important; left: 0 !important; top: 0 !important; }' });
+      await page.locator('.docPdfExportRoot[data-doc-id="uncontrolledEvent"] .docPdfPage').first().screenshot({ path: path.join(outDir, `${fx.label}-page1.png`) }).catch(() => {});
 
       summary.push({ fixture: fx.label, pageCount, overflowReport, consoleErrors: consoleErrors.length, pageErrors: pageErrors.length });
       await context.close();
     }
 
-    // ── 4. Mobile viewport (390px): no overflow, sidebar hidden, signature usable ──
+    // ── 4. Mobile viewport (390px) ──
     console.log('\n=== 4. Mobile viewport (390px) ===');
     {
       const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
@@ -251,16 +248,16 @@ async function main() {
       page.on('pageerror', e => pageErrors.push(String(e)));
       await page.goto(BASE_URL, { waitUntil: 'networkidle' });
       await page.locator('.mobileNavItem', { hasText: 'Documents' }).click();
-      const row = page.locator('.listItem', { hasText: 'Employee Disciplinary Notice' });
+      const row = page.locator('.listItem', { hasText: 'Uncontrolled Event Report' });
       await row.getByRole('button', { name: 'Start' }).click();
-      await page.waitForSelector('text=Notice Details');
+      await page.waitForSelector('text=Event Info & Classification');
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       check(overflow <= 1, `No horizontal overflow on phone (scrollWidth - clientWidth = ${overflow})`);
       const bottomNavHidden = await page.evaluate(() => {
         const el = document.querySelector('.mobileBottomNav');
         return !el || getComputedStyle(el).display === 'none';
       });
-      check(bottomNavHidden, 'Bottom nav hidden while the Disciplinary Notice builder is open');
+      check(bottomNavHidden, 'Bottom nav hidden while the builder is open');
       check(pageErrors.length === 0, `No page errors on phone (${pageErrors.length} found)`);
       await context.close();
     }
@@ -274,7 +271,7 @@ async function main() {
     server.kill();
   }
 
-  console.log(`\n[6/6] Done. ${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);
+  console.log(`\n[5/5] Done. ${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);
   if (failures > 0) {
     console.log('--- preview server output (tail) ---');
     console.log(serverOutput.slice(-2000));

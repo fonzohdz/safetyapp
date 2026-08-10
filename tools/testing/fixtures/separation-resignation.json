@@ -1,0 +1,23 @@
+{
+  "id": "fixture-separation-resignation",
+  "schemaVersion": 1,
+  "status": "draft",
+  "createdAt": "2026-08-01T09:00:00.000Z",
+  "lastSavedAt": "2026-08-01T09:10:00.000Z",
+  "completedAt": "",
+  "employeeName": "Dale Hutto",
+  "supervisor": "Ray Ferris",
+  "position": "Laborer",
+  "separationDate": "2026-08-01",
+  "separationReason": "Resignation",
+  "separationReasonOther": "",
+  "detailedExplanation": "Employee gave two weeks' notice to pursue a position closer to home. No performance or conduct concerns.",
+  "warningNoticesGiven": "",
+  "warningNoticesCount": "",
+  "wouldRehire": "yes",
+  "supervisorSignatureData": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+  "supervisorSignatureDate": "2026-08-01",
+  "employeeSignatureData": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+  "employeeSignatureDate": "2026-08-01",
+  "notes": ""
+}

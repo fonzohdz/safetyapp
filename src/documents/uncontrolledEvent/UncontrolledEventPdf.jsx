@@ -4,6 +4,7 @@ import {
   label, value, fmtDate, fmtDateTime,
 } from '../DocPdfShell';
 import { useBlockPagination } from '../useBlockPagination';
+import { buildTextBlocks } from '../splitTextBlocks';
 import {
   EVENT_CLASSIFICATIONS, EVENT_OUTCOMES, NOTIFICATION_OPTIONS, ATTACHMENT_OPTIONS,
   isUncontrolledEventPrintFinal,
@@ -51,14 +52,6 @@ function OutcomeBlock({ model }) {
   );
 }
 
-function NarrativeBlock({ model }) {
-  return (
-    <>
-      <TextBlock title="What Happened / Brief Summary / Timeline" text={model.whatHappened} minHeightPx={70} />
-      <TextBlock title="Immediate Actions Taken" text={model.immediateActionsTaken} minHeightPx={50} />
-    </>
-  );
-}
 
 function NotificationsBlock({ model }) {
   return (
@@ -104,7 +97,15 @@ export function UncontrolledEventPdfExportRoot({ model, pageRefsRef }) {
     { id: 'info', render: () => <InfoBlock model={model} /> },
     { id: 'classification', render: () => <ClassificationBlock model={model} /> },
     { id: 'outcome', render: () => <OutcomeBlock model={model} /> },
-    { id: 'narrative', render: () => <NarrativeBlock model={model} /> },
+    // Split so a genuinely long timeline can never itself be taller than
+    // one page — see splitTextBlocks.js. Two separate, independently
+    // page-breakable blocks instead of one combined narrative block.
+    ...buildTextBlocks('whatHappened', model.whatHappened, (chunk, isFirst) => (
+      <TextBlock title={isFirst ? 'What Happened / Brief Summary / Timeline' : 'What Happened (continued)'} text={chunk} minHeightPx={isFirst ? 70 : 30} />
+    )),
+    ...buildTextBlocks('immediateActions', model.immediateActionsTaken, (chunk, isFirst) => (
+      <TextBlock title={isFirst ? 'Immediate Actions Taken' : 'Immediate Actions Taken (continued)'} text={chunk} minHeightPx={isFirst ? 50 : 30} />
+    )),
     { id: 'notifications', render: () => <NotificationsBlock model={model} /> },
     { id: 'signatures', render: () => <SignaturesBlock model={model} /> },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -125,7 +126,7 @@ export function UncontrolledEventPdfExportRoot({ model, pageRefsRef }) {
   });
 
   return (
-    <div className="docPdfExportRoot" aria-hidden="true">
+    <div className="docPdfExportRoot" data-doc-id="uncontrolledEvent" aria-hidden="true">
       {renderProbe()}
       {pages.map((pageBlocks, i) => (
         <DocPdfPageShell

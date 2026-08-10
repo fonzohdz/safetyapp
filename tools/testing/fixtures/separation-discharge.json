@@ -1,0 +1,23 @@
+{
+  "id": "fixture-separation-discharge",
+  "schemaVersion": 1,
+  "status": "draft",
+  "createdAt": "2026-08-06T15:00:00.000Z",
+  "lastSavedAt": "2026-08-06T15:20:00.000Z",
+  "completedAt": "",
+  "employeeName": "Marcus Doyle",
+  "supervisor": "Ray Ferris",
+  "position": "Equipment Operator",
+  "separationDate": "2026-08-06",
+  "separationReason": "Discharge",
+  "separationReasonOther": "",
+  "detailedExplanation": "Third documented safety violation within a 90-day period (operating equipment without a spotter near an excavation), following the progressive discipline steps already on file (verbal warning, written warning).",
+  "warningNoticesGiven": "yes",
+  "warningNoticesCount": "2",
+  "wouldRehire": "no",
+  "supervisorSignatureData": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+  "supervisorSignatureDate": "2026-08-06",
+  "employeeSignatureData": null,
+  "employeeSignatureDate": "",
+  "notes": ""
+}
