@@ -1,12 +1,13 @@
 import {
   MEDICAL_EVENT_STEPS, medicalEventStepStatus,
   SYMPTOM_ONSET_OPTIONS, RESPONSE_ACTIONS, MEDICAL_EVALUATION_TYPES, WORK_STATUS_OPTIONS, INITIAL_CLASSIFICATIONS,
-  getMedicalEventReadinessChecks, isMedicalEventReady,
+  getMedicalEventReadinessChecks, isMedicalEventReady, isMedicalEventPrintFinal,
 } from './medicalEventModel';
 import {
   Field, TextAreaField, SegmentedToggle, ChipGroup, StepPanel, StepFooter,
   BuilderHeader, ReviewExportPanel, SignaturePad,
 } from '../FormPrimitives';
+import { LockedContext, useLocked } from '../lockedContext';
 
 function toggleInList(list, item) {
   return (list || []).includes(item) ? list.filter(x => x !== item) : [...(list || []), item];
@@ -69,6 +70,7 @@ function StepCondition({ model, upd, next }) {
 
 /* ── Step: Evaluation & Classification ── */
 function StepEvaluation({ model, upd, prev, next }) {
+  const locked = useLocked();
   return (
     <StepPanel title="Evaluation & Classification" intro="Medical evaluation, current work status, and the initial classification. This app never decides work-relatedness or OSHA recordability — select what applies based on the facts.">
       <div className="formSection">
@@ -85,7 +87,13 @@ function StepEvaluation({ model, upd, prev, next }) {
         <label className="field">
           <span>Provider Note Attached</span>
           <div className="yesNoToggle">
-            <button type="button" className={`btn${model.providerNoteAttached ? ' active yes' : ''}`} onClick={() => upd({ providerNoteAttached: !model.providerNoteAttached })}>
+            <button
+              type="button"
+              aria-pressed={model.providerNoteAttached}
+              aria-disabled={locked}
+              className={`btn${model.providerNoteAttached ? ' active yes' : ''}`}
+              onClick={() => { if (!locked) upd({ providerNoteAttached: !model.providerNoteAttached }); }}
+            >
               {model.providerNoteAttached ? 'Yes — Attached' : 'No'}
             </button>
           </div>
@@ -126,13 +134,14 @@ export default function MedicalEventWorkflow({
 
   const checks = getMedicalEventReadinessChecks(model);
   const checklistComplete = isMedicalEventReady(model);
+  const locked = isMedicalEventPrintFinal(model);
 
   return (
     <>
       <BuilderHeader
         kicker="Employee Medical Event"
         title={model.employeeName || 'Untitled Medical Event'}
-        statusBadgeLabel={model.status === 'completed' ? 'Completed' : model.status === 'ready' ? 'Ready' : 'Draft'}
+        statusBadgeLabel={locked ? 'Finished' : 'Draft'}
         statusBadgeClass={model.status === 'draft' ? 'draft' : 'avail'}
         saveStatus={saveStatus}
         saveStatusState={saveStatusState}
@@ -145,31 +154,32 @@ export default function MedicalEventWorkflow({
         onJumpStep={setStep}
       />
 
-      <div className="workflowShell stacked">
-        <div className="workflowLeft">
-          {step === 'condition' && <StepCondition model={model} upd={upd} next={next} />}
-          {step === 'evaluation' && <StepEvaluation model={model} upd={upd} prev={prev} next={next} />}
-          {step === 'review' && (
-            <ReviewExportPanel
-              title="Review & Export"
-              checks={checks}
-              checklistComplete={checklistComplete}
-              status={model.status}
-              draftExplainText="Complete the checklist below, then generate the PDF."
-              markReadyHintText="Everything required is filled in — mark ready when this report is final."
-              markReadyLabel="Mark Ready"
-              onMarkReady={onMarkReady}
-              pdfExportState={pdfExportState}
-              isPdfStale={isPdfStale}
-              onGeneratePdf={onGeneratePdf}
-              onDownload={onDownload}
-              onStartNew={onStartNew}
-              startNewLabel="Start a new medical event report"
-              onBack={prev}
-            />
-          )}
+      <LockedContext.Provider value={locked}>
+        <div className="workflowShell stacked">
+          <div className="workflowLeft">
+            {step === 'condition' && <StepCondition model={model} upd={upd} next={next} />}
+            {step === 'evaluation' && <StepEvaluation model={model} upd={upd} prev={prev} next={next} />}
+            {step === 'review' && (
+              <ReviewExportPanel
+                title="Review & Export"
+                checks={checks}
+                checklistComplete={checklistComplete}
+                status={model.status}
+                draftExplainText="Complete the checklist below, then finish this document."
+                markReadyHintText="Everything required is filled in. Finishing will lock the document from further editing."
+                onMarkReady={onMarkReady}
+                pdfExportState={pdfExportState}
+                isPdfStale={isPdfStale}
+                onGeneratePdf={onGeneratePdf}
+                onDownload={onDownload}
+                onStartNew={onStartNew}
+                startNewLabel="Start a new medical event report"
+                onBack={prev}
+              />
+            )}
+          </div>
         </div>
-      </div>
+      </LockedContext.Provider>
     </>
   );
 }

@@ -4,6 +4,7 @@ import { incidentCopy as t } from './incidentCopy';
 import { processIncidentPhotoFile, findLikelyDuplicatePhoto } from './incidentPhotoProcessing';
 import { savePhotoBlob, deletePhotoBlob } from './incidentPhotoStorage';
 import { useIncidentPhotoUrls } from './useIncidentPhotoUrls';
+import { useLocked } from '../documents/lockedContext';
 
 /* ── Incident Photos step ──
    Field UX goal: tap photo -> take/select picture -> optionally label it ->
@@ -13,16 +14,23 @@ import { useIncidentPhotoUrls } from './useIncidentPhotoUrls';
    / useIncidentPhotoUrls.js / incidentPdfGenerate.jsx. */
 export default function IncidentPhotos({ incident, upd, showToast, prev, next }) {
   const c = t.photos;
+  const locked = useLocked();
   const photos = incident.photos || [];
   const photoUrls = useIncidentPhotoUrls(photos);
   const fileInputRef = useRef(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
   function openPicker() {
+    if (locked) return;
     fileInputRef.current?.click();
   }
 
   async function handleFiles(fileList) {
+    // Defense in depth alongside openPicker()'s guard -- the file input
+    // itself always stays in the DOM (only the visible "Add Photo" button
+    // is hidden once locked), so a change event reaching it directly must
+    // still be refused.
+    if (locked) return;
     const files = Array.from(fileList || []);
     if (!files.length) return;
     setIsProcessing(true);
@@ -73,12 +81,14 @@ export default function IncidentPhotos({ incident, upd, showToast, prev, next })
   }
 
   function removePhoto(photo) {
+    if (locked) return;
     if (!window.confirm(c.confirmRemove)) return;
     deletePhotoBlob(photo.id).catch(() => { /* metadata removal below still proceeds */ });
     upd({ photos: (incident.photos || []).filter(p => p.id !== photo.id) });
   }
 
   function updatePhoto(id, patch) {
+    if (locked) return;
     upd({ photos: (incident.photos || []).map(p => (p.id === id ? { ...p, ...patch } : p)) });
   }
 
@@ -99,9 +109,11 @@ export default function IncidentPhotos({ incident, upd, showToast, prev, next })
           className="incPhotoFileInput"
           aria-label={c.addPhoto}
         />
-        <button type="button" className="btn primary lg incPhotoAddBtn" onClick={openPicker} disabled={isProcessing} aria-busy={isProcessing}>
-          {isProcessing ? c.processing : c.addPhoto}
-        </button>
+        {!locked && (
+          <button type="button" className="btn primary lg incPhotoAddBtn" onClick={openPicker} disabled={isProcessing} aria-busy={isProcessing}>
+            {isProcessing ? c.processing : c.addPhoto}
+          </button>
+        )}
 
         {photos.length === 0 && <p className="helperText">{c.empty}</p>}
 
@@ -118,7 +130,7 @@ export default function IncidentPhotos({ incident, upd, showToast, prev, next })
                 <div className="incPhotoCardFields">
                   <label className="field">
                     <span>{c.category}</span>
-                    <select value={photo.category || ''} onChange={e => updatePhoto(photo.id, { category: e.target.value })}>
+                    <select value={photo.category || ''} onChange={e => updatePhoto(photo.id, { category: e.target.value })} disabled={locked}>
                       <option value="">{c.categoryNone}</option>
                       {INCIDENT_PHOTO_CATEGORIES.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                     </select>
@@ -131,11 +143,14 @@ export default function IncidentPhotos({ incident, upd, showToast, prev, next })
                       placeholder={c.captionPlaceholder}
                       maxLength={220}
                       onChange={e => updatePhoto(photo.id, { caption: e.target.value })}
+                      disabled={locked}
                     />
                   </label>
-                  <button type="button" className="btn ghost sm incPhotoRemoveBtn" onClick={() => removePhoto(photo)} aria-label={`${c.remove}`}>
-                    {c.remove}
-                  </button>
+                  {!locked && (
+                    <button type="button" className="btn ghost sm incPhotoRemoveBtn" onClick={() => removePhoto(photo)} aria-label={`${c.remove}`}>
+                      {c.remove}
+                    </button>
+                  )}
                 </div>
               </div>
             );

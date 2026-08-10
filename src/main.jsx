@@ -1372,8 +1372,8 @@ function App() {
     'Starting a new disciplinary notice will replace the current draft. Continue?'
   );
   function markDisciplinaryReady() {
-    if (disciplinary.markReady(isDisciplinaryReady)) showToast('Marked ready for final export.');
-    else showToast(disciplinary.saveStatus === 'error' ? 'Save failed. Check available storage on this device.' : 'Complete all required fields before marking ready.');
+    if (disciplinary.markReady(isDisciplinaryReady)) showToast('Document finished and locked from editing.');
+    else showToast(disciplinary.saveStatus === 'error' ? 'Save failed. Check available storage on this device.' : 'Complete all required fields before finishing.');
   }
   function startNewDisciplinary() {
     if (disciplinary.hasExistingContent() && !confirm('Start a new disciplinary notice? The current one will be cleared from this device.')) return;
@@ -1386,8 +1386,8 @@ function App() {
     'Starting a new uncontrolled event report will replace the current draft. Continue?'
   );
   function markUncontrolledEventReady() {
-    if (uncontrolledEvent.markReady(isUncontrolledEventReady)) showToast('Marked ready for final export.');
-    else showToast(uncontrolledEvent.saveStatus === 'error' ? 'Save failed. Check available storage on this device.' : 'Complete all required fields before marking ready.');
+    if (uncontrolledEvent.markReady(isUncontrolledEventReady)) showToast('Document finished and locked from editing.');
+    else showToast(uncontrolledEvent.saveStatus === 'error' ? 'Save failed. Check available storage on this device.' : 'Complete all required fields before finishing.');
   }
   function startNewUncontrolledEvent() {
     if (uncontrolledEvent.hasExistingContent() && !confirm('Start a new uncontrolled event report? The current one will be cleared from this device.')) return;
@@ -1400,8 +1400,8 @@ function App() {
     'Starting a new medical event report will replace the current draft. Continue?'
   );
   function markMedicalEventReady() {
-    if (medicalEvent.markReady(isMedicalEventReady)) showToast('Marked ready for final export.');
-    else showToast(medicalEvent.saveStatus === 'error' ? 'Save failed. Check available storage on this device.' : 'Complete all required fields before marking ready.');
+    if (medicalEvent.markReady(isMedicalEventReady)) showToast('Document finished and locked from editing.');
+    else showToast(medicalEvent.saveStatus === 'error' ? 'Save failed. Check available storage on this device.' : 'Complete all required fields before finishing.');
   }
   function startNewMedicalEvent() {
     if (medicalEvent.hasExistingContent() && !confirm('Start a new medical event report? The current one will be cleared from this device.')) return;
@@ -1414,8 +1414,8 @@ function App() {
     'Starting a new employee separation record will replace the current draft. Continue?'
   );
   function markSeparationReady() {
-    if (separation.markReady(isSeparationReady)) showToast('Marked ready for final export.');
-    else showToast(separation.saveStatus === 'error' ? 'Save failed. Check available storage on this device.' : 'Complete all required fields before marking ready.');
+    if (separation.markReady(isSeparationReady)) showToast('Document finished and locked from editing.');
+    else showToast(separation.saveStatus === 'error' ? 'Save failed. Check available storage on this device.' : 'Complete all required fields before finishing.');
   }
   function startNewSeparation() {
     if (separation.hasExistingContent() && !confirm('Start a new employee separation record? The current one will be cleared from this device.')) return;
@@ -1492,7 +1492,7 @@ function App() {
   }
 
   function markIncidentReady() {
-    if (!isIncidentReady(incident)) { showToast('Complete all required fields before marking ready.'); return; }
+    if (!isIncidentReady(incident)) { showToast('Complete all required fields before finishing.'); return; }
     clearTimeout(incidentAutoSaveTimer.current);
     const next = { ...incident, status: 'ready', lastSavedAt: new Date().toISOString() };
     if (saveIncidentDraft(next)) {
@@ -1500,7 +1500,7 @@ function App() {
       setIncident(next);
       setSavedIncidentDraft(next);
       setIncidentSaveStatus('saved');
-      showToast('Marked ready for final export.');
+      showToast('Document finished and locked from editing.');
     } else {
       setIncidentSaveStatus('error');
       showToast('Save failed. Check available storage on this device.');

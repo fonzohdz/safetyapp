@@ -133,10 +133,11 @@ async function main() {
       const pendingItems = await page.locator('.incidentReadinessItem.pending').count();
       check(pendingItems === 0, `Readiness checklist fully satisfied (${pendingItems} pending item(s))`);
 
-      await page.getByRole('button', { name: 'Mark Ready' }).click();
+      await page.getByRole('button', { name: 'Finish Document', exact: true }).click();
+      await page.locator('.dialogPanel', { hasText: 'Finish this document?' }).getByRole('button', { name: 'Finish Document', exact: true }).click();
       await page.waitForTimeout(300);
       const badgeText = await page.locator('.builderHeaderBadges .badge').innerText();
-      check(badgeText.trim().toLowerCase() === 'ready', `Status badge reads "Ready" after Mark Ready (got "${badgeText.trim()}")`);
+      check(badgeText.trim().toLowerCase() === 'finished', `Status badge reads "Finished" after confirming Finish Document (got "${badgeText.trim()}")`);
 
       await page.getByRole('button', { name: /Create Document/ }).click();
       await page.waitForSelector('.pdfReadyPanel', { timeout: 30000 });
@@ -289,6 +290,52 @@ async function main() {
       check(Boolean(previewSrc && previewSrc.startsWith('data:image/png')), 'Touch-drawn signature saves to a real PNG preview');
 
       check(pageErrors.length === 0, `No page errors on phone (${pageErrors.length} found)`);
+      await page.evaluate(key => window.localStorage.removeItem(key), STORAGE_KEY);
+      await context.close();
+    }
+
+    // ── 5. Finish Document confirmation and editing lock ──
+    console.log('\n=== 5. Finish Document confirmation and editing lock ===');
+    {
+      const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+      const page = await context.newPage();
+      await page.goto(BASE_URL, { waitUntil: 'networkidle' });
+      await page.getByRole('button', { name: 'Documents', exact: false }).first().click();
+      await page.locator('.listItem', { hasText: 'Uncontrolled Event Report' }).getByRole('button', { name: 'Start' }).click();
+      await page.waitForSelector('text=Event Info & Classification');
+      await page.getByRole('textbox', { name: 'Workplace Location / Project', exact: true }).fill('Finish Lock Test Site');
+      await page.getByRole('button', { name: 'Weather / Natural', exact: true }).click();
+      await page.getByRole('button', { name: 'Near Miss', exact: true }).click();
+      await page.getByRole('button', { name: 'Next' }).click();
+      await page.waitForSelector('text=Narrative & Notifications');
+      await page.getByRole('textbox', { name: 'What Happened / Brief Summary / Timeline', exact: true }).fill('Test timeline.');
+      await page.getByRole('textbox', { name: 'Reported By — Name', exact: true }).fill('Finish Lock Test');
+      await page.locator('.signaturePad button', { hasText: 'Add signature' }).first().click();
+      const canvas = page.locator('canvas.signatureCanvas').first();
+      await canvas.scrollIntoViewIfNeeded();
+      const box = await canvas.boundingBox();
+      await page.mouse.move(box.x + 20, box.y + box.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(box.x + box.width - 20, box.y + box.height / 2 - 10, { steps: 6 });
+      await page.mouse.up();
+      await page.locator('.signaturePadActions button', { hasText: /^Save$/ }).first().click();
+      await page.getByRole('button', { name: 'Go to Review' }).click();
+      await page.waitForSelector('text=Readiness');
+
+      const finishBtn = page.getByRole('button', { name: 'Finish Document', exact: true });
+      check(await finishBtn.isEnabled(), 'Finish Document is enabled once the checklist is complete');
+      await finishBtn.click();
+      const dialog = page.locator('.dialogPanel', { hasText: 'Finish this document?' });
+      check(await dialog.isVisible(), 'Confirmation dialog appears on Finish Document click');
+      await dialog.getByRole('button', { name: 'Finish Document', exact: true }).click();
+      await page.waitForTimeout(300);
+      const badge = await page.locator('.builderHeaderBadges .badge').innerText();
+      check(badge.toLowerCase() === 'finished', `Badge reads "Finished" after confirming (got "${badge}")`);
+
+      await page.getByRole('tab', { name: /Event Info & Classification/ }).click();
+      const locationField = page.getByRole('textbox', { name: 'Workplace Location / Project', exact: true });
+      check(await locationField.isDisabled(), 'Workplace Location field is disabled once finished');
+
       await page.evaluate(key => window.localStorage.removeItem(key), STORAGE_KEY);
       await context.close();
     }

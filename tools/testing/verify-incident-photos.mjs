@@ -125,8 +125,14 @@ async function main() {
     await waitForServer(BASE_URL, 20000);
     console.log('[3/3] Preview server ready at', BASE_URL);
 
-    const fixtureJson = readFileSync(path.join(__dirname, 'fixtures', 'incident-full-fixture.json'), 'utf8');
-    const fixture = JSON.parse(fixtureJson);
+    // Patched to status: 'draft' before seeding -- this fixture is shared
+    // with verify-incident-pdf.mjs (which needs the file's own status:
+    // 'ready' for its final/un-watermarked rendering test), but this
+    // script's own purpose is adding/removing photos, which now requires an
+    // unlocked document (see the app-wide draft/finish/lock UX mission --
+    // 'ready' is genuinely locked now, not just un-watermarked).
+    const fixture = { ...JSON.parse(readFileSync(path.join(__dirname, 'fixtures', 'incident-full-fixture.json'), 'utf8')), status: 'draft' };
+    const fixtureJson = JSON.stringify(fixture);
 
     const browser = await chromium.launch();
     const context = await browser.newContext({ viewport: { width: 1200, height: 900 } });

@@ -197,8 +197,13 @@ async function testLegacyMigration(browser) {
 async function testPdfCombiningAndPartialAnswers(browser) {
   const a = makeAssertions('PDF combining + partial answers (sections 3-6)');
   console.log('\n=== 3-6. PDF combines both answers into the existing Page 6 box; partial/blank answers never fabricate content ===');
-  const fixtureJson = readFileSync(path.join(__dirname, 'fixtures', 'incident-superintendent-response-fixture.json'), 'utf8');
-  const fixture = JSON.parse(fixtureJson);
+  // Patched to status: 'draft' -- this section fills/clears fields directly
+  // via Playwright's fill(), which refuses to act on a disabled field, and
+  // the fixture's own file has status: 'ready', which now locks the
+  // document (see the app-wide draft/finish/lock UX mission -- 'ready' is
+  // genuinely locked now, not just un-watermarked).
+  const fixture = { ...JSON.parse(readFileSync(path.join(__dirname, 'fixtures', 'incident-superintendent-response-fixture.json'), 'utf8')), status: 'draft' };
+  const fixtureJson = JSON.stringify(fixture);
   const context = await browser.newContext({ viewport: { width: 1200, height: 900 } });
   await context.addInitScript((json) => { window.localStorage.setItem('sdc.incident.draft.v1', json); }, fixtureJson);
   const page = await context.newPage();
@@ -264,7 +269,10 @@ async function testPdfCombiningAndPartialAnswers(browser) {
 async function testLongContentContinuation(browser) {
   const a = makeAssertions('Long combined content -> continuation page (section 7)');
   console.log('\n=== 7. Long Immediate + Corrective content paginates via the existing continuation-page logic ===');
-  const fixtureJson = readFileSync(path.join(__dirname, 'fixtures', 'incident-superintendent-response-fixture.json'), 'utf8');
+  // Patched to status: 'draft' -- see the identical note in
+  // testPdfCombiningAndPartialAnswers above; this section also fills
+  // fields directly via Playwright's fill(), which refuses a disabled field.
+  const fixtureJson = JSON.stringify({ ...JSON.parse(readFileSync(path.join(__dirname, 'fixtures', 'incident-superintendent-response-fixture.json'), 'utf8')), status: 'draft' });
   const context = await browser.newContext({ viewport: { width: 1200, height: 900 } });
   await context.addInitScript((json) => { window.localStorage.setItem('sdc.incident.draft.v1', json); }, fixtureJson);
   const page = await context.newPage();
@@ -273,7 +281,7 @@ async function testLongContentContinuation(browser) {
   page.on('console', (msg) => { if (msg.type() === 'error') consoleErrors.push(msg.text()); });
   page.on('pageerror', (err) => pageErrors.push(err.message));
 
-  const longImmediate = 'Immediate response crew action taken to secure the site and account for all personnel before restarting work. '.repeat(20).trim();
+  const longImmediate ='Immediate response crew action taken to secure the site and account for all personnel before restarting work. '.repeat(20).trim();
   const longCorrective = 'Corrective and preventive measure assigned to the crew lead with a documented follow-up inspection scheduled. '.repeat(20).trim();
 
   console.log('  [1/4] Filling both fields with long content...');
@@ -318,7 +326,13 @@ async function testLongContentContinuation(browser) {
 async function testPhotosStillWork(browser) {
   const a = makeAssertions('Phase 1 photos remain correct alongside Phase 2 (section 8)');
   console.log('\n=== 8. Phase 1 protection: photo appendix ordering + page numbering with a migrated legacy draft ===');
-  const fixtureJson = readFileSync(path.join(__dirname, 'fixtures', 'incident-full-fixture.json'), 'utf8');
+  // Patched to status: 'draft' before seeding -- this fixture is shared
+  // with verify-incident-pdf.mjs (which needs the file's own status:
+  // 'ready' for its final/un-watermarked rendering test), but this section
+  // adds a photo, which now requires an unlocked document (see the
+  // app-wide draft/finish/lock UX mission -- 'ready' is genuinely locked
+  // now, not just un-watermarked).
+  const fixtureJson = JSON.stringify({ ...JSON.parse(readFileSync(path.join(__dirname, 'fixtures', 'incident-full-fixture.json'), 'utf8')), status: 'draft' });
   const testPngPath = path.join(outDir, 'test-photo.png');
   writeFileSync(testPngPath, makeTestPng(1200, 900, [90, 140, 200]));
   const context = await browser.newContext({ viewport: { width: 1200, height: 900 } });

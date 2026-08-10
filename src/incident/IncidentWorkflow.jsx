@@ -7,6 +7,8 @@ import { incidentCopy as t } from './incidentCopy';
 import SignaturePad from './SignaturePad';
 import BodyDiagram from './BodyDiagram';
 import IncidentPhotos from './IncidentPhotos';
+import { LockedContext, useLocked } from '../documents/lockedContext';
+import { ConfirmDialog } from '../documents/FormPrimitives';
 
 /* ── Small local presentational primitives ──
    Deliberately not imported from main.jsx (which exports nothing) -- kept
@@ -15,15 +17,17 @@ import IncidentPhotos from './IncidentPhotos';
    design tokens from styles.css, they just don't share JS with StepJob's
    F/TA in main.jsx. */
 function Field({ label, value, onChange, type = 'text', placeholder = '' }) {
+  const locked = useLocked();
   return (
     <label className="field">
       <span>{label}</span>
-      <input type={type} value={value || ''} placeholder={placeholder} onChange={e => onChange(e.target.value)} />
+      <input type={type} value={value || ''} placeholder={placeholder} onChange={e => onChange(e.target.value)} disabled={locked} />
     </label>
   );
 }
 
 function TextAreaField({ label, help, value, onChange, rows = 4, placeholder = '' }) {
+  const locked = useLocked();
   const ref = useRef(null);
   useLayoutEffect(() => {
     const el = ref.current;
@@ -35,18 +39,19 @@ function TextAreaField({ label, help, value, onChange, rows = 4, placeholder = '
     <label className="field">
       <span>{label}</span>
       {help && <small>{help}</small>}
-      <textarea ref={ref} rows={rows} value={value || ''} placeholder={placeholder} onChange={e => onChange(e.target.value)} className="autoGrow" />
+      <textarea ref={ref} rows={rows} value={value || ''} placeholder={placeholder} onChange={e => onChange(e.target.value)} className="autoGrow" disabled={locked} />
     </label>
   );
 }
 
 function YesNoToggle({ label: lbl, value, onChange }) {
+  const locked = useLocked();
   return (
     <div className="field">
       <span>{lbl}</span>
       <div className="yesNoToggle">
-        <button type="button" className={`btn${value === 'yes' ? ' active yes' : ''}`} onClick={() => onChange('yes')}>{t.yesNo.yes}</button>
-        <button type="button" className={`btn${value === 'no' ? ' active no' : ''}`} onClick={() => onChange('no')}>{t.yesNo.no}</button>
+        <button type="button" aria-pressed={value === 'yes'} aria-disabled={locked} className={`btn${value === 'yes' ? ' active yes' : ''}`} onClick={() => { if (!locked) onChange('yes'); }}>{t.yesNo.yes}</button>
+        <button type="button" aria-pressed={value === 'no'} aria-disabled={locked} className={`btn${value === 'no' ? ' active no' : ''}`} onClick={() => { if (!locked) onChange('no'); }}>{t.yesNo.no}</button>
       </div>
     </div>
   );
@@ -145,8 +150,10 @@ function StepDetails({ incident, upd, next }) {
 /* ── Step: Injury ── */
 function StepInjury({ incident, upd, prev, next }) {
   const c = t.injury;
+  const locked = useLocked();
   const injured = incident.injuryOccurred === 'yes';
   function toggleNature(opt) {
+    if (locked) return;
     const cur = incident.injuryNature || [];
     upd({ injuryNature: cur.includes(opt) ? cur.filter(o => o !== opt) : [...cur, opt] });
   }
@@ -178,6 +185,8 @@ function StepInjury({ incident, upd, prev, next }) {
                 <button
                   key={opt}
                   type="button"
+                  aria-pressed={(incident.injuryNature || []).includes(opt)}
+                  aria-disabled={locked}
                   className={`chipToggle${(incident.injuryNature || []).includes(opt) ? ' active' : ''}`}
                   onClick={() => toggleNature(opt)}
                 >
@@ -195,8 +204,8 @@ function StepInjury({ incident, upd, prev, next }) {
           <div className="field">
             <span>{c.treatmentLevel}</span>
             <div className="yesNoToggle">
-              <button type="button" className={`btn${incident.treatmentLevel === 'firstAid' ? ' active yes' : ''}`} onClick={() => upd({ treatmentLevel: 'firstAid' })}>{c.treatmentFirstAid}</button>
-              <button type="button" className={`btn${incident.treatmentLevel === 'beyondFirstAid' ? ' active no' : ''}`} onClick={() => upd({ treatmentLevel: 'beyondFirstAid' })}>{c.treatmentBeyondFirstAid}</button>
+              <button type="button" aria-pressed={incident.treatmentLevel === 'firstAid'} aria-disabled={locked} className={`btn${incident.treatmentLevel === 'firstAid' ? ' active yes' : ''}`} onClick={() => { if (!locked) upd({ treatmentLevel: 'firstAid' }); }}>{c.treatmentFirstAid}</button>
+              <button type="button" aria-pressed={incident.treatmentLevel === 'beyondFirstAid'} aria-disabled={locked} className={`btn${incident.treatmentLevel === 'beyondFirstAid' ? ' active no' : ''}`} onClick={() => { if (!locked) upd({ treatmentLevel: 'beyondFirstAid' }); }}>{c.treatmentBeyondFirstAid}</button>
             </div>
           </div>
           <Field label={c.treatingPhysicianOrClinic} value={incident.treatingPhysicianOrClinic} onChange={v => upd({ treatingPhysicianOrClinic: v })} />
@@ -205,7 +214,7 @@ function StepInjury({ incident, upd, prev, next }) {
           <div className="field">
             <span>{c.bodyDiagramTitle}</span>
             <small>{c.bodyDiagramHelp}</small>
-            <BodyDiagram marks={incident.bodyDiagramMarks || []} onChange={marks => upd({ bodyDiagramMarks: marks })} />
+            <BodyDiagram marks={incident.bodyDiagramMarks || []} onChange={marks => upd({ bodyDiagramMarks: marks })} readOnly={locked} />
           </div>
         </>
       )}
@@ -217,15 +226,17 @@ function StepInjury({ incident, upd, prev, next }) {
 /* ── Step: Witnesses ── */
 function StepWitnesses({ incident, upd, prev, next }) {
   const c = t.witnesses;
+  const locked = useLocked();
   const witnesses = incident.witnesses || [];
   function addWitness() {
-    if (witnesses.length >= 3) return;
+    if (locked || witnesses.length >= 3) return;
     upd({ witnesses: [...witnesses, emptyWitness()] });
   }
   function updWitness(id, patch) {
     upd({ witnesses: witnesses.map(w => (w.id === id ? { ...w, ...patch } : w)) });
   }
   function removeWitness(id) {
+    if (locked) return;
     if (!window.confirm(t.confirmRemoveWitness)) return;
     upd({ witnesses: witnesses.filter(w => w.id !== id) });
   }
@@ -236,7 +247,7 @@ function StepWitnesses({ incident, upd, prev, next }) {
         <div className="witnessCard" key={w.id}>
           <div className="cardRowHeader">
             <strong>Witness {i + 1}</strong>
-            <button type="button" className="btn ghost sm" onClick={() => removeWitness(w.id)}>{c.removeWitness}</button>
+            {!locked && <button type="button" className="btn ghost sm" onClick={() => removeWitness(w.id)}>{c.removeWitness}</button>}
           </div>
           <div className="formGrid">
             <div className="formPairRow">
@@ -256,9 +267,9 @@ function StepWitnesses({ incident, upd, prev, next }) {
           </div>
         </div>
       ))}
-      {witnesses.length < 3
+      {!locked && (witnesses.length < 3
         ? <button type="button" className="btn secondary" onClick={addWitness}>{c.addWitness}</button>
-        : <p className="helperText">{c.maxReached}</p>}
+        : <p className="helperText">{c.maxReached}</p>)}
       <StepFooter hasBack hasNext onBack={prev} onNext={next} />
     </StepPanel>
   );
@@ -287,8 +298,10 @@ function StepProperty({ incident, upd, prev, next }) {
 /* ── Step: Cause Analysis ── */
 function StepCause({ incident, upd, prev, next }) {
   const c = t.cause;
+  const locked = useLocked();
   const selected = incident.selectedCauses || [];
   function toggle(key) {
+    if (locked) return;
     if (selected.includes(key)) {
       const nextSelected = selected.filter(k => k !== key);
       upd({ selectedCauses: nextSelected, primaryCause: incident.primaryCause === key ? null : incident.primaryCause });
@@ -297,6 +310,7 @@ function StepCause({ incident, upd, prev, next }) {
     }
   }
   function setPrimary(key) {
+    if (locked) return;
     upd({ primaryCause: incident.primaryCause === key ? null : key });
   }
   return (
@@ -310,11 +324,11 @@ function StepCause({ incident, upd, prev, next }) {
             return (
               <div className="causeItemRow" key={key}>
                 <label>
-                  <input type="checkbox" checked={checked} onChange={() => toggle(key)} />
+                  <input type="checkbox" checked={checked} onChange={() => toggle(key)} disabled={locked} />
                   <span>{item}</span>
                 </label>
                 {checked && (
-                  <button type="button" className={`causePrimaryBtn${incident.primaryCause === key ? ' active' : ''}`} onClick={() => setPrimary(key)}>
+                  <button type="button" aria-pressed={incident.primaryCause === key} aria-disabled={locked} className={`causePrimaryBtn${incident.primaryCause === key ? ' active' : ''}`} onClick={() => setPrimary(key)}>
                     {incident.primaryCause === key ? c.primaryBadge : c.setPrimary}
                   </button>
                 )}
@@ -335,15 +349,17 @@ function StepCause({ incident, upd, prev, next }) {
 /* ── Step: Notes & Investigation Team ── */
 function StepNotes({ incident, upd, prev, next }) {
   const c = t.notes;
+  const locked = useLocked();
   const team = incident.investigationTeam || [];
   function addMember() {
-    if (team.length >= 4) return;
+    if (locked || team.length >= 4) return;
     upd({ investigationTeam: [...team, emptyTeamMember()] });
   }
   function updMember(id, patch) {
     upd({ investigationTeam: team.map(m => (m.id === id ? { ...m, ...patch } : m)) });
   }
   function removeMember(id) {
+    if (locked) return;
     if (!window.confirm(t.confirmRemoveTeamMember)) return;
     upd({ investigationTeam: team.filter(m => m.id !== id) });
   }
@@ -360,7 +376,7 @@ function StepNotes({ incident, upd, prev, next }) {
           <div className="teamMemberCard" key={m.id}>
             <div className="cardRowHeader">
               <strong>Member {i + 1}</strong>
-              <button type="button" className="btn ghost sm" onClick={() => removeMember(m.id)}>{c.removeMember}</button>
+              {!locked && <button type="button" className="btn ghost sm" onClick={() => removeMember(m.id)}>{c.removeMember}</button>}
             </div>
             <div className="formPairRow">
               <Field label={c.memberName} value={m.name} onChange={v => updMember(m.id, { name: v })} />
@@ -372,9 +388,9 @@ function StepNotes({ incident, upd, prev, next }) {
             </div>
           </div>
         ))}
-        {team.length < 4
+        {!locked && (team.length < 4
           ? <button type="button" className="btn secondary" onClick={addMember}>{c.addMember}</button>
-          : <p className="helperText">{c.maxReached}</p>}
+          : <p className="helperText">{c.maxReached}</p>)}
       </div>
       <StepFooter hasBack hasNext onBack={prev} onNext={next} nextLabel={t.nav.finish} />
     </StepPanel>
@@ -384,6 +400,7 @@ function StepNotes({ incident, upd, prev, next }) {
 /* ── Step: Review & Export ── */
 function StepReview({ incident, prev, pdfExportState, isPdfStale, onGeneratePdf, onDownload, onMarkReady, onStartNew }) {
   const c = t.review;
+  const [confirmingFinish, setConfirmingFinish] = useState(false);
   const checks = getIncidentReadinessChecks(incident);
   const checklistComplete = isIncidentReady(incident);
   const isGenerating = pdfExportState?.phase === 'generating';
@@ -408,8 +425,22 @@ function StepReview({ incident, prev, pdfExportState, isPdfStale, onGeneratePdf,
         </div>
         {status === 'draft' && (
           <div className="reviewPrimaryAction">
-            <button className="btn secondary" onClick={onMarkReady} disabled={!checklistComplete}>{c.markReady}</button>
+            <button className="btn secondary" onClick={() => setConfirmingFinish(true)} disabled={!checklistComplete}>{c.markReady}</button>
           </div>
+        )}
+        {status !== 'draft' && <p className="helperText">This report is finished and locked from editing.</p>}
+        {confirmingFinish && (
+          <ConfirmDialog
+            title="Finish this document?"
+            message={[
+              'Finishing will close out the report and lock it from further editing.',
+              'You will still be able to download and print it.',
+              'This cannot be undone.',
+            ]}
+            confirmLabel="Finish Document"
+            onCancel={() => setConfirmingFinish(false)}
+            onConfirm={() => { setConfirmingFinish(false); onMarkReady(); }}
+          />
         )}
       </div>
 
@@ -486,7 +517,7 @@ export default function IncidentWorkflow({
         <div className="builderHeaderTop">
           <div className="builderHeaderBadges">
             <span className={`badge ${incident.status === 'draft' ? 'draft' : 'avail'}`}>
-              {incident.status === 'completed' ? t.completedBadge : incident.status === 'ready' ? t.readyBadge : t.draftBadge}
+              {incident.status === 'draft' ? t.draftBadge : t.finishedBadge}
             </span>
             <span className={`builderHeaderSaved${saveStatusState === 'error' ? ' error' : ''}`}>{saveStatus}</span>
             <button type="button" className="btn ghost sm" onClick={onSaveNow} disabled={saveStatusState === 'saving'}>{t.saveNow}</button>
@@ -495,29 +526,31 @@ export default function IncidentWorkflow({
         <Stepper incident={incident} step={step} onJump={setStep} />
       </div>
 
-      <div className="workflowShell stacked">
-        <div className="workflowLeft">
-          {step === 'details' && <StepDetails incident={incident} upd={upd} next={next} />}
-          {step === 'injury' && <StepInjury incident={incident} upd={upd} prev={prev} next={next} />}
-          {step === 'witnesses' && <StepWitnesses incident={incident} upd={upd} prev={prev} next={next} />}
-          {step === 'property' && <StepProperty incident={incident} upd={upd} prev={prev} next={next} />}
-          {step === 'cause' && <StepCause incident={incident} upd={upd} prev={prev} next={next} />}
-          {step === 'notes' && <StepNotes incident={incident} upd={upd} prev={prev} next={next} />}
-          {step === 'photos' && <IncidentPhotos incident={incident} upd={upd} showToast={showToast} prev={prev} next={next} />}
-          {step === 'review' && (
-            <StepReview
-              incident={incident}
-              prev={prev}
-              pdfExportState={pdfExportState}
-              isPdfStale={isPdfStale}
-              onGeneratePdf={onGeneratePdf}
-              onDownload={onDownload}
-              onMarkReady={onMarkReady}
-              onStartNew={onStartNew}
-            />
-          )}
+      <LockedContext.Provider value={incident.status !== 'draft'}>
+        <div className="workflowShell stacked">
+          <div className="workflowLeft">
+            {step === 'details' && <StepDetails incident={incident} upd={upd} next={next} />}
+            {step === 'injury' && <StepInjury incident={incident} upd={upd} prev={prev} next={next} />}
+            {step === 'witnesses' && <StepWitnesses incident={incident} upd={upd} prev={prev} next={next} />}
+            {step === 'property' && <StepProperty incident={incident} upd={upd} prev={prev} next={next} />}
+            {step === 'cause' && <StepCause incident={incident} upd={upd} prev={prev} next={next} />}
+            {step === 'notes' && <StepNotes incident={incident} upd={upd} prev={prev} next={next} />}
+            {step === 'photos' && <IncidentPhotos incident={incident} upd={upd} showToast={showToast} prev={prev} next={next} />}
+            {step === 'review' && (
+              <StepReview
+                incident={incident}
+                prev={prev}
+                pdfExportState={pdfExportState}
+                isPdfStale={isPdfStale}
+                onGeneratePdf={onGeneratePdf}
+                onDownload={onDownload}
+                onMarkReady={onMarkReady}
+                onStartNew={onStartNew}
+              />
+            )}
+          </div>
         </div>
-      </div>
+      </LockedContext.Provider>
     </>
   );
 }

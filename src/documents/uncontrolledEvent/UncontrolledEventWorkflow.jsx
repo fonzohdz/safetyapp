@@ -1,12 +1,13 @@
 import {
   UNCONTROLLED_EVENT_STEPS, uncontrolledEventStepStatus,
   EVENT_CLASSIFICATIONS, EVENT_OUTCOMES, NOTIFICATION_OPTIONS, ATTACHMENT_OPTIONS,
-  getUncontrolledEventReadinessChecks, isUncontrolledEventReady,
+  getUncontrolledEventReadinessChecks, isUncontrolledEventReady, isUncontrolledEventPrintFinal,
 } from './uncontrolledEventModel';
 import {
   Field, TextAreaField, ChipGroup, StepPanel, StepFooter,
   BuilderHeader, ReviewExportPanel, SignaturePad,
 } from '../FormPrimitives';
+import { LockedContext } from '../lockedContext';
 
 function toggleInList(list, item) {
   return (list || []).includes(item) ? list.filter(x => x !== item) : [...(list || []), item];
@@ -104,13 +105,14 @@ export default function UncontrolledEventWorkflow({
 
   const checks = getUncontrolledEventReadinessChecks(model);
   const checklistComplete = isUncontrolledEventReady(model);
+  const locked = isUncontrolledEventPrintFinal(model);
 
   return (
     <>
       <BuilderHeader
         kicker="Uncontrolled Event Report"
         title={model.workplaceLocation || 'Untitled Uncontrolled Event'}
-        statusBadgeLabel={model.status === 'completed' ? 'Completed' : model.status === 'ready' ? 'Ready' : 'Draft'}
+        statusBadgeLabel={locked ? 'Finished' : 'Draft'}
         statusBadgeClass={model.status === 'draft' ? 'draft' : 'avail'}
         saveStatus={saveStatus}
         saveStatusState={saveStatusState}
@@ -123,31 +125,32 @@ export default function UncontrolledEventWorkflow({
         onJumpStep={setStep}
       />
 
-      <div className="workflowShell stacked">
-        <div className="workflowLeft">
-          {step === 'event' && <StepEvent model={model} upd={upd} next={next} />}
-          {step === 'narrative' && <StepNarrative model={model} upd={upd} prev={prev} next={next} />}
-          {step === 'review' && (
-            <ReviewExportPanel
-              title="Review & Export"
-              checks={checks}
-              checklistComplete={checklistComplete}
-              status={model.status}
-              draftExplainText="Complete the checklist below, then generate the PDF."
-              markReadyHintText="Everything required is filled in — mark ready when this report is final."
-              markReadyLabel="Mark Ready"
-              onMarkReady={onMarkReady}
-              pdfExportState={pdfExportState}
-              isPdfStale={isPdfStale}
-              onGeneratePdf={onGeneratePdf}
-              onDownload={onDownload}
-              onStartNew={onStartNew}
-              startNewLabel="Start a new uncontrolled event report"
-              onBack={prev}
-            />
-          )}
+      <LockedContext.Provider value={locked}>
+        <div className="workflowShell stacked">
+          <div className="workflowLeft">
+            {step === 'event' && <StepEvent model={model} upd={upd} next={next} />}
+            {step === 'narrative' && <StepNarrative model={model} upd={upd} prev={prev} next={next} />}
+            {step === 'review' && (
+              <ReviewExportPanel
+                title="Review & Export"
+                checks={checks}
+                checklistComplete={checklistComplete}
+                status={model.status}
+                draftExplainText="Complete the checklist below, then finish this document."
+                markReadyHintText="Everything required is filled in. Finishing will lock the document from further editing."
+                onMarkReady={onMarkReady}
+                pdfExportState={pdfExportState}
+                isPdfStale={isPdfStale}
+                onGeneratePdf={onGeneratePdf}
+                onDownload={onDownload}
+                onStartNew={onStartNew}
+                startNewLabel="Start a new uncontrolled event report"
+                onBack={prev}
+              />
+            )}
+          </div>
         </div>
-      </div>
+      </LockedContext.Provider>
     </>
   );
 }

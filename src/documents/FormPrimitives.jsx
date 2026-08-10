@@ -1,5 +1,6 @@
-import { useRef, useLayoutEffect } from 'react';
+import { useRef, useLayoutEffect, useEffect, useState } from 'react';
 import SignaturePad from '../incident/SignaturePad';
+import { useLocked } from './lockedContext';
 
 /* ── Shared field-section/builder primitives for the four new documents ──
    Modeled directly on the local presentational primitives IncidentWorkflow.jsx
@@ -21,19 +22,21 @@ import SignaturePad from '../incident/SignaturePad';
 
 
 export function Field({ label, value, onChange, type = 'text', placeholder = '' }) {
+  const locked = useLocked();
   return (
     <label className="field">
       <span>{label}</span>
-      <input type={type} value={value || ''} placeholder={placeholder} onChange={e => onChange(e.target.value)} />
+      <input type={type} value={value || ''} placeholder={placeholder} onChange={e => onChange(e.target.value)} disabled={locked} />
     </label>
   );
 }
 
 export function SelectField({ label, value, onChange, options, placeholder = 'Select…' }) {
+  const locked = useLocked();
   return (
     <label className="field">
       <span>{label}</span>
-      <select value={value || ''} onChange={e => onChange(e.target.value)}>
+      <select value={value || ''} onChange={e => onChange(e.target.value)} disabled={locked}>
         <option value="" disabled>{placeholder}</option>
         {options.map(opt => (
           <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -44,6 +47,7 @@ export function SelectField({ label, value, onChange, options, placeholder = 'Se
 }
 
 export function TextAreaField({ label, help, value, onChange, rows = 4, placeholder = '' }) {
+  const locked = useLocked();
   const ref = useRef(null);
   useLayoutEffect(() => {
     const el = ref.current;
@@ -55,7 +59,7 @@ export function TextAreaField({ label, help, value, onChange, rows = 4, placehol
     <label className="field">
       <span>{label}</span>
       {help && <small>{help}</small>}
-      <textarea ref={ref} rows={rows} value={value || ''} placeholder={placeholder} onChange={e => onChange(e.target.value)} className="autoGrow" />
+      <textarea ref={ref} rows={rows} value={value || ''} placeholder={placeholder} onChange={e => onChange(e.target.value)} className="autoGrow" disabled={locked} />
     </label>
   );
 }
@@ -66,6 +70,7 @@ export function TextAreaField({ label, help, value, onChange, rows = 4, placehol
    a 3+ option toggle (e.g. warning level) just omits tone and gets the
    neutral active state. */
 export function SegmentedToggle({ label: lbl, value, onChange, options }) {
+  const locked = useLocked();
   return (
     <div className="field">
       <span>{lbl}</span>
@@ -75,8 +80,12 @@ export function SegmentedToggle({ label: lbl, value, onChange, options }) {
             key={opt.value}
             type="button"
             aria-pressed={value === opt.value}
+            aria-disabled={locked}
             className={`btn${value === opt.value ? ` active${opt.tone ? ` ${opt.tone}` : ''}` : ''}`}
-            onClick={() => onChange(opt.value)}
+            // Guarded onClick rather than the native disabled attribute --
+            // disabled would dim the final selected answer (via .btn:disabled
+            // { opacity: .45 }) exactly when it most needs to stay readable.
+            onClick={() => { if (!locked) onChange(opt.value); }}
           >
             {opt.label}
           </button>
@@ -101,6 +110,7 @@ export function YesNoField({ label, value, onChange }) {
    injury-nature chips (.chipGrid/.chipToggle). `selected` is an array of
    currently-checked option strings. */
 export function ChipGroup({ label, options, selected, onToggle }) {
+  const locked = useLocked();
   return (
     <div className="field">
       {label && <span>{label}</span>}
@@ -110,8 +120,9 @@ export function ChipGroup({ label, options, selected, onToggle }) {
             key={opt}
             type="button"
             aria-pressed={(selected || []).includes(opt)}
+            aria-disabled={locked}
             className={`chipToggle${(selected || []).includes(opt) ? ' active' : ''}`}
-            onClick={() => onToggle(opt)}
+            onClick={() => { if (!locked) onToggle(opt); }}
           >
             {opt}
           </button>
@@ -237,20 +248,28 @@ export function ReadinessChecklist({ checks }) {
 }
 
 /* Review & Export step body — generic across all four new documents.
-   `status` is 'draft' | 'ready' | 'completed'. One primary action only
-   (Download Document) -- no competing Share/Print choice, and user-facing
-   copy avoids PDF/publication jargon (see the app-wide download/print UX
-   simplification mission). Internal PDF terminology (pdfExportState,
-   onGeneratePdf, etc.) is left as-is; only what the user reads changed. */
+   `status` is 'draft' | 'ready' | 'completed' (both 'ready' and 'completed'
+   are the finished/locked state -- see isXPrintFinal in each model file).
+   One primary action only (Download Document) -- no competing Share/Print
+   choice, and user-facing copy avoids PDF/publication jargon (see the
+   app-wide download/print UX simplification mission). Internal PDF
+   terminology (pdfExportState, onGeneratePdf, etc.) is left as-is; only
+   what the user reads changed.
+
+   Finishing (onMarkReady) is gated behind a confirmation dialog -- it locks
+   the document from further editing (see LockedContext / useLocked, applied
+   by each Workflow component around its step content), so it must never
+   fire from a single accidental tap. */
 export function ReviewExportPanel({
   title, checks, checklistComplete, status,
-  draftExplainText, markReadyHintText, markReadyLabel, onMarkReady,
+  draftExplainText, markReadyHintText, markReadyLabel = 'Finish Document', onMarkReady,
   pdfExportState, isPdfStale, onGeneratePdf, onDownload,
   generatingLabel = 'Creating…', generateLabel = 'Create Document', regenerateLabel = 'Update Document',
   downloadLabel = 'Download Document',
   onStartNew, startNewLabel = 'Start a new report',
   onBack,
 }) {
+  const [confirmingFinish, setConfirmingFinish] = useState(false);
   const isGenerating = pdfExportState?.phase === 'generating';
   const isReady = pdfExportState?.phase === 'ready';
   return (
@@ -263,8 +282,22 @@ export function ReviewExportPanel({
         <ReadinessChecklist checks={checks} />
         {status === 'draft' && (
           <div className="reviewPrimaryAction">
-            <button type="button" className="btn secondary" onClick={onMarkReady} disabled={!checklistComplete}>{markReadyLabel}</button>
+            <button type="button" className="btn secondary" onClick={() => setConfirmingFinish(true)} disabled={!checklistComplete}>{markReadyLabel}</button>
           </div>
+        )}
+        {status !== 'draft' && <p className="helperText">This document is finished and locked from editing.</p>}
+        {confirmingFinish && (
+          <ConfirmDialog
+            title="Finish this document?"
+            message={[
+              'Finishing will close out the document and lock it from further editing.',
+              'You will still be able to download and print it.',
+              'This cannot be undone.',
+            ]}
+            confirmLabel="Finish Document"
+            onCancel={() => setConfirmingFinish(false)}
+            onConfirm={() => { setConfirmingFinish(false); onMarkReady(); }}
+          />
         )}
       </div>
 
@@ -300,6 +333,62 @@ export function ReviewExportPanel({
       {onStartNew && <button type="button" className="btn ghost" onClick={onStartNew}>{startNewLabel}</button>}
       <StepFooter hasBack onBack={onBack} />
     </StepPanel>
+  );
+}
+
+/* ── Accessible modal dialog primitive: focus trap, Escape to cancel, focus
+   returns to whatever triggered it on close ── same behavior as main.jsx's
+   own local useFocusTrapDialog (used by ConfirmReplaceDialog for JSA);
+   duplicated in one place rather than exported from main.jsx since main.jsx
+   exports nothing and JSA's own dialog stays deliberately self-contained.
+   Shared here so Incident and the four Superintendent documents don't each
+   reimplement it for their own Finish Document confirmation. */
+function useFocusTrapDialog(onCancel) {
+  const dialogRef = useRef(null);
+  useEffect(() => {
+    const previouslyFocused = document.activeElement;
+    const dialog = dialogRef.current;
+    const focusable = dialog ? Array.from(dialog.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')) : [];
+    focusable[0]?.focus();
+    function onKeyDown(e) {
+      if (e.key === 'Escape') { onCancel(); return; }
+      if (e.key !== 'Tab' || !focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      if (previouslyFocused && typeof previouslyFocused.focus === 'function') previouslyFocused.focus();
+    };
+  }, [onCancel]);
+  return dialogRef;
+}
+
+/* Generic confirm/cancel dialog -- used for the Finish Document confirmation
+   (see the app-wide draft/finish/lock UX mission) so finishing a document is
+   never one accidental tap: it explains that finishing locks the document
+   from further editing, that downloading/printing still works, and that it
+   can't be undone, before anything actually changes. `message` accepts
+   multiple paragraphs as an array of strings. */
+export function ConfirmDialog({ title, message, cancelLabel = 'Cancel', confirmLabel, onCancel, onConfirm }) {
+  const dialogRef = useFocusTrapDialog(onCancel);
+  const paragraphs = Array.isArray(message) ? message : [message];
+  return (
+    <div className="dialogOverlay" onMouseDown={e => { if (e.target === e.currentTarget) onCancel(); }}>
+      <div className="dialogPanel" role="alertdialog" aria-modal="true" aria-labelledby="confirmDialogTitle" aria-describedby="confirmDialogBody" ref={dialogRef}>
+        <h3 id="confirmDialogTitle">{title}</h3>
+        <div id="confirmDialogBody">
+          {paragraphs.map((p, i) => <p key={i}>{p}</p>)}
+        </div>
+        <div className="dialogActions">
+          <button type="button" className="btn ghost" onClick={onCancel}>{cancelLabel}</button>
+          <button type="button" className="btn primary" onClick={onConfirm}>{confirmLabel}</button>
+        </div>
+      </div>
+    </div>
   );
 }
 

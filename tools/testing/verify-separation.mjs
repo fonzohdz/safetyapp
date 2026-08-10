@@ -121,10 +121,11 @@ async function main() {
       const pendingItems = await page.locator('.incidentReadinessItem.pending').count();
       check(pendingItems === 0, `Readiness satisfied with only the required Supervisor signature (${pendingItems} pending item(s))`);
 
-      await page.getByRole('button', { name: 'Mark Ready' }).click();
+      await page.getByRole('button', { name: 'Finish Document', exact: true }).click();
+      await page.locator('.dialogPanel', { hasText: 'Finish this document?' }).getByRole('button', { name: 'Finish Document', exact: true }).click();
       await page.waitForTimeout(300);
       const badgeText = await page.locator('.builderHeaderBadges .badge').innerText();
-      check(badgeText.trim().toLowerCase() === 'ready', `Status badge reads "Ready" (got "${badgeText.trim()}")`);
+      check(badgeText.trim().toLowerCase() === 'finished', `Status badge reads "Finished" (got "${badgeText.trim()}")`);
 
       await page.getByRole('button', { name: /Create Document/ }).click();
       await page.waitForSelector('.pdfReadyPanel', { timeout: 30000 });
@@ -280,6 +281,50 @@ async function main() {
       check(Boolean(previewSrc && previewSrc.startsWith('data:image/png')), 'Touch-drawn signature saves to a real PNG preview');
 
       check(pageErrors.length === 0, `No page errors on phone (${pageErrors.length} found)`);
+      await page.evaluate(key => window.localStorage.removeItem(key), STORAGE_KEY);
+      await context.close();
+    }
+
+    // ── 5. Finish Document confirmation and editing lock ──
+    console.log('\n=== 5. Finish Document confirmation and editing lock ===');
+    {
+      const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+      const page = await context.newPage();
+      await page.goto(BASE_URL, { waitUntil: 'networkidle' });
+      await page.getByRole('button', { name: 'Documents', exact: false }).first().click();
+      await page.locator('.listItem', { hasText: 'Employee Separation' }).getByRole('button', { name: 'Start' }).click();
+      await page.waitForSelector('text=Separation Details');
+      await page.getByRole('textbox', { name: 'Employee Name', exact: true }).fill('Finish Lock Test');
+      await page.getByRole('textbox', { name: 'Supervisor', exact: true }).fill('Casey Renn');
+      await page.getByRole('button', { name: 'Resignation', exact: true }).click();
+      await page.getByRole('textbox', { name: 'Detailed Explanation', exact: true }).fill('Test explanation.');
+      await page.getByRole('button', { name: 'No', exact: true }).click(); // "Would you re-hire?" -- only Yes/No pair present for a non-Discharge reason
+      await page.locator('.signaturePad', { hasText: 'Supervisor Signature' }).getByRole('button', { name: 'Add signature' }).click();
+      const canvas = page.locator('canvas.signatureCanvas').first();
+      await canvas.scrollIntoViewIfNeeded();
+      const box = await canvas.boundingBox();
+      await page.mouse.move(box.x + 20, box.y + box.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(box.x + box.width - 20, box.y + box.height / 2 - 10, { steps: 6 });
+      await page.mouse.up();
+      await page.locator('.signaturePadActions button', { hasText: /^Save$/ }).first().click();
+      await page.getByRole('button', { name: 'Go to Review' }).click();
+      await page.waitForSelector('text=Readiness');
+
+      const finishBtn = page.getByRole('button', { name: 'Finish Document', exact: true });
+      check(await finishBtn.isEnabled(), 'Finish Document is enabled once the checklist is complete');
+      await finishBtn.click();
+      const dialog = page.locator('.dialogPanel', { hasText: 'Finish this document?' });
+      check(await dialog.isVisible(), 'Confirmation dialog appears on Finish Document click');
+      await dialog.getByRole('button', { name: 'Finish Document', exact: true }).click();
+      await page.waitForTimeout(300);
+      const badge = await page.locator('.builderHeaderBadges .badge').innerText();
+      check(badge.toLowerCase() === 'finished', `Badge reads "Finished" after confirming (got "${badge}")`);
+
+      await page.getByRole('tab', { name: /Separation Details/ }).click();
+      const nameField = page.getByRole('textbox', { name: 'Employee Name', exact: true });
+      check(await nameField.isDisabled(), 'Employee Name field is disabled once finished');
+
       await page.evaluate(key => window.localStorage.removeItem(key), STORAGE_KEY);
       await context.close();
     }

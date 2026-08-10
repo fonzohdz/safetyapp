@@ -447,8 +447,15 @@ async function main() {
     await waitForServer(BASE_URL, 20000);
     console.log('[2/2] Preview server ready at', BASE_URL);
 
-    const fixtureJson = readFileSync(path.join(__dirname, 'fixtures', 'incident-full-fixture.json'), 'utf8');
-    JSON.parse(fixtureJson); // fail fast on invalid fixture JSON
+    // This fixture is shared with verify-incident-pdf.mjs, which deliberately
+    // relies on its seeded status: 'ready' to test final/un-watermarked
+    // rendering -- so the shared fixture file itself must stay 'ready'.
+    // This script's own purpose is drawing the still-missing Witness 2
+    // signature, which now requires an unlocked ('draft') document (see the
+    // app-wide draft/finish/lock UX mission -- 'ready' is genuinely locked
+    // now, not just un-watermarked), so it patches its own in-memory copy
+    // rather than changing the shared file.
+    const fixtureJson = JSON.stringify({ ...JSON.parse(readFileSync(path.join(__dirname, 'fixtures', 'incident-full-fixture.json'), 'utf8')), status: 'draft' });
 
     const summaries = [];
     let webkitSkippedReason = null;

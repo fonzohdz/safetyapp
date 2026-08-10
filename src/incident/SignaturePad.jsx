@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useLocked } from '../documents/lockedContext';
 
 /* Reusable signature capture. Draws on a canvas at a fixed internal
    resolution (scaled by devicePixelRatio for crisp strokes), stores the
@@ -22,6 +23,7 @@ const PAD_WIDTH_MAX = 640;
 const PHONE_BREAKPOINT_PX = 480;
 
 export default function SignaturePad({ value, onChange, label, disabled }) {
+  const locked = useLocked();
   const [editing, setEditing] = useState(false);
   const [padSize, setPadSize] = useState({ width: 320, height: PAD_HEIGHT_DESKTOP });
   const canvasRef = useRef(null);
@@ -212,6 +214,7 @@ export default function SignaturePad({ value, onChange, label, disabled }) {
   }
 
   function startEdit() {
+    if (locked) return; // a finished document's signatures can't be replaced/removed
     setEditing(true);
   }
 
@@ -230,6 +233,7 @@ export default function SignaturePad({ value, onChange, label, disabled }) {
   }
 
   function removeSignature() {
+    if (locked) return;
     onChange(null);
   }
 
@@ -249,11 +253,15 @@ export default function SignaturePad({ value, onChange, label, disabled }) {
         {value ? (
           <div className="signaturePreviewWrap">
             <img src={value} alt="Signature" className="signaturePreview" />
-            <div className="signaturePadActions">
-              <button type="button" className="btn secondary sm" onClick={startEdit}>Replace</button>
-              <button type="button" className="btn ghost sm" onClick={removeSignature}>Remove</button>
-            </div>
+            {!locked && (
+              <div className="signaturePadActions">
+                <button type="button" className="btn secondary sm" onClick={startEdit}>Replace</button>
+                <button type="button" className="btn ghost sm" onClick={removeSignature}>Remove</button>
+              </div>
+            )}
           </div>
+        ) : locked ? (
+          <div className="signaturePreview signaturePreviewEmpty">No signature</div>
         ) : (
           <button type="button" className="btn secondary sm" onClick={startEdit}>Add signature</button>
         )}

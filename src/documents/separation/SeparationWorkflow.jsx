@@ -1,11 +1,12 @@
 import {
   SEPARATION_STEPS, separationStepStatus, SEPARATION_REASONS,
-  getSeparationReadinessChecks, isSeparationReady,
+  getSeparationReadinessChecks, isSeparationReady, isSeparationPrintFinal,
 } from './separationModel';
 import {
   Field, TextAreaField, SegmentedToggle, StepPanel, StepFooter,
   BuilderHeader, ReviewExportPanel, SignaturePad,
 } from '../FormPrimitives';
+import { LockedContext } from '../lockedContext';
 
 /* ── Step: Separation Details ──
    Single content step (plus Review) — this is a short, separation-only
@@ -94,13 +95,14 @@ export default function SeparationWorkflow({
 
   const checks = getSeparationReadinessChecks(model);
   const checklistComplete = isSeparationReady(model);
+  const locked = isSeparationPrintFinal(model);
 
   return (
     <>
       <BuilderHeader
         kicker="Employee Separation"
         title={model.employeeName || 'Untitled Separation'}
-        statusBadgeLabel={model.status === 'completed' ? 'Completed' : model.status === 'ready' ? 'Ready' : 'Draft'}
+        statusBadgeLabel={locked ? 'Finished' : 'Draft'}
         statusBadgeClass={model.status === 'draft' ? 'draft' : 'avail'}
         saveStatus={saveStatus}
         saveStatusState={saveStatusState}
@@ -113,30 +115,31 @@ export default function SeparationWorkflow({
         onJumpStep={setStep}
       />
 
-      <div className="workflowShell stacked">
-        <div className="workflowLeft">
-          {step === 'details' && <StepDetails model={model} upd={upd} next={next} />}
-          {step === 'review' && (
-            <ReviewExportPanel
-              title="Review & Export"
-              checks={checks}
-              checklistComplete={checklistComplete}
-              status={model.status}
-              draftExplainText="Complete the checklist below, then generate the PDF."
-              markReadyHintText="Everything required is filled in — mark ready when this record is final."
-              markReadyLabel="Mark Ready"
-              onMarkReady={onMarkReady}
-              pdfExportState={pdfExportState}
-              isPdfStale={isPdfStale}
-              onGeneratePdf={onGeneratePdf}
-              onDownload={onDownload}
-              onStartNew={onStartNew}
-              startNewLabel="Start a new separation record"
-              onBack={prev}
-            />
-          )}
+      <LockedContext.Provider value={locked}>
+        <div className="workflowShell stacked">
+          <div className="workflowLeft">
+            {step === 'details' && <StepDetails model={model} upd={upd} next={next} />}
+            {step === 'review' && (
+              <ReviewExportPanel
+                title="Review & Export"
+                checks={checks}
+                checklistComplete={checklistComplete}
+                status={model.status}
+                draftExplainText="Complete the checklist below, then finish this document."
+                markReadyHintText="Everything required is filled in. Finishing will lock the document from further editing."
+                onMarkReady={onMarkReady}
+                pdfExportState={pdfExportState}
+                isPdfStale={isPdfStale}
+                onGeneratePdf={onGeneratePdf}
+                onDownload={onDownload}
+                onStartNew={onStartNew}
+                startNewLabel="Start a new separation record"
+                onBack={prev}
+              />
+            )}
+          </div>
         </div>
-      </div>
+      </LockedContext.Provider>
     </>
   );
 }

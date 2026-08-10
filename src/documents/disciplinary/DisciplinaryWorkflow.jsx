@@ -1,11 +1,12 @@
 import {
   DISCIPLINARY_STEPS, disciplinaryStepStatus, WARNING_LEVELS,
-  getDisciplinaryReadinessChecks, isDisciplinaryReady,
+  getDisciplinaryReadinessChecks, isDisciplinaryReady, isDisciplinaryPrintFinal,
 } from './disciplinaryModel';
 import {
   Field, TextAreaField, SegmentedToggle, StepPanel, NumberedSection, StepFooter,
   BuilderHeader, ReviewExportPanel, SignaturePad,
 } from '../FormPrimitives';
+import { LockedContext } from '../lockedContext';
 
 /* ── Step: Notice Details — employee info, warning level, sections 1-4 ── */
 function StepNotice({ model, upd, next }) {
@@ -92,13 +93,14 @@ export default function DisciplinaryWorkflow({
 
   const checks = getDisciplinaryReadinessChecks(model);
   const checklistComplete = isDisciplinaryReady(model);
+  const locked = isDisciplinaryPrintFinal(model);
 
   return (
     <>
       <BuilderHeader
         kicker="Employee Disciplinary Notice"
         title={model.employeeName || 'Untitled Disciplinary Notice'}
-        statusBadgeLabel={model.status === 'completed' ? 'Completed' : model.status === 'ready' ? 'Ready' : 'Draft'}
+        statusBadgeLabel={locked ? 'Finished' : 'Draft'}
         statusBadgeClass={model.status === 'draft' ? 'draft' : 'avail'}
         saveStatus={saveStatus}
         saveStatusState={saveStatusState}
@@ -111,31 +113,32 @@ export default function DisciplinaryWorkflow({
         onJumpStep={setStep}
       />
 
-      <div className="workflowShell stacked">
-        <div className="workflowLeft">
-          {step === 'notice' && <StepNotice model={model} upd={upd} next={next} />}
-          {step === 'response' && <StepResponse model={model} upd={upd} prev={prev} next={next} />}
-          {step === 'review' && (
-            <ReviewExportPanel
-              title="Review & Export"
-              checks={checks}
-              checklistComplete={checklistComplete}
-              status={model.status}
-              draftExplainText="Complete the checklist below, then generate the PDF."
-              markReadyHintText="Everything required is filled in — mark ready when this notice is final."
-              markReadyLabel="Mark Ready"
-              onMarkReady={onMarkReady}
-              pdfExportState={pdfExportState}
-              isPdfStale={isPdfStale}
-              onGeneratePdf={onGeneratePdf}
-              onDownload={onDownload}
-              onStartNew={onStartNew}
-              startNewLabel="Start a new disciplinary notice"
-              onBack={prev}
-            />
-          )}
+      <LockedContext.Provider value={locked}>
+        <div className="workflowShell stacked">
+          <div className="workflowLeft">
+            {step === 'notice' && <StepNotice model={model} upd={upd} next={next} />}
+            {step === 'response' && <StepResponse model={model} upd={upd} prev={prev} next={next} />}
+            {step === 'review' && (
+              <ReviewExportPanel
+                title="Review & Export"
+                checks={checks}
+                checklistComplete={checklistComplete}
+                status={model.status}
+                draftExplainText="Complete the checklist below, then finish this document."
+                markReadyHintText="Everything required is filled in. Finishing will lock the document from further editing."
+                onMarkReady={onMarkReady}
+                pdfExportState={pdfExportState}
+                isPdfStale={isPdfStale}
+                onGeneratePdf={onGeneratePdf}
+                onDownload={onDownload}
+                onStartNew={onStartNew}
+                startNewLabel="Start a new disciplinary notice"
+                onBack={prev}
+              />
+            )}
+          </div>
         </div>
-      </div>
+      </LockedContext.Provider>
     </>
   );
 }
