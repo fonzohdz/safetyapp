@@ -1627,6 +1627,10 @@ function App() {
 
   const selectedTemplate = allTemplates.find(t => t.id === templateId);
   const draftLabel = savedDraft?.lastSavedAt ? `Draft saved ${nowNice(new Date(savedDraft.lastSavedAt))}` : 'No active saved draft';
+  // Phone bottom nav stands in for the sidebar only at the tab level — inside
+  // a document flow the workflow's own header/back button and sticky action
+  // bar already own wayfinding, so it's not rendered there (see .mobileBottomNav).
+  const isDocFlow = activeDoc === 'jsa-start' || activeDoc === 'jsa' || activeDoc === 'incident';
 
   return (
     <>
@@ -1659,7 +1663,7 @@ function App() {
           </div>
         </aside>
 
-        <main className="page">
+        <main className={`page${isDocFlow ? '' : ' pageWithBottomNav'}`}>
           {tab === 'home' && (
             <HomeView
               savedDraft={savedDraft} customTemplates={customTemplates} goJsaStart={goJsaStart} startBlank={requestStartBlank} setTab={setTab} loadSavedDraft={loadSavedDraft}
@@ -1698,6 +1702,10 @@ function App() {
         </main>
       </div>
 
+      {!isDocFlow && (
+        <MobileBottomNav tab={tab} goHome={goHome} goDocs={goDocs} setTab={setTab} />
+      )}
+
       {confirmReplace && (
         <ConfirmReplaceDialog
           templateName={confirmReplace.action === 'template' ? allTemplates.find(t => t.id === confirmReplace.templateId)?.name : null}
@@ -1712,6 +1720,36 @@ function App() {
       <IncidentPdfExportRoot incident={incident} pageRefsRef={incidentPdfPageRefsRef} />
       {toast && <div className="toast">{toast}</div>}
     </>
+  );
+}
+
+/* ── Mobile bottom navigation ──
+   Phone-only replacement for the sidebar (see .mobileBottomNav / .sidebar in
+   styles.css — the sidebar is hidden and this is shown below the same
+   680px breakpoint already used elsewhere in the stylesheet). Same five
+   destinations and the same handlers as the sidebar nav, so tab/activeDoc
+   state and every route stay identical — this only changes which chrome
+   renders them on a phone. Not rendered while a document flow is open;
+   App only mounts it when !isDocFlow. */
+function MobileBottomNav({ tab, goHome, goDocs, setTab }) {
+  return (
+    <nav className="mobileBottomNav" aria-label="Primary">
+      <button className={`mobileNavItem${tab === 'home' ? ' active' : ''}`} onClick={goHome}>
+        <IconHome className="mobileNavIcon" /><span>Home</span>
+      </button>
+      <button className={`mobileNavItem${tab === 'documents' ? ' active' : ''}`} onClick={goDocs}>
+        <IconDocuments className="mobileNavIcon" /><span>Documents</span>
+      </button>
+      <button className={`mobileNavItem${tab === 'drafts' ? ' active' : ''}`} onClick={() => setTab('drafts')}>
+        <IconDrafts className="mobileNavIcon" /><span>Drafts</span>
+      </button>
+      <button className={`mobileNavItem${tab === 'templates' ? ' active' : ''}`} onClick={() => setTab('templates')}>
+        <IconTemplates className="mobileNavIcon" /><span>Templates</span>
+      </button>
+      <button className={`mobileNavItem${tab === 'settings' ? ' active' : ''}`} onClick={() => setTab('settings')}>
+        <IconSettings className="mobileNavIcon" /><span>Settings</span>
+      </button>
+    </nav>
   );
 }
 
