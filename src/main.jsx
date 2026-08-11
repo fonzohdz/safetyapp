@@ -172,6 +172,18 @@ function rowsFromSummary(jsa) {
 function normalizeRows(rows) {
   return (Array.isArray(rows) ? rows : []).filter(r => hasText(r.step) || hasText(r.hazards) || hasText(r.controls));
 }
+function makeRowId() {
+  return crypto.randomUUID?.() || `row-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+// Backfills a stable id onto any row that doesn't already have one -- needed
+// wherever taskRows can come from data saved before ids existed (an older
+// draft or template), so the rendered list's React key is never the row's
+// array index (removing an earlier row would otherwise shift every later
+// row's index, and React would reuse/reassign the DOM node -- including
+// whichever field currently has focus -- to a different row's content).
+function withRowIds(rows) {
+  return (Array.isArray(rows) ? rows : []).map(r => (r.id ? r : { ...r, id: makeRowId() }));
+}
 function getContentRows(jsa) {
   const detailed = normalizeRows(jsa.taskRows).filter(row => !isGenericRow(row));
   const summary = rowsFromSummary(jsa);
@@ -544,7 +556,7 @@ const BUILT_IN_TEMPLATES = [{
 }];
 
 function makeTodayFromTemplate(data) {
-  return { ...emptyJsa(), ...data, id: crypto.randomUUID?.() || String(Date.now()), status: 'draft', date: todayISO(), timeIssued: '', timeExpired: '', tailgateTopic: '', previousDaySafety: 'None reported.', signatureLineCount: Number(data?.signatureLineCount) || 30, notes: '', lastSavedAt: '' };
+  return { ...emptyJsa(), ...data, id: crypto.randomUUID?.() || String(Date.now()), status: 'draft', date: todayISO(), timeIssued: '', timeExpired: '', tailgateTopic: '', previousDaySafety: 'None reported.', signatureLineCount: Number(data?.signatureLineCount) || 30, notes: '', lastSavedAt: '', taskRows: withRowIds(data?.taskRows) };
 }
 function templatePayload(jsa, name) {
   return {
@@ -787,11 +799,23 @@ function hasMeaningfulJsaContent(jsa) {
     jsa.tailgateTopic, jsa.overallWorkTask, jsa.dailyTasks, jsa.hazardsSummary, jsa.controlsSummary,
   ].some(hasText) || normalizeRows(jsa.taskRows).length > 0;
 }
+// Field requirements mirror getReviewChecks exactly (job/meeting/work/
+// signatures checks) so a step's checkmark can never disagree with what
+// Review & Export actually requires -- this used to consider "job" complete
+// without checking Date/Emergency Phone/Muster Point (which getReviewChecks
+// does require), and "work" complete by looking only at the summary fields,
+// ignoring detailed task rows entirely (getReviewChecks uses getContentRows,
+// which reconciles both representations).
 function stepStatus(jsa, id) {
   switch (id) {
-    case 'job': return hasText(jsa.location) && hasText(jsa.jobSite) && hasText(jsa.superintendentForeman) ? 'complete' : 'needs-info';
+    case 'job':
+      return hasText(jsa.location) && hasText(jsa.jobSite) && hasText(jsa.superintendentForeman)
+        && hasText(jsa.date) && hasText(jsa.emergencyPhone) && hasText(jsa.musterPoint) ? 'complete' : 'needs-info';
     case 'meeting': return hasText(jsa.tailgateTopic) && hasText(jsa.overallWorkTask) ? 'complete' : 'needs-info';
-    case 'work': return hasText(jsa.dailyTasks) && hasText(jsa.hazardsSummary) && hasText(jsa.controlsSummary) ? 'complete' : 'needs-info';
+    case 'work': {
+      const rows = getContentRows(jsa);
+      return rows.some(row => hasText(row.step)) && rows.some(row => hasText(row.hazards)) && rows.some(row => hasText(row.controls)) ? 'complete' : 'needs-info';
+    }
     case 'signatures': return Number(jsa.signatureLineCount) > 0 ? 'complete' : 'needs-info';
     case 'review': return jsa.status === 'ready' ? 'ready' : 'draft';
     default: return 'draft';
@@ -1633,7 +1657,7 @@ function App() {
   function loadSavedDraft() {
     const raw = safeJson(localStorage.getItem(KEYS.draft), savedDraft);
     if (!raw) { showToast('No saved draft found on this device.'); return; }
-    const normalized = { ...emptyJsa(), ...raw };
+    const normalized = { ...emptyJsa(), ...raw, taskRows: withRowIds(raw.taskRows) };
     setJsa(normalized);
     setSavedDraft(normalized);
     setTemplateId('blank-jsa');
@@ -1685,7 +1709,7 @@ function App() {
     showToast('Template deleted.');
   }
 
-  function addRow() { upd({ taskRows: [...(jsa.taskRows || []), { step: '', hazards: '', controls: '' }] }); }
+  function addRow() { upd({ taskRows: [...(jsa.taskRows || []), { id: makeRowId(), step: '', hazards: '', controls: '' }] }); }
   function updRow(i, patch) {
     const rows = [...(jsa.taskRows || [])];
     rows[i] = { ...rows[i], ...patch };
@@ -1693,7 +1717,7 @@ function App() {
   }
   function removeRow(i) { upd({ taskRows: (jsa.taskRows || []).filter((_, x) => x !== i) }); }
   function addSummaryAsRow() {
-    upd({ taskRows: [{ step: jsa.dailyTasks || '', hazards: jsa.hazardsSummary || '', controls: jsa.controlsSummary || '' }] });
+    upd({ taskRows: [{ id: makeRowId(), step: jsa.dailyTasks || '', hazards: jsa.hazardsSummary || '', controls: jsa.controlsSummary || '' }] });
     showToast('Created task row from summary fields.');
   }
   function addRowTemplate(tmpl) {
@@ -1703,7 +1727,7 @@ function App() {
       showToast(`Task row already included: ${duplicate.step}`);
       return;
     }
-    upd({ taskRows: [...rows, { step: tmpl.step, hazards: tmpl.hazards, controls: tmpl.controls }] });
+    upd({ taskRows: [...rows, { id: makeRowId(), step: tmpl.step, hazards: tmpl.hazards, controls: tmpl.controls }] });
     showToast(`Added task row: ${tmpl.label}`);
   }
   // Same pre-flight checks every export path has always used (fit, review
@@ -2944,7 +2968,7 @@ function StepWork({ jsa, upd, addRow, updRow, removeRow, addSummaryAsRow, addRow
           {(jsa.taskRows || []).length > 0 && (
             <div className="taskRowList">
               {(jsa.taskRows || []).map((row, i) => (
-                <div className="taskRow" key={i}>
+                <div className="taskRow" key={row.id ?? i}>
                   <div className="taskRowHead">
                     <strong>Task Row #{i + 1}</strong>
                     <button className="miniDanger" onClick={() => removeRow(i)}>Remove</button>

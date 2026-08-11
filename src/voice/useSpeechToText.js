@@ -39,6 +39,14 @@ export function useSpeechToText({ onResult } = {}) {
   const recognitionRef = useRef(null);
   const onResultRef = useRef(onResult);
   onResultRef.current = onResult;
+  // stop() requests a stop but doesn't guarantee it's immediate -- the
+  // browser can still fire one more onresult/onend for the in-flight
+  // utterance afterward. Without this guard, that late event would still
+  // call onResultRef.current (which closes over the field's onChange) even
+  // after the field/component using this hook has unmounted -- e.g. the
+  // user finishes a sentence just as they tap "Next," and the trailing
+  // words silently land in the field they just left, invisible to them.
+  const mountedRef = useRef(true);
   // In continuous mode, the browser finalizes each pause-separated phrase as
   // its own entry in event.results -- independent of whether any punctuation
   // was recognized (it usually isn't; raw dictation typically has none).
@@ -67,6 +75,7 @@ export function useSpeechToText({ onResult } = {}) {
     rec.lang = 'en-US';
 
     rec.onresult = (event) => {
+      if (!mountedRef.current) return;
       let combined = '';
       let interimText = '';
       const newFinalChunks = [];
@@ -91,12 +100,14 @@ export function useSpeechToText({ onResult } = {}) {
       onResultRef.current?.({ combinedText: combined, newFinalChunks, interimText });
     };
     rec.onerror = (event) => {
-      setError(mapError(event.error));
       recognitionRef.current = null;
+      if (!mountedRef.current) return;
+      setError(mapError(event.error));
       setIsListening(false);
     };
     rec.onend = () => {
       recognitionRef.current = null;
+      if (!mountedRef.current) return;
       setIsListening(false);
     };
 
@@ -111,8 +122,16 @@ export function useSpeechToText({ onResult } = {}) {
   }, []);
 
   // Tear down a live mic session if the field unmounts mid-dictation (e.g.
-  // the user navigates away from the step while listening).
-  useEffect(() => () => { recognitionRef.current?.stop(); }, []);
+  // the user navigates away from the step while listening), and mark this
+  // hook instance as gone so any trailing event that still arrives after
+  // stop() is a no-op instead of writing into a field the user has left.
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      recognitionRef.current?.stop();
+    };
+  }, []);
 
   return { isSupported: SPEECH_RECOGNITION_SUPPORTED, isListening, error, start, stop, transcript };
 }

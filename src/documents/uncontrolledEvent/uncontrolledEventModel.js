@@ -162,18 +162,16 @@ export function isUncontrolledEventReady(model) {
   return getUncontrolledEventReadinessChecks(model).every(c => c.ok);
 }
 
+// Derived directly from getUncontrolledEventReadinessChecks (each check
+// already carries the step it belongs to) rather than a second, separately
+// hand-picked field list -- the two had drifted (e.g. this considered
+// "event" complete without checking the conditionally-required "Other"
+// specify fields for classification/outcome).
 export function uncontrolledEventStepStatus(model, stepId) {
-  const has = v => String(v || '').trim().length > 0;
-  switch (stepId) {
-    case 'event':
-      return has(model.workplaceLocation) && has(model.eventDate) && (model.eventClassifications || []).length > 0 && (model.eventOutcomes || []).length > 0 ? 'complete' : 'needs-info';
-    case 'narrative':
-      return has(model.whatHappened) && has(model.reportedByName) && Boolean(model.reportedBySignatureData) ? 'complete' : 'needs-info';
-    case 'review':
-      return isUncontrolledEventReady(model) ? 'complete' : 'needs-info';
-    default:
-      return 'needs-info';
-  }
+  if (stepId === 'review') return isUncontrolledEventReady(model) ? 'complete' : 'needs-info';
+  const relevant = getUncontrolledEventReadinessChecks(model).filter(c => c.step === stepId);
+  if (!relevant.length) return 'complete';
+  return relevant.every(c => c.ok) ? 'complete' : 'needs-info';
 }
 
 export function uncontrolledEventStepProgress(model) {

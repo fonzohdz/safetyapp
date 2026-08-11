@@ -218,18 +218,18 @@ export function isSeparationReady(model) {
   return getSeparationReadinessChecks(model).every(c => c.ok);
 }
 
+// Derived directly from getSeparationReadinessChecks (each check already
+// carries the step it belongs to) rather than a second, separately
+// hand-picked field list -- the two had drifted (e.g. this considered
+// "closeout" complete without checking the conditionally-required
+// warningNoticesGiven/warningNoticesCount for an involuntary separation, or
+// rehireReasonIfNo when not eligible for rehire), so a step could show
+// complete and then block the user at Review with no clear signal why.
 export function separationStepStatus(model, stepId) {
-  const has = v => String(v || '').trim().length > 0;
-  switch (stepId) {
-    case 'details':
-      return has(model.employeeName) && has(model.supervisor) && has(model.separationReason) && has(model.detailedExplanation) ? 'complete' : 'needs-info';
-    case 'closeout':
-      return has(model.eligibleForRehire) && Boolean(model.supervisorSignatureData) ? 'complete' : 'needs-info';
-    case 'review':
-      return isSeparationReady(model) ? 'complete' : 'needs-info';
-    default:
-      return 'needs-info';
-  }
+  if (stepId === 'review') return isSeparationReady(model) ? 'complete' : 'needs-info';
+  const relevant = getSeparationReadinessChecks(model).filter(c => c.step === stepId);
+  if (!relevant.length) return 'complete';
+  return relevant.every(c => c.ok) ? 'complete' : 'needs-info';
 }
 
 export function separationStepProgress(model) {

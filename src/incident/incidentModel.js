@@ -424,28 +424,19 @@ export const INCIDENT_STEPS = [
   { id: 'review', label: 'Review & Export', helper: 'Save, generate, and share the PDF' },
 ];
 
+// Derived directly from getIncidentReadinessChecks (each check already
+// carries the step it belongs to) rather than maintaining a second,
+// separately hand-picked field list -- the two had drifted out of sync
+// (e.g. this used to consider "details" complete without checking
+// incidentTime/investigatorTitle/investigatorPhone/investigatorEmail, which
+// getIncidentReadinessChecks DOES require), so a step could show its
+// checkmark before it actually satisfied what Review & Export needs.
+// Deriving from one source guarantees they can't disagree again.
 export function incidentStepStatus(incident, stepId) {
-  const has = v => String(v || '').trim().length > 0;
-  switch (stepId) {
-    case 'details':
-      return has(incident.workplaceLocation) && has(incident.incidentDate) && has(incident.detailedIncidentDescription) ? 'complete' : 'needs-info';
-    case 'injury':
-      return incident.injuryOccurred === 'yes' || incident.injuryOccurred === 'no' ? 'complete' : 'needs-info';
-    case 'witnesses':
-      return 'complete'; // always optional
-    case 'property':
-      return incident.propertyDamageOccurred === 'yes' || incident.propertyDamageOccurred === 'no' ? 'complete' : 'needs-info';
-    case 'cause':
-      return (incident.selectedCauses || []).length > 0 ? 'complete' : 'needs-info';
-    case 'notes':
-      return (has(incident.immediateActionsTaken) || has(incident.correctivePreventiveActions)) && (incident.investigationTeam || []).some(m => has(m.name)) ? 'complete' : 'needs-info';
-    case 'photos':
-      return 'complete'; // always optional
-    case 'review':
-      return isIncidentReady(incident) ? 'complete' : 'needs-info';
-    default:
-      return 'needs-info';
-  }
+  if (stepId === 'review') return isIncidentReady(incident) ? 'complete' : 'needs-info';
+  const relevant = getIncidentReadinessChecks(incident).filter(c => c.step === stepId);
+  if (!relevant.length) return 'complete'; // no requirements tied to this step (Witnesses, Photos -- always optional)
+  return relevant.every(c => c.ok) ? 'complete' : 'needs-info';
 }
 
 export function incidentStepProgress(incident) {

@@ -109,18 +109,15 @@ export function isDisciplinaryReady(model) {
   return getDisciplinaryReadinessChecks(model).every(c => c.ok);
 }
 
+// Derived directly from getDisciplinaryReadinessChecks (each check already
+// carries the step it belongs to) rather than a second, separately
+// hand-picked field list -- this used to consider "notice" complete without
+// checking noticeDate, which getDisciplinaryReadinessChecks does require.
 export function disciplinaryStepStatus(model, stepId) {
-  const has = v => String(v || '').trim().length > 0;
-  switch (stepId) {
-    case 'notice':
-      return has(model.employeeName) && has(model.supervisor) && Boolean(model.warningLevel) && has(model.whatOccurred) ? 'complete' : 'needs-info';
-    case 'response':
-      return has(model.correctiveActionRequired) && model.employeeSignatureData && model.managerSignatureData ? 'complete' : 'needs-info';
-    case 'review':
-      return isDisciplinaryReady(model) ? 'complete' : 'needs-info';
-    default:
-      return 'needs-info';
-  }
+  if (stepId === 'review') return isDisciplinaryReady(model) ? 'complete' : 'needs-info';
+  const relevant = getDisciplinaryReadinessChecks(model).filter(c => c.step === stepId);
+  if (!relevant.length) return 'complete';
+  return relevant.every(c => c.ok) ? 'complete' : 'needs-info';
 }
 
 export function disciplinaryStepProgress(model) {

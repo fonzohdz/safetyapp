@@ -168,18 +168,16 @@ export function isMedicalEventReady(model) {
   return getMedicalEventReadinessChecks(model).every(c => c.ok);
 }
 
+// Derived directly from getMedicalEventReadinessChecks (each check already
+// carries the step it belongs to) rather than a second, separately
+// hand-picked field list -- the two had drifted (e.g. this considered
+// "evaluation" complete without checking the conditionally-required
+// offWorkUntilDate when work status is "Off Work").
 export function medicalEventStepStatus(model, stepId) {
-  const has = v => String(v || '').trim().length > 0;
-  switch (stepId) {
-    case 'condition':
-      return has(model.employeeName) && has(model.supervisor) && has(model.reportedSymptoms) && has(model.symptomsOnset) && has(model.specificWorkEventReported) ? 'complete' : 'needs-info';
-    case 'evaluation':
-      return has(model.initialClassification) && Boolean(model.supervisorSignatureData) ? 'complete' : 'needs-info';
-    case 'review':
-      return isMedicalEventReady(model) ? 'complete' : 'needs-info';
-    default:
-      return 'needs-info';
-  }
+  if (stepId === 'review') return isMedicalEventReady(model) ? 'complete' : 'needs-info';
+  const relevant = getMedicalEventReadinessChecks(model).filter(c => c.step === stepId);
+  if (!relevant.length) return 'complete';
+  return relevant.every(c => c.ok) ? 'complete' : 'needs-info';
 }
 
 export function medicalEventStepProgress(model) {
