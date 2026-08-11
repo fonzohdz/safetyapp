@@ -41,10 +41,12 @@
 
 .voiceHint { font-size: 12.5px; color: var(--muted); font-weight: 500; text-transform: none; letter-spacing: 0; }
 
-/* JSA Tasks/Hazards/Controls only (mode="list") -- a one-line reminder that
-   speech there splits into separate list items, shown only while idle so it
-   doesn't compete with the "Listening…"/error status text. */
-.voiceListHint { font-size: 11.5px; color: var(--muted); font-weight: 500; text-align: right; max-width: 220px; }
+/* Every Speak button, all modes -- "speak clearly" reminder (recognition
+   accuracy varies a lot with accent/mumbled speech), plus an extra sentence
+   for JSA Tasks/Hazards/Controls (mode="list") on how list-splitting works.
+   Shown only while idle so it doesn't compete with the "Listening…"/error
+   status text. */
+.voiceGuidanceHint { font-size: 11.5px; color: var(--muted); font-weight: 500; text-align: right; max-width: 220px; }
 
 /* Phone: keep the mic button comfortably tappable and let it wrap under a
    long label rather than compressing either. */

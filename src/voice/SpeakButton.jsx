@@ -90,8 +90,11 @@ export default function SpeakButton({ value, onChange, disabled = false, mode = 
         {isListening && !error && <span className="voiceStatus" role="status" aria-live="polite">Listening… tap Stop when finished.</span>}
         {error && <span className="voiceStatus voiceError" role="status" aria-live="polite">{error.message}</span>}
       </span>
-      {mode === 'list' && !isListening && !error && (
-        <span className="voiceListHint">Say each item as its own sentence, or say "next item."</span>
+      {!isListening && !error && (
+        <span className="voiceGuidanceHint">
+          Speak clearly for the best results.
+          {mode === 'list' && ' Say each item as its own sentence, or say "next item."'}
+        </span>
       )}
     </span>
   );
