@@ -112,13 +112,24 @@ export function emptyUncontrolledEvent() {
   };
 }
 
+// Every real user-entered field, not just a handful -- this drives the
+// unsaved-changes guard on Start Blank/Start New, so a gap here means real
+// field data can be silently wiped with no warning. Excludes eventDate/
+// reportWrittenDateTime (default to today/now, never empty) and internal-only
+// `notes`.
 export function hasMeaningfulUncontrolledEventContent(model) {
   if (!model) return false;
   return [
-    model.workplaceLocation, model.whatHappened, model.reportedByName,
+    model.workplaceLocation, model.weatherConditions, model.reportedToSupervisorDateTime,
+    model.eventClassificationOther, model.eventOutcomeOther, model.estimatedCost,
+    model.whatHappened, model.immediateActionsTaken, model.attachmentOther, model.witnesses,
+    model.reportedByName, model.reportedByTitle, model.supervisorReviewName,
   ].some(v => String(v || '').trim().length > 0)
     || (model.eventClassifications || []).length > 0
-    || (model.eventOutcomes || []).length > 0;
+    || (model.eventOutcomes || []).length > 0
+    || (model.notifications || []).length > 0
+    || (model.attachments || []).length > 0
+    || Boolean(model.reportedBySignatureData) || Boolean(model.supervisorSignatureData);
 }
 
 export const UNCONTROLLED_EVENT_STEPS = [

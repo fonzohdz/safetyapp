@@ -772,9 +772,20 @@ const STEPS = [
   { id: 'review', label: 'Review / Export', helper: 'Save draft, templates, and export PDF' },
 ];
 
+// Every real user-entered field, not just the handful originally checked --
+// this drives the unsaved-changes guard on Start Blank/Load Template, so a
+// gap here means real field data can be silently wiped with no warning.
+// Deliberately excludes fields with a non-empty default (date, previousDaySafety,
+// acknowledgement) since those are never "empty" and would make the guard fire
+// on every untouched draft; also excludes internal-only `notes`, matching this
+// function's own prior convention.
 function hasMeaningfulJsaContent(jsa) {
-  return [jsa.location, jsa.jobSite, jsa.superintendentForeman, jsa.tailgateTopic, jsa.overallWorkTask, jsa.dailyTasks, jsa.hazardsSummary, jsa.controlsSummary].some(hasText)
-    || normalizeRows(jsa.taskRows).length > 0;
+  return [
+    jsa.location, jsa.jobSite, jsa.jobNumber, jsa.timeIssued, jsa.timeExpired,
+    jsa.superintendentForeman, jsa.emergencyPhone, jsa.client, jsa.nearestMedicalFacility,
+    jsa.siteContactPhone, jsa.musterPoint, jsa.assignedMentorSse,
+    jsa.tailgateTopic, jsa.overallWorkTask, jsa.dailyTasks, jsa.hazardsSummary, jsa.controlsSummary,
+  ].some(hasText) || normalizeRows(jsa.taskRows).length > 0;
 }
 function stepStatus(jsa, id) {
   switch (id) {

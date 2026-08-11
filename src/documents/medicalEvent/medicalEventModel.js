@@ -117,12 +117,24 @@ export function emptyMedicalEvent() {
   };
 }
 
+// Every real user-entered field, not just a handful -- this drives the
+// unsaved-changes guard on Start Blank/Start New, so a gap here means real
+// field data can be silently wiped with no warning. Excludes eventDate/
+// timeReported (default to today/now, never empty) and internal-only `notes`.
 export function hasMeaningfulMedicalEventContent(model) {
   if (!model) return false;
   return [
-    model.employeeName, model.supervisor, model.reportedSymptoms,
+    model.employeeName, model.supervisor, model.position, model.projectLocation,
+    model.reportedSymptoms, model.workEventDescription, model.responseActionsOther,
+    model.safetyObservations, model.medicalEvaluationOther, model.clinicProvider,
+    model.offWorkUntilDate, model.attachmentOther,
   ].some(v => String(v || '').trim().length > 0)
-    || Boolean(model.symptomsOnset) || Boolean(model.specificWorkEventReported) || Boolean(model.initialClassification);
+    || Boolean(model.symptomsOnset) || Boolean(model.specificWorkEventReported)
+    || Boolean(model.initialClassification) || Boolean(model.medicalEvaluationType)
+    || Boolean(model.workStatus) || Boolean(model.providerNoteAttached)
+    || (model.responseActions || []).length > 0
+    || (model.attachments || []).length > 0
+    || Boolean(model.employeeSignatureData) || Boolean(model.supervisorSignatureData);
 }
 
 export const MEDICAL_EVENT_STEPS = [

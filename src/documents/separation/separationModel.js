@@ -161,11 +161,25 @@ export function migrateSeparationShape(raw) {
   };
 }
 
+// Every real user-entered field, not just a handful -- this drives the
+// unsaved-changes guard on Start Blank/Start New, so a gap here means real
+// field data (including the whole Company Closeout section) can be silently
+// wiped with no warning. Excludes effectiveSeparationDate/dateSubmitted
+// (default to today, never empty) and internal-only `notes`.
 export function hasMeaningfulSeparationContent(model) {
   if (!model) return false;
   return [
-    model.employeeName, model.supervisor, model.detailedExplanation,
-  ].some(v => String(v || '').trim().length > 0) || Boolean(model.separationReason);
+    model.employeeName, model.employeeId, model.position, model.projectLocation, model.supervisor,
+    model.lastDayWorked, model.separationReasonOther, model.detailedExplanation,
+    model.warningNoticesCount, model.rehireReasonIfNo, model.propertyReturnedOther,
+    model.accessRemovedOther, model.outstandingPropertyNotes, model.hrName,
+  ].some(v => String(v || '').trim().length > 0)
+    || Boolean(model.separationType) || Boolean(model.separationReason)
+    || Boolean(model.warningNoticesGiven) || Boolean(model.documentationAttached)
+    || Boolean(model.eligibleForRehire) || Boolean(model.finalTimesheetSubmitted)
+    || Boolean(model.expensesResolved) || Boolean(model.employeeRefusedToSign)
+    || (model.propertyReturned || []).length > 0 || (model.accessRemoved || []).length > 0
+    || Boolean(model.employeeSignatureData) || Boolean(model.supervisorSignatureData) || Boolean(model.hrSignatureData);
 }
 
 export const SEPARATION_STEPS = [

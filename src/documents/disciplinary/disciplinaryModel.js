@@ -69,12 +69,20 @@ export function emptyDisciplinary() {
   };
 }
 
+// Every real user-entered field, not just a handful -- this drives the
+// unsaved-changes guard on Start Blank/Start New, so a gap here means real
+// field data can be silently wiped with no warning. Excludes noticeDate
+// (defaults to today, never empty) and internal-only `notes`.
 export function hasMeaningfulDisciplinaryContent(model) {
   if (!model) return false;
   return [
-    model.employeeName, model.supervisor, model.whatOccurred,
-    model.correctiveActionRequired, model.employeeStatement,
-  ].some(v => String(v || '').trim().length > 0) || Boolean(model.warningLevel);
+    model.employeeName, model.supervisor, model.position,
+    model.whatOccurred, model.earlierWarnings, model.companyPolicyStates, model.employeeStatement,
+    model.correctiveActionRequired, model.companyWill, model.ifNotCorrected,
+  ].some(v => String(v || '').trim().length > 0)
+    || Boolean(model.warningLevel)
+    || Boolean(model.employeeSignatureData)
+    || Boolean(model.managerSignatureData);
 }
 
 export const DISCIPLINARY_STEPS = [

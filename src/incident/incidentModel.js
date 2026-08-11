@@ -302,14 +302,27 @@ function localDateTimeNow() {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+// Every real user-entered field, not just a handful -- this drives the
+// unsaved-changes guard on Start Incident Report / discarding a draft, so a
+// gap here means real field data can be silently wiped with no warning.
+// Excludes writtenReportDateTime (defaults to now, never empty) and
+// internal-only `notes`.
 export function hasMeaningfulIncidentContent(incident) {
   if (!incident) return false;
   return [
     incident.workplaceLocation,
     incident.incidentDate,
+    incident.incidentTime,
+    incident.reportedToSupervisorDateTime,
+    incident.investigatorName,
+    incident.investigatorTitle,
+    incident.investigatorPhone,
+    incident.investigatorEmail,
     incident.incidentSpecificLocation,
     incident.detailedIncidentDescription,
-    incident.investigatorName,
+    incident.immediateActionsTaken,
+    incident.correctivePreventiveActions,
+    incident.safetyConsultantNotes,
   ].some(v => String(v || '').trim().length > 0)
     || incident.injuryOccurred !== 'unselected'
     || incident.propertyDamageOccurred !== 'unselected'
