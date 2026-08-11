@@ -1128,9 +1128,18 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 /* SegmentedToggle with 3+ options (e.g. warning level) — wraps to a 2-up
    grid instead of squeezing every option into one row, additive to the
    existing .yesNoToggle rules above (Incident's own 2-option yes/no
-   toggles are unaffected — they never get this class). */
+   toggles are unaffected — they never get this class). A fixed
+   calc(50% - 4px) basis used to force exactly two equal columns regardless
+   of label length, and buttons inherit .btn's white-space: nowrap — so a
+   long label (e.g. Separation's "Job Abandonment / No Call-No Show") had
+   nowhere to go but overflow its own box and run into the next button
+   (confirmed on a real 375px-wide screen, not theoretical). flex-basis
+   150px lets short options still pair up two-per-row naturally while
+   letting a long one claim its own row, and white-space: normal lets any
+   label that still doesn't fit wrap onto a second line inside its own
+   button — the button has no fixed height, so it grows to fit. */
 .yesNoToggle.wrap { flex-wrap: wrap; }
-.yesNoToggle.wrap button { flex: 1 1 calc(50% - 4px); min-width: 130px; }
+.yesNoToggle.wrap button { flex: 1 1 150px; min-width: 130px; white-space: normal; }
 
 /* Paired field row (Date|Job #, Client|Muster Point, Time Issued|Time Expired):
    each row is its own container; one field per row by default, two equal
