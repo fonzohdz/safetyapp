@@ -86,7 +86,7 @@ async function main() {
       await page.getByRole('button', { name: 'Next' }).click();
       await page.waitForSelector('text=Narrative & Notifications');
       await page.getByRole('textbox', { name: 'What Happened / Brief Summary / Timeline', exact: true }).fill('A ladder was found improperly footed near the equipment staging area during a routine walk-through.');
-      await page.getByRole('textbox', { name: 'Immediate Actions Taken', exact: true }).fill('Ladder was removed from service and crew was reminded of proper footing requirements at the next tailgate.');
+      await page.getByRole('textbox', { name: 'What did you do right after this happened?', exact: true }).fill('Ladder was removed from service and crew was reminded of proper footing requirements at the next tailgate.');
       await page.getByRole('button', { name: 'Supervisor', exact: true }).click();
       await page.getByRole('textbox', { name: 'Reported By — Name', exact: true }).fill('Jordan Blake');
 

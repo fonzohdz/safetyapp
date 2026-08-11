@@ -111,7 +111,7 @@ async function main() {
       check(warningFieldBefore === 0, 'Warning-notices field hidden before Involuntary is selected');
       await page.getByRole('button', { name: 'Involuntary', exact: true }).click();
       await page.getByRole('button', { name: 'Safety Violation', exact: true }).click();
-      await page.getByRole('textbox', { name: 'Explanation / Supporting Details', exact: true }).fill('Repeated safety policy violations after two prior documented warnings.');
+      await page.getByRole('textbox', { name: 'Explain what happened and anything management should know.', exact: true }).fill('Repeated safety policy violations after two prior documented warnings.');
 
       await page.getByRole('button', { name: 'Next', exact: true }).click();
       await page.waitForSelector('text=Closeout & Signatures');
@@ -363,7 +363,7 @@ async function main() {
       await page.getByRole('textbox', { name: 'Employee Name', exact: true }).fill('Finish Lock Test');
       await page.getByRole('textbox', { name: 'Supervisor', exact: true }).fill('Casey Renn');
       await page.getByRole('button', { name: 'Resignation', exact: true }).click();
-      await page.getByRole('textbox', { name: 'Explanation / Supporting Details', exact: true }).fill('Test explanation.');
+      await page.getByRole('textbox', { name: 'Explain what happened and anything management should know.', exact: true }).fill('Test explanation.');
       await page.getByRole('button', { name: 'Next', exact: true }).click();
       await page.waitForSelector('text=Closeout & Signatures');
       await page.locator('.field', { hasText: 'Eligible for rehire?' }).getByRole('button', { name: 'Yes', exact: true }).click();

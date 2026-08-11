@@ -1,4 +1,4 @@
-import { useRef, useLayoutEffect, useEffect, useState } from 'react';
+import { useId, useRef, useLayoutEffect, useEffect, useState } from 'react';
 import SignaturePad from '../incident/SignaturePad';
 import { useLocked } from './lockedContext';
 import SpeakButton from '../voice/SpeakButton';
@@ -50,6 +50,7 @@ export function SelectField({ label, value, onChange, options, placeholder = 'Se
 export function TextAreaField({ label, help, value, onChange, rows = 4, placeholder = '', voice = false }) {
   const locked = useLocked();
   const ref = useRef(null);
+  const labelId = useId();
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -59,11 +60,11 @@ export function TextAreaField({ label, help, value, onChange, rows = 4, placehol
   return (
     <label className="field">
       <div className="fieldLabelRow">
-        <span>{label}</span>
+        <span id={labelId}>{label}</span>
         {voice && <SpeakButton value={value} onChange={onChange} disabled={locked} />}
       </div>
       {help && <small>{help}</small>}
-      <textarea ref={ref} rows={rows} value={value || ''} placeholder={placeholder} onChange={e => onChange(e.target.value)} className="autoGrow" disabled={locked} />
+      <textarea ref={ref} rows={rows} value={value || ''} placeholder={placeholder} onChange={e => onChange(e.target.value)} className="autoGrow" disabled={locked} aria-labelledby={voice ? labelId : undefined} />
     </label>
   );
 }

@@ -84,13 +84,13 @@ async function main() {
       await page.getByRole('textbox', { name: 'Supervisor', exact: true }).fill('Casey Renn');
       await page.getByRole('textbox', { name: 'Position', exact: true }).fill('Laborer');
       await page.getByRole('button', { name: 'Written Warning', exact: true }).click();
-      await page.getByRole('textbox', { name: 'Describe what happened', exact: true }).fill('Employee failed to wear required fall protection while working at height on the scaffold.');
+      await page.getByRole('textbox', { name: 'What happened?', exact: true }).fill('Employee failed to wear required fall protection while working at height on the scaffold.');
 
       await page.getByRole('button', { name: 'Next' }).click();
       await page.waitForSelector('text=Corrective Action');
-      await page.getByRole('textbox', { name: 'Corrective action', exact: true }).fill('Employee must wear fall protection at all times above six feet, verified daily by the foreman.');
-      await page.getByRole('textbox', { name: 'Company action', exact: true }).fill('The company will retrain the employee on fall protection requirements.');
-      await page.getByRole('textbox', { name: 'Consequence', exact: true }).fill('Further violations will result in suspension or termination.');
+      await page.getByRole('textbox', { name: 'What must the employee do to correct this?', exact: true }).fill('Employee must wear fall protection at all times above six feet, verified daily by the foreman.');
+      await page.getByRole('textbox', { name: 'What will the company do?', exact: true }).fill('The company will retrain the employee on fall protection requirements.');
+      await page.getByRole('textbox', { name: "What happens if this isn't corrected?", exact: true }).fill('Further violations will result in suspension or termination.');
 
       // Draw both signatures with real pointer input. Button text is scoped
       // to .signaturePadActions/.signaturePad with an exact "Save" match —
@@ -307,10 +307,10 @@ async function main() {
       await page.getByRole('textbox', { name: 'Employee Name', exact: true }).fill('Finish Lock Test');
       await page.getByRole('textbox', { name: 'Supervisor', exact: true }).fill('Casey Renn');
       await page.getByRole('button', { name: 'Written Warning', exact: true }).click();
-      await page.getByRole('textbox', { name: 'Describe what happened', exact: true }).fill('Test occurrence.');
+      await page.getByRole('textbox', { name: 'What happened?', exact: true }).fill('Test occurrence.');
       await page.getByRole('button', { name: 'Next' }).click();
       await page.waitForSelector('text=Corrective Action');
-      await page.getByRole('textbox', { name: 'Corrective action', exact: true }).fill('Test corrective action.');
+      await page.getByRole('textbox', { name: 'What must the employee do to correct this?', exact: true }).fill('Test corrective action.');
       for (let i = 0; i < 2; i += 1) {
         await page.locator('.signaturePad button', { hasText: 'Add signature' }).first().click();
         const canvas = page.locator('canvas.signatureCanvas').first();

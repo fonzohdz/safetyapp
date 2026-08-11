@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import html2canvas from 'html2canvas';
 import { PDFDocument } from 'pdf-lib';
@@ -3569,6 +3569,7 @@ function TA({ label, value, onChange, onBlur, rows = 4, placeholder = '', voice 
   // then scrolls internally. Resizing style.height doesn't touch the value
   // or selection, so it never causes a cursor jump.
   const ref = useRef(null);
+  const labelId = useId();
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -3578,10 +3579,10 @@ function TA({ label, value, onChange, onBlur, rows = 4, placeholder = '', voice 
   return (
     <label className="field">
       <div className="fieldLabelRow">
-        <span>{label}</span>
+        <span id={labelId}>{label}</span>
         {voice && <SpeakButton value={value} onChange={onChange} />}
       </div>
-      <textarea ref={ref} rows={rows} value={value || ''} placeholder={placeholder} onChange={e => onChange(e.target.value)} onBlur={onBlur} className="autoGrow" />
+      <textarea ref={ref} rows={rows} value={value || ''} placeholder={placeholder} onChange={e => onChange(e.target.value)} onBlur={onBlur} className="autoGrow" aria-labelledby={voice ? labelId : undefined} />
     </label>
   );
 }

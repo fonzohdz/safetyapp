@@ -1,4 +1,4 @@
-import { useRef, useLayoutEffect, useState } from 'react';
+import { useId, useRef, useLayoutEffect, useState } from 'react';
 import {
   INCIDENT_STEPS, incidentStepStatus, INJURY_NATURE_OPTIONS, CAUSE_CATEGORIES, causeKey,
   emptyWitness, emptyTeamMember, getIncidentReadinessChecks, isIncidentReady, printedIncidentFingerprint,
@@ -30,6 +30,7 @@ function Field({ label, value, onChange, type = 'text', placeholder = '' }) {
 function TextAreaField({ label, help, value, onChange, rows = 4, placeholder = '', voice = false }) {
   const locked = useLocked();
   const ref = useRef(null);
+  const labelId = useId();
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -39,11 +40,11 @@ function TextAreaField({ label, help, value, onChange, rows = 4, placeholder = '
   return (
     <label className="field">
       <div className="fieldLabelRow">
-        <span>{label}</span>
+        <span id={labelId}>{label}</span>
         {voice && <SpeakButton value={value} onChange={onChange} disabled={locked} />}
       </div>
       {help && <small>{help}</small>}
-      <textarea ref={ref} rows={rows} value={value || ''} placeholder={placeholder} onChange={e => onChange(e.target.value)} className="autoGrow" disabled={locked} />
+      <textarea ref={ref} rows={rows} value={value || ''} placeholder={placeholder} onChange={e => onChange(e.target.value)} className="autoGrow" disabled={locked} aria-labelledby={voice ? labelId : undefined} />
     </label>
   );
 }

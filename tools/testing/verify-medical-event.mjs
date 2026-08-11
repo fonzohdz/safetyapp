@@ -98,7 +98,7 @@ async function main() {
 
       await page.getByRole('textbox', { name: 'Employee Name', exact: true }).fill('Jordan Blake');
       await page.getByRole('textbox', { name: 'Supervisor', exact: true }).fill('Casey Renn');
-      await page.getByRole('textbox', { name: 'Symptoms / Concerns (as reported by the employee)', exact: true }).fill('Employee reported dizziness and heavy sweating.');
+      await page.getByRole('textbox', { name: 'What symptoms or concerns did the employee report?', exact: true }).fill('Employee reported dizziness and heavy sweating.');
       await page.getByRole('button', { name: 'During Work', exact: true }).click();
 
       const noticeBefore = await page.locator('.pdfStaleWarning', { hasText: 'work event/exposure was reported' }).count();
@@ -114,7 +114,7 @@ async function main() {
       // accessible-name computation folds into the label together with the
       // field's own label text, so an exact match against the label text
       // alone never matches.
-      await page.getByRole('textbox', { name: 'Safety / Supervisor Observations and Actions' }).fill('Moved employee to shade, provided water, monitored for 30 minutes. Symptoms resolved.');
+      await page.getByRole('textbox', { name: 'What did safety/supervision observe and do?' }).fill('Moved employee to shade, provided water, monitored for 30 minutes. Symptoms resolved.');
 
       await page.getByRole('button', { name: 'Next' }).click();
       await page.waitForSelector('text=Evaluation & Classification');
@@ -277,12 +277,12 @@ async function main() {
       // not synthetic JS calls into the component's internals.
       await page.getByRole('textbox', { name: 'Employee Name', exact: true }).fill('Touch Smoke Test');
       await page.getByRole('textbox', { name: 'Supervisor', exact: true }).fill('Casey Renn');
-      await page.getByRole('textbox', { name: 'Symptoms / Concerns (as reported by the employee)', exact: true }).fill('Employee reported dizziness.');
+      await page.getByRole('textbox', { name: 'What symptoms or concerns did the employee report?', exact: true }).fill('Employee reported dizziness.');
       await page.getByRole('button', { name: 'During Work', exact: true }).click();
       await page.getByRole('button', { name: 'Yes', exact: true }).first().click();
       await page.getByRole('textbox', { name: 'Describe the work event / exposure reported', exact: true }).fill('Working in direct sun for an extended period.');
       await page.getByRole('button', { name: 'Rest Period', exact: true }).click();
-      await page.getByRole('textbox', { name: 'Safety / Supervisor Observations and Actions' }).fill('Moved employee to shade and monitored.');
+      await page.getByRole('textbox', { name: 'What did safety/supervision observe and do?' }).fill('Moved employee to shade and monitored.');
       await page.getByRole('button', { name: 'Next' }).click();
       await page.waitForSelector('text=Evaluation & Classification');
       await page.locator('.signaturePad', { hasText: 'Supervisor / Safety Signature' }).getByRole('button', { name: 'Add signature' }).click();
@@ -322,7 +322,7 @@ async function main() {
       await page.waitForSelector('text=Event & Response');
       await page.getByRole('textbox', { name: 'Employee Name', exact: true }).fill('Finish Lock Test');
       await page.getByRole('textbox', { name: 'Supervisor', exact: true }).fill('Casey Renn');
-      await page.getByRole('textbox', { name: 'Symptoms / Concerns (as reported by the employee)', exact: true }).fill('Test symptoms.');
+      await page.getByRole('textbox', { name: 'What symptoms or concerns did the employee report?', exact: true }).fill('Test symptoms.');
       await page.getByRole('button', { name: 'During Work', exact: true }).click();
       await page.getByRole('button', { name: 'No', exact: true }).first().click();
       await page.getByRole('button', { name: 'Next' }).click();

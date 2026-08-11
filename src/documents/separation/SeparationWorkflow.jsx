@@ -88,7 +88,7 @@ function StepDetails({ model, upd, next }) {
         {model.separationReason === 'Other' && (
           <Field label="Other reason — specify" value={model.separationReasonOther} onChange={v => upd({ separationReasonOther: v })} />
         )}
-        <TextAreaField label="Explanation / Supporting Details" rows={5} value={model.detailedExplanation} onChange={v => upd({ detailedExplanation: v })} voice />
+        <TextAreaField label="Explain what happened and anything management should know." rows={5} value={model.detailedExplanation} onChange={v => upd({ detailedExplanation: v })} voice />
       </div>
 
       <StepFooter hasNext onNext={next} />
@@ -145,7 +145,7 @@ function StepCloseout({ model, upd, prev, next }) {
         )}
         <BooleanToggle label="Final timesheet submitted" value={model.finalTimesheetSubmitted} onChange={v => upd({ finalTimesheetSubmitted: v })} />
         <BooleanToggle label="Expenses / receipts resolved" value={model.expensesResolved} onChange={v => upd({ expensesResolved: v })} />
-        <TextAreaField label="Outstanding property / notes" rows={3} value={model.outstandingPropertyNotes} onChange={v => upd({ outstandingPropertyNotes: v })} voice />
+        <TextAreaField label="Any company property or paperwork still outstanding?" rows={3} value={model.outstandingPropertyNotes} onChange={v => upd({ outstandingPropertyNotes: v })} voice />
       </div>
 
       <div className="formSection">
