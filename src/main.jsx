@@ -1195,7 +1195,7 @@ function RemoveBundleModal({ task, hazards, controls, onCancel, onRemoveTaskOnly
 
 /* ── App ── */
 function App() {
-  const [settings, setSettings] = useState(() => ({ theme: 'dark', customQuick: { task: [], hazard: [], control: [] }, ...safeJson(localStorage.getItem(KEYS.settings), {}) }));
+  const [settings, setSettings] = useState(() => ({ theme: 'light', customQuick: { task: [], hazard: [], control: [] }, ...safeJson(localStorage.getItem(KEYS.settings), {}) }));
   const [customTemplates, setCustomTemplates] = useState(() => safeJson(localStorage.getItem(KEYS.templates), []));
   const [savedDraft, setSavedDraft] = useState(() => safeJson(localStorage.getItem(KEYS.draft), null));
   const [jsa, setJsa] = useState(() => emptyJsa());
@@ -1306,7 +1306,7 @@ function App() {
   const isTouchPrimary = useIsTouchPrimary();
 
   useEffect(() => {
-    document.documentElement.dataset.theme = settings.theme || 'dark';
+    document.documentElement.dataset.theme = settings.theme || 'light';
     localStorage.setItem(KEYS.settings, JSON.stringify(settings));
   }, [settings]);
 
@@ -2697,8 +2697,10 @@ function StepJob({ jsa, upd, prev, next }) {
           <div className="formSection">
             <span className="formSectionHeading">Site Details</span>
             <div className="formGrid">
-              <F label="Location / City" value={jsa.location} onChange={v => upd({ location: v })} />
-              <F label="Job Site" value={jsa.jobSite} onChange={v => upd({ jobSite: v })} />
+              <div className="formPairRow">
+                <F label="Location / City" value={jsa.location} onChange={v => upd({ location: v })} />
+                <F label="Job Site" value={jsa.jobSite} onChange={v => upd({ jobSite: v })} />
+              </div>
               <div className={datePairClass}>
                 <F label="Date" type="date" value={jsa.date} onChange={v => upd({ date: v })} />
                 <F label="Job #" value={jsa.jobNumber} onChange={v => upd({ jobNumber: v })} />
@@ -2721,10 +2723,14 @@ function StepJob({ jsa, upd, prev, next }) {
           <div className="formSection">
             <span className="formSectionHeading">Supervision and Emergency</span>
             <div className="formGrid">
-              <F label="Superintendent / Foreman" value={jsa.superintendentForeman} onChange={v => upd({ superintendentForeman: v })} />
-              <F label="Emergency / Rescue Phone #" value={jsa.emergencyPhone} onChange={v => upd({ emergencyPhone: v })} />
-              <F label="Site Contact Phone #" value={jsa.siteContactPhone} onChange={v => upd({ siteContactPhone: v })} />
-              <F label="Nearest Medical Facility" value={jsa.nearestMedicalFacility} onChange={v => upd({ nearestMedicalFacility: v })} />
+              <div className="formPairRow">
+                <F label="Superintendent / Foreman" value={jsa.superintendentForeman} onChange={v => upd({ superintendentForeman: v })} />
+                <F label="Emergency / Rescue Phone #" value={jsa.emergencyPhone} onChange={v => upd({ emergencyPhone: v })} />
+              </div>
+              <div className="formPairRow">
+                <F label="Site Contact Phone #" value={jsa.siteContactPhone} onChange={v => upd({ siteContactPhone: v })} />
+                <F label="Nearest Medical Facility" value={jsa.nearestMedicalFacility} onChange={v => upd({ nearestMedicalFacility: v })} />
+              </div>
               <F label="Assigned Mentor / SSE Number" value={jsa.assignedMentorSse} onChange={v => upd({ assignedMentorSse: v })} />
             </div>
           </div>
@@ -3338,6 +3344,12 @@ function TemplatesView({ allTemplates, customTemplates, loadTemplate, deleteTemp
             <button className="btn primary sm" onClick={startBlank}>Start a JSA</button>
           </div>
         )}
+      </div>
+      <div className="card">
+        <div className="cardHeader"><h3>How Templates Work</h3></div>
+        <div className="cardBody">
+          <p>A template captures job info, hazards, and controls so you don't retype them every day. Day-specific details — the date, times, tailgate topic, and signatures — reset automatically so each new JSA starts fresh. Save a template anytime from the Review step of a JSA you've filled in.</p>
+        </div>
       </div>
     </div>
   );

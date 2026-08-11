@@ -430,6 +430,7 @@ html[data-theme='dark'] .btn.secondary { background: var(--surface-3); color: va
   color: var(--muted);
   border-radius: var(--radius-sm);
   padding: 6px 12px;
+  min-height: 44px;
   font-size: 13px;
   font-weight: 600;
   margin-bottom: 10px;
