@@ -247,7 +247,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:focus-v
   .sidebar { width: var(--sidebar-w-collapsed); padding: 22px 8px 16px; }
   .sidebarBrandSub, .sidebarNavLabel { display: none; }
   .sidebarBrand { padding: 0 4px 22px; text-align: center; }
-  .sidebarBrandName { font-size: 11px; }
+  .sidebarBrandName { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
   .sidebarNavItem { justify-content: center; padding: 11px 4px; border-left-width: 3px; }
 }
 
