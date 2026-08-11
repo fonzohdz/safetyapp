@@ -18,12 +18,16 @@ function joinText(base, chunk) {
 // rewrites or cleans up wording.
 //
 // mode="narrative" (default) is that passthrough, unchanged. mode="list" is
-// for JSA Tasks/Hazards/Controls only: while listening, interim results
-// still preview as plain running text (no reformatting mid-speech -- avoids
-// jumping/duplicate entries per the mission), but the FINAL result is run
-// through normalizeSpokenList and appended as one line per item. Passing
-// list mode is opt-in per call site; every other narrative field is
-// unaffected by its existence.
+// for JSA Tasks/Hazards/Controls only: real dictation essentially never
+// contains punctuation -- pauses don't produce periods -- so list mode
+// can't wait for punctuation to show up in a "final transcript." Instead it
+// keys off newFinalChunks: the browser itself finalizes each pause-separated
+// phrase as its own entry independent of punctuation, so each newly-final
+// phrase is committed as its own line the moment the browser finalizes it
+// (still also split internally via normalizeSpokenList, so an explicit
+// period/semicolon/"next item" *within* one finalized phrase still works).
+// The still-in-progress tail previews live as plain text after the
+// committed lines, and gets folded into a clean line once it finalizes.
 export default function SpeakButton({ value, onChange, disabled = false, mode = 'narrative' }) {
   // Snapshot of the field's value at the moment listening started, so each
   // interim/final result replaces "base + transcript-so-far" as one string
@@ -31,15 +35,24 @@ export default function SpeakButton({ value, onChange, disabled = false, mode = 
   // both duplication across interim events and "existingtextnewtext"
   // collisions when the user types, speaks, types, speaks again.
   const baseValueRef = useRef('');
+  // List mode only: rolls forward permanently each time the browser
+  // finalizes a new phrase, so a phrase already committed as a line is
+  // never re-processed by a later event in the same session.
+  const committedBaseRef = useRef('');
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
 
   const { isSupported, isListening, error, start, stop } = useSpeechToText({
-    onResult: (text, isFinal) => {
-      if (mode === 'list' && isFinal) {
-        onChangeRef.current(appendSpokenListItems(baseValueRef.current, normalizeSpokenList(text)));
+    onResult: ({ combinedText, newFinalChunks, interimText }) => {
+      if (mode === 'list') {
+        if (newFinalChunks.length) {
+          let base = committedBaseRef.current;
+          for (const chunk of newFinalChunks) base = appendSpokenListItems(base, normalizeSpokenList(chunk));
+          committedBaseRef.current = base;
+        }
+        onChangeRef.current(interimText ? joinText(committedBaseRef.current, interimText) : committedBaseRef.current);
       } else {
-        onChangeRef.current(joinText(baseValueRef.current, text));
+        onChangeRef.current(joinText(baseValueRef.current, combinedText));
       }
     },
   });
@@ -54,6 +67,7 @@ export default function SpeakButton({ value, onChange, disabled = false, mode = 
       return;
     }
     baseValueRef.current = value || '';
+    committedBaseRef.current = value || '';
     start();
   };
 

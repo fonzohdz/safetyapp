@@ -8,6 +8,13 @@
 // renders each line as its own row/cell -- with zero JSA PDF markup
 // changes. Run standalone:
 //   node tools/testing/verify-jsa-speech-list.mjs
+//
+// IMPORTANT: the mock simulates each pause-separated phrase as its own
+// SEPARATELY-FINALIZED entry in event.results, with NO punctuation --
+// that's how real continuous browser dictation actually behaves (a first
+// version of this suite fed one big final string WITH literal periods
+// already in it, which passed against a bug where periods never show up
+// from real pauses; this is what actually caught it).
 
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
@@ -45,24 +52,34 @@ function check(cond, label) {
 // Installed once via context.addInitScript, BEFORE any page script runs --
 // useSpeechToText.js resolves window.SpeechRecognition/webkitSpeechRecognition
 // into a module-level const the moment the app bundle first executes, so the
-// mock has to already be in place at that point (real headless Chromium does
-// implement webkitSpeechRecognition natively; overriding window.* after the
-// module has already loaded would have no effect on its captured reference).
-// One fake final phrase per call, read from a page-level variable speakInto
-// updates before each click -- avoids re-injecting/redefining the class.
+// mock has to already be in place at that point.
+//
+// window.__mockPhrases is an array of strings, each one a separate
+// pause-separated utterance with NO trailing punctuation (matching real
+// dictation) -- start() finalizes them one at a time, each as its own
+// results[] entry, exactly like real continuous recognition does at a
+// natural pause, with an interim partial shown first for realism.
 const MOCK_INIT_SCRIPT = `
-  window.__mockFinal = '';
-  window.__mockInterim = '';
+  window.__mockPhrases = [];
   class MockSpeechRecognition {
     constructor() { this.continuous = false; this.interimResults = false; }
     start() {
-      const finalPhrase = window.__mockFinal;
-      const interimPhrase = window.__mockInterim || finalPhrase;
-      setTimeout(() => { if (this.onresult) this.onresult({ results: [{ 0: { transcript: interimPhrase }, isFinal: false, length: 1 }], length: 1 }); }, 40);
-      setTimeout(() => {
-        if (this.onresult) this.onresult({ results: [{ 0: { transcript: finalPhrase }, isFinal: true, length: 1 }], length: 1 });
-        if (this.onend) this.onend();
-      }, 120);
+      const phrases = window.__mockPhrases.slice();
+      const finalized = [];
+      const emitNext = (i) => {
+        if (i >= phrases.length) { if (this.onend) this.onend(); return; }
+        const phrase = phrases[i];
+        const partial = phrase.slice(0, Math.max(1, Math.floor(phrase.length / 2)));
+        if (this.onresult) {
+          this.onresult({ results: [...finalized, { 0: { transcript: partial }, isFinal: false, length: 1 }], length: finalized.length + 1 });
+        }
+        setTimeout(() => {
+          finalized.push({ 0: { transcript: phrase }, isFinal: true, length: 1 });
+          if (this.onresult) this.onresult({ results: [...finalized], length: finalized.length });
+          setTimeout(() => emitNext(i + 1), 50);
+        }, 50);
+      };
+      setTimeout(() => emitNext(0), 40);
     }
     stop() { if (this.onend) this.onend(); }
   }
@@ -70,15 +87,12 @@ const MOCK_INIT_SCRIPT = `
   window.webkitSpeechRecognition = MockSpeechRecognition;
 `;
 
-async function speakInto(page, fieldLabel, finalPhrase, interimPhrase) {
-  await page.evaluate(({ finalPhrase, interimPhrase }) => {
-    window.__mockFinal = finalPhrase;
-    window.__mockInterim = interimPhrase || finalPhrase.slice(0, Math.max(1, Math.floor(finalPhrase.length / 2)));
-  }, { finalPhrase, interimPhrase });
-
+async function speakInto(page, fieldLabel, phrases) {
+  const phraseList = Array.isArray(phrases) ? phrases : [phrases];
+  await page.evaluate((phraseList) => { window.__mockPhrases = phraseList; }, phraseList);
   const micBtn = page.locator('label.field', { hasText: fieldLabel }).getByRole('button', { name: 'Dictate this field' });
   await micBtn.click();
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(150 * phraseList.length + 300);
 }
 
 async function main() {
@@ -108,49 +122,52 @@ async function main() {
     await page.waitForTimeout(200);
 
     // ── 1. Narrative field is NOT list-split (mode isolation) ──
-    console.log('\n=== 1. Narrative fields stay prose, not split into lines ===');
+    console.log('\n=== 1. Narrative fields join separate phrases as plain prose ===');
     await page.getByRole('tab', { name: /Meeting Info/ }).click();
     await page.waitForTimeout(150);
-    await speakInto(page, 'Tailgate Safety Topic', 'Spread lime. Move lime. Mix lime.');
+    await speakInto(page, 'Tailgate Safety Topic', ['spread lime', 'move lime', 'mix lime']);
     const topicVal = await page.locator('label.field', { hasText: 'Tailgate Safety Topic' }).locator('textarea').inputValue();
-    check(topicVal === 'Spread lime. Move lime. Mix lime.', `Narrative field keeps periods as prose, no line splitting (got: "${topicVal}")`);
+    check(topicVal === 'spread lime move lime mix lime', `Narrative field joins phrases as one line of prose, properly spaced (got: "${topicVal}")`);
     check(!topicVal.includes('\n'), 'Narrative field has no injected line breaks');
 
-    // ── 2. Tasks: periods split into separate lines ──
-    console.log('\n=== 2. Tasks: "Spread lime. Move lime. Mix lime." -> 3 lines ===');
+    // ── 2. Tasks: three separately-finalized phrases (no punctuation at all,
+    //        matching real dictation) -> 3 separate lines ──
+    console.log('\n=== 2. Tasks: 3 pause-separated phrases (no punctuation) -> 3 lines ===');
     await page.getByRole('tab', { name: /Tasks/ }).click();
     await page.waitForTimeout(150);
-    await speakInto(page, 'Tasks for Today', 'Spread lime. Move lime. Mix lime.');
+    await speakInto(page, 'Tasks for Today', ['spread lime', 'move lime', 'mix lime']);
     let tasksVal = await page.locator('label.field', { hasText: 'Tasks for Today' }).locator('textarea').inputValue();
-    check(tasksVal === 'Spread lime\nMove lime\nMix lime', `Tasks textarea shows 3 real newline-separated lines (got: ${JSON.stringify(tasksVal)})`);
+    check(tasksVal === 'spread lime\nmove lime\nmix lime', `Tasks textarea shows 3 real newline-separated lines with zero punctuation spoken (got: ${JSON.stringify(tasksVal)})`);
 
-    // ── 3. Hazards: semicolons split ──
-    console.log('\n=== 3. Hazards: semicolon-separated -> 3 lines ===');
-    await speakInto(page, 'Hazards in Work Area', 'Equipment traffic; dust exposure; uneven ground');
+    // ── 3. Hazards: same, different field ──
+    console.log('\n=== 3. Hazards: 3 pause-separated phrases -> 3 lines ===');
+    await speakInto(page, 'Hazards in Work Area', ['equipment traffic', 'dust exposure', 'uneven ground']);
     const hazardsVal = await page.locator('label.field', { hasText: 'Hazards in Work Area' }).locator('textarea').inputValue();
-    check(hazardsVal === 'Equipment traffic\ndust exposure\nuneven ground', `Hazards textarea shows 3 lines from semicolons (got: ${JSON.stringify(hazardsVal)})`);
+    check(hazardsVal === 'equipment traffic\ndust exposure\nuneven ground', `Hazards textarea shows 3 lines from natural pauses alone (got: ${JSON.stringify(hazardsVal)})`);
 
-    // ── 4. Controls: explicit "next control" commands ──
-    console.log('\n=== 4. Controls: "next control" spoken command -> 3 lines, phrase removed ===');
-    await speakInto(page, 'Controls and Mitigations', 'Maintain safe distance next control use spotter when backing next control wear required P P E');
+    // ── 4. Controls: explicit "next control" spoken WITHIN one continuous
+    //        phrase (no pause) still splits correctly ──
+    console.log('\n=== 4. Controls: "next control" spoken with no pause -> 3 lines, phrase removed ===');
+    await speakInto(page, 'Controls and Mitigations', ['maintain safe distance next control use spotter when backing next control wear required P P E']);
     const controlsVal = await page.locator('label.field', { hasText: 'Controls and Mitigations' }).locator('textarea').inputValue();
-    check(controlsVal === 'Maintain safe distance\nuse spotter when backing\nwear required P P E', `Controls textarea shows 3 lines, "next control" removed from text (got: ${JSON.stringify(controlsVal)})`);
+    check(controlsVal === 'maintain safe distance\nuse spotter when backing\nwear required P P E', `Controls textarea shows 3 lines, "next control" removed from text (got: ${JSON.stringify(controlsVal)})`);
     check(!controlsVal.toLowerCase().includes('next control'), 'The spoken separator phrase itself never appears in the final text');
 
-    // ── 5. Append: existing manual content is never overwritten ──
+    // ── 5. Append: existing manual content is never overwritten, across
+    //        multiple pause-separated phrases in one session ──
     console.log('\n=== 5. Speech appends below existing manually-typed lines ===');
     const tasksTa = page.locator('label.field', { hasText: 'Tasks for Today' }).locator('textarea');
     await tasksTa.fill('Spread lime\nMove lime');
-    await speakInto(page, 'Tasks for Today', 'Mix lime. Clean spreader.');
+    await speakInto(page, 'Tasks for Today', ['mix lime', 'clean spreader']);
     tasksVal = await tasksTa.inputValue();
-    check(tasksVal === 'Spread lime\nMove lime\nMix lime\nClean spreader', `Existing lines preserved, new items appended below (got: ${JSON.stringify(tasksVal)})`);
+    check(tasksVal === 'Spread lime\nMove lime\nmix lime\nclean spreader', `Existing lines preserved, new items appended below, one per pause (got: ${JSON.stringify(tasksVal)})`);
 
-    // ── 6. Commas and "and" never cause bad splitting ──
+    // ── 6. Commas and "and" never cause bad splitting (one phrase, no pause) ──
     console.log('\n=== 6. Commas and "and" are preserved within one item ===');
     await tasksTa.fill('');
-    await speakInto(page, 'Tasks for Today', 'Inspect the truck, including tires, mirrors, and lights.');
+    await speakInto(page, 'Tasks for Today', ['inspect the truck, including tires, mirrors, and lights']);
     tasksVal = await tasksTa.inputValue();
-    check(tasksVal === 'Inspect the truck, including tires, mirrors, and lights', `One single item, commas and "and" intact, no bad splitting (got: ${JSON.stringify(tasksVal)})`);
+    check(tasksVal === 'inspect the truck, including tires, mirrors, and lights', `One single item, commas and "and" intact, no bad splitting (got: ${JSON.stringify(tasksVal)})`);
     check(!tasksVal.includes('\n'), 'No line breaks introduced by commas/and');
 
     // ── 7. Manual typing with real newlines still works exactly as before ──
@@ -168,9 +185,9 @@ async function main() {
     await tasksTa.fill('');
     await page.locator('label.field', { hasText: 'Hazards in Work Area' }).locator('textarea').fill('');
     await page.locator('label.field', { hasText: 'Controls and Mitigations' }).locator('textarea').fill('');
-    await speakInto(page, 'Tasks for Today', 'Spread lime. Move lime. Mix lime.');
-    await speakInto(page, 'Hazards in Work Area', 'Equipment traffic; dust exposure; uneven ground');
-    await speakInto(page, 'Controls and Mitigations', 'Maintain safe distance next control use spotter when backing next control wear required PPE next control use water for dust control');
+    await speakInto(page, 'Tasks for Today', ['spread lime', 'move lime', 'mix lime']);
+    await speakInto(page, 'Hazards in Work Area', ['equipment traffic', 'dust exposure', 'uneven ground']);
+    await speakInto(page, 'Controls and Mitigations', ['maintain safe distance', 'use spotter when backing', 'wear required PPE', 'use water for dust control']);
     await page.addStyleTag({ content: `.pdfExportRoot { position: static !important; left: 0 !important; top: 0 !important; } .toast { display: none !important; }` });
     await page.waitForTimeout(200);
     const rowTexts = await page.locator('.pdfExportRoot .printTaskTable').first().locator('tbody tr').evaluateAll(
@@ -181,9 +198,9 @@ async function main() {
     // a paper form with printed blank lines) -- so this only checks that
     // enough rows exist to hold the content, not an exact count.
     check(rowTexts.length >= 4, `At least 4 row slots available for the 4 content rows (max of 3 tasks / 3 hazards / 4 controls), got ${rowTexts.length}`);
-    check(rowTexts[0][0] === 'Spread lime' && rowTexts[1][0] === 'Move lime' && rowTexts[2][0] === 'Mix lime' && rowTexts[3][0] === '', `Task column: 3 spoken items in separate cells, 4th row blank (got: ${JSON.stringify(rowTexts.map(r => r[0]))})`);
-    check(rowTexts[0][1] === 'Equipment traffic' && rowTexts[1][1] === 'dust exposure' && rowTexts[2][1] === 'uneven ground' && rowTexts[3][1] === '', `Hazard column: independent from Task column, correct positional values (got: ${JSON.stringify(rowTexts.map(r => r[1]))})`);
-    check(rowTexts[0][2] === 'Maintain safe distance' && rowTexts[3][2] === 'use water for dust control', `Control column: independent 4-item list, not paired 1:1 with tasks/hazards (got: ${JSON.stringify(rowTexts.map(r => r[2]))})`);
+    check(rowTexts[0][0] === 'spread lime' && rowTexts[1][0] === 'move lime' && rowTexts[2][0] === 'mix lime' && rowTexts[3][0] === '', `Task column: 3 spoken phrases in separate cells, 4th row blank (got: ${JSON.stringify(rowTexts.map(r => r[0]))})`);
+    check(rowTexts[0][1] === 'equipment traffic' && rowTexts[1][1] === 'dust exposure' && rowTexts[2][1] === 'uneven ground' && rowTexts[3][1] === '', `Hazard column: independent from Task column, correct positional values (got: ${JSON.stringify(rowTexts.map(r => r[1]))})`);
+    check(rowTexts[0][2] === 'maintain safe distance' && rowTexts[3][2] === 'use water for dust control', `Control column: independent 4-item list, not paired 1:1 with tasks/hazards (got: ${JSON.stringify(rowTexts.map(r => r[2]))})`);
     await page.screenshot({ path: path.join(outDir, 'print-task-table.png') });
 
     check(pageErrors.length === 0, `No uncaught page errors (${pageErrors.length})${pageErrors.length ? ': ' + pageErrors.join(' | ') : ''}`);

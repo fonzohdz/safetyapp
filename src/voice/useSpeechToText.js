@@ -39,6 +39,13 @@ export function useSpeechToText({ onResult } = {}) {
   const recognitionRef = useRef(null);
   const onResultRef = useRef(onResult);
   onResultRef.current = onResult;
+  // In continuous mode, the browser finalizes each pause-separated phrase as
+  // its own entry in event.results -- independent of whether any punctuation
+  // was recognized (it usually isn't; raw dictation typically has none).
+  // Tracks the highest index already reported final, so each phrase is
+  // reported to onResult exactly once, as soon as the browser itself
+  // finalizes it, not just once at the very end of the session.
+  const lastFinalIndexRef = useRef(-1);
 
   const stop = useCallback(() => {
     const rec = recognitionRef.current;
@@ -53,6 +60,7 @@ export function useSpeechToText({ onResult } = {}) {
     if (!SPEECH_RECOGNITION_SUPPORTED || recognitionRef.current) return;
     setError(null);
     setTranscript('');
+    lastFinalIndexRef.current = -1;
     const rec = new SpeechRecognitionCtor();
     rec.continuous = true;
     rec.interimResults = true;
@@ -60,13 +68,27 @@ export function useSpeechToText({ onResult } = {}) {
 
     rec.onresult = (event) => {
       let combined = '';
-      let isFinal = false;
+      let interimText = '';
+      const newFinalChunks = [];
+      let highestFinalIndex = lastFinalIndexRef.current;
       for (let i = 0; i < event.results.length; i++) {
-        combined += event.results[i][0].transcript;
-        if (event.results[i].isFinal) isFinal = true;
+        const chunkText = event.results[i][0].transcript;
+        // Defensive word-boundary spacing: separately-recognized phrases
+        // aren't reliably delivered with a separating space already in the
+        // transcript, so concatenating them raw risks running words
+        // together ("spread limemove lime").
+        if (combined && chunkText && !/^\s/.test(chunkText) && !/\s$/.test(combined)) combined += ' ';
+        combined += chunkText;
+        if (event.results[i].isFinal) {
+          if (i > lastFinalIndexRef.current) newFinalChunks.push(chunkText);
+          if (i > highestFinalIndex) highestFinalIndex = i;
+        } else {
+          interimText = chunkText;
+        }
       }
+      lastFinalIndexRef.current = highestFinalIndex;
       setTranscript(combined);
-      onResultRef.current?.(combined, isFinal);
+      onResultRef.current?.({ combinedText: combined, newFinalChunks, interimText });
     };
     rec.onerror = (event) => {
       setError(mapError(event.error));
