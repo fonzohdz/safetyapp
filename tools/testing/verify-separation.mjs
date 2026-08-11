@@ -1,8 +1,16 @@
 // Regression coverage for the Employee Separation form (Milestone 5 of the
-// Superintendent Document Suite mission). Same pattern/lessons as the other
-// verify-*.mjs scripts in this batch — standalone execution, getByRole
-// textbox/exact matching, case-insensitive badge text, scrollIntoView
-// before drawing a signature.
+// Superintendent Document Suite mission). Rewritten for the source-fidelity
+// rebuild (Part 2 of the app-wide usability/PDF-quality mission): a new
+// 3-step workflow (Separation Details -> Closeout & Signatures -> Review &
+// Export), a new field set (Employee ID, Project/Location, Last Day Worked,
+// Date Submitted, Voluntary/Involuntary type, grouped reason list,
+// documentation-attached, full Company Closeout section, "employee refused
+// to sign" flag, and a three-signature Employee/Supervisor/HR-Management
+// approval block), and a deterministic migration from the old simplified
+// shape (see migrateSeparationShape in separationModel.js). Same
+// pattern/lessons as the other verify-*.mjs scripts in this batch —
+// standalone execution, getByRole textbox/exact matching, case-insensitive
+// badge text, scrollIntoView before drawing a signature.
 //   node tools/testing/verify-separation.mjs
 
 import { chromium } from 'playwright';
@@ -43,8 +51,8 @@ function check(cond, label) {
   else { console.log(`  [FAIL] ${label}`); failures += 1; }
 }
 
-async function drawSignature(page) {
-  const canvas = page.locator('canvas.signatureCanvas').first();
+async function drawSignature(page, scopeLocator) {
+  const canvas = (scopeLocator || page).locator('canvas.signatureCanvas').first();
   await canvas.waitFor({ state: 'visible' });
   await canvas.scrollIntoViewIfNeeded();
   await page.waitForTimeout(200);
@@ -68,7 +76,7 @@ async function drawSignature(page) {
 }
 
 async function main() {
-  console.log('[1/5] Starting vite preview server...');
+  console.log('[1/7] Starting vite preview server...');
   const server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], {
     cwd: repoRoot, shell: true, stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -78,10 +86,10 @@ async function main() {
 
   try {
     await waitForServer(BASE_URL, 20000);
-    console.log('[2/5] Preview server ready at', BASE_URL);
+    console.log('[2/7] Preview server ready at', BASE_URL);
     const browser = await chromium.launch();
 
-    // ── 1. Real UI workflow: Discharge reveals warning-history sub-fields ──
+    // ── 1. Real UI workflow: full 3-step flow, Involuntary reveals warning fields ──
     console.log('\n=== 1. Real UI workflow ===');
     {
       const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
@@ -99,20 +107,30 @@ async function main() {
       await page.getByRole('textbox', { name: 'Employee Name', exact: true }).fill('Jordan Blake');
       await page.getByRole('textbox', { name: 'Supervisor', exact: true }).fill('Casey Renn');
 
-      const dischargeFieldsBefore = await page.locator('text=Discharge — Warning History').count();
-      check(dischargeFieldsBefore === 0, 'Discharge warning-history fields hidden before Discharge is selected');
-      await page.getByRole('button', { name: 'Discharge', exact: true }).click();
-      await page.waitForSelector('text=Discharge — Warning History');
-      check(true, 'Discharge warning-history fields appear once Discharge is selected');
+      const warningFieldBefore = await page.locator('text=If involuntary, were warning notices given?').count();
+      check(warningFieldBefore === 0, 'Warning-notices field hidden before Involuntary is selected');
+      await page.getByRole('button', { name: 'Involuntary', exact: true }).click();
+      await page.getByRole('button', { name: 'Safety Violation', exact: true }).click();
+      await page.getByRole('textbox', { name: 'Explanation / Supporting Details', exact: true }).fill('Repeated safety policy violations after two prior documented warnings.');
 
-      await page.getByRole('textbox', { name: 'Detailed Explanation', exact: true }).fill('Repeated safety policy violations after two prior documented warnings.');
-      await page.getByRole('button', { name: 'Yes', exact: true }).first().click();
+      await page.getByRole('button', { name: 'Next', exact: true }).click();
+      await page.waitForSelector('text=Closeout & Signatures');
+      await page.waitForSelector('text=If involuntary, were warning notices given?');
+      check(true, 'Warning-notices field appears once Involuntary is selected');
+      // Scoped to each field's own container (.field) — several fields on
+      // this step share the plain "Yes"/"No" button labels (Warning Notices
+      // Given, Documentation Attached, Eligible for Rehire all have one),
+      // so an unscoped getByRole('button', { name: 'Yes' }) collides across
+      // fields depending on DOM order.
+      await page.locator('.field', { hasText: 'If involuntary, were warning notices given?' }).getByRole('button', { name: 'Yes', exact: true }).click();
       await page.getByRole('textbox', { name: 'How many warning notices?', exact: true }).fill('2');
-      await page.getByRole('button', { name: 'No', exact: true }).last().click(); // "Would you re-hire?" = No
+      await page.locator('.field', { hasText: 'Eligible for rehire?' }).getByRole('button', { name: 'No', exact: true }).click();
+      await page.waitForSelector('text=Reason not eligible for rehire');
+      await page.getByRole('textbox', { name: 'Reason not eligible for rehire', exact: true }).fill('Repeated safety-critical violations.');
 
       const sigCount = await page.locator('.signaturePad button', { hasText: 'Add signature' }).count();
-      check(sigCount === 2, `Both signature pads present (found ${sigCount})`);
-      // Only Supervisor signature is required for readiness — sign that one.
+      check(sigCount === 3, `All three signature pads present (found ${sigCount})`);
+      // Only the Supervisor signature is required for readiness — sign that one.
       await page.locator('.signaturePad', { hasText: 'Supervisor Signature' }).getByRole('button', { name: 'Add signature' }).click();
       await drawSignature(page);
 
@@ -162,7 +180,7 @@ async function main() {
     console.log('\n=== 2. Draft key isolation ===');
     {
       const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
-      await context.addInitScript(json => window.localStorage.setItem('sdc.separation.draft.v1', json), loadFixture('separation-resignation.json'));
+      await context.addInitScript(json => window.localStorage.setItem('sdc.separation.draft.v1', json), loadFixture('separation-new-voluntary.json'));
       const page = await context.newPage();
       await page.goto(BASE_URL, { waitUntil: 'networkidle' });
       for (const key of ['sdc.jsa.draft.v4', 'sdc.incident.draft.v1', 'sdc.discipline.draft.v1', 'sdc.uncontrolled.draft.v1', 'sdc.medical.draft.v1']) {
@@ -173,12 +191,56 @@ async function main() {
       await context.close();
     }
 
-    // ── 3. PDF fixtures: resignation / discharge / no-call-no-show ──
-    console.log('\n=== 3. PDF fixtures (page count + no clipping) ===');
+    // ── 3. Migration: old-shape drafts load, migrate, and print without crashing ──
+    console.log('\n=== 3. Old-shape draft migration ===');
+    const migrationFixtures = [
+      { name: 'separation-resignation.json', label: 'resignation', title: 'Dale Hutto' },
+      { name: 'separation-discharge.json', label: 'discharge', title: 'Marcus Doyle' },
+      { name: 'separation-no-call-no-show.json', label: 'no-call-no-show', title: 'Regina Poe' },
+    ];
+    for (const fx of migrationFixtures) {
+      console.log(`\n--- Fixture: ${fx.label} (old shape) ---`);
+      const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+      await context.addInitScript(json => window.localStorage.setItem('sdc.separation.draft.v1', json), loadFixture(fx.name));
+      const page = await context.newPage();
+      const consoleErrors = []; const pageErrors = [];
+      page.on('console', m => { if (m.type() === 'error') consoleErrors.push(m.text()); });
+      page.on('pageerror', e => pageErrors.push(String(e)));
+
+      await page.goto(BASE_URL, { waitUntil: 'networkidle' });
+      await page.locator('.sidebarNavItem, .mobileNavItem', { hasText: 'Drafts' }).first().click();
+      const draftRow = page.locator('.listItem', { hasText: fx.title });
+      await draftRow.getByRole('button', { name: 'Open Draft' }).click();
+      await page.waitForSelector('text=Separation Details').catch(() => {});
+      await page.waitForTimeout(1200); // let the autosave debounce persist the migrated shape
+
+      const migratedRaw = await page.evaluate(key => window.localStorage.getItem(key), STORAGE_KEY);
+      const migrated = JSON.parse(migratedRaw || 'null');
+      check(Boolean(migrated) && migrated.schemaVersion === 2, `Migrated to schemaVersion 2 (got ${migrated?.schemaVersion})`);
+      check(Boolean(migrated?.effectiveSeparationDate), 'effectiveSeparationDate populated from the old separationDate field');
+      check(migrated?.separationType === '', 'New separationType field never inferred -- left blank for the user to fill in');
+      check(migrated?.employeeId === '', 'New Employee ID field never inferred -- left blank');
+
+      // Old drafts must still be able to reach Review and generate a PDF
+      // without crashing, even with the new separationType left unset.
+      await page.getByRole('button', { name: 'Next', exact: true }).click().catch(() => {});
+      await page.getByRole('button', { name: 'Go to Review' }).click().catch(() => {});
+      await page.waitForSelector('text=Readiness', { timeout: 5000 }).catch(() => {});
+      await page.getByRole('button', { name: /Create Document/ }).click().catch(() => {});
+      await page.waitForSelector('.pdfReadyPanel', { timeout: 30000 }).catch(() => {});
+      const readyPanelVisible = await page.locator('.pdfReadyPanel').isVisible().catch(() => false);
+      check(readyPanelVisible, 'Migrated old-shape draft still generates a PDF without crashing');
+
+      check(consoleErrors.length === 0, `No console errors (${consoleErrors.length} found)`);
+      check(pageErrors.length === 0, `No page errors (${pageErrors.length} found)`);
+      await context.close();
+    }
+
+    // ── 4. New-shape PDF fixtures (page count + no clipping) ──
+    console.log('\n=== 4. New-shape PDF fixtures (page count + no clipping) ===');
     const fixtures = [
-      { name: 'separation-resignation.json', label: 'resignation', title: 'Dale Hutto', expectMaxPages: 1 },
-      { name: 'separation-discharge.json', label: 'discharge', title: 'Marcus Doyle', expectMaxPages: 1 },
-      { name: 'separation-no-call-no-show.json', label: 'no-call-no-show', title: 'Regina Poe', expectMaxPages: 1 },
+      { name: 'separation-new-involuntary.json', label: 'involuntary', title: 'Marcus Doyle', expectMaxPages: 1 },
+      { name: 'separation-new-voluntary.json', label: 'voluntary', title: 'Dale Hutto', expectMaxPages: 1 },
     ];
     const summary = [];
     for (const fx of fixtures) {
@@ -196,6 +258,7 @@ async function main() {
       await draftRow.getByRole('button', { name: 'Open Draft' }).click();
       await page.waitForSelector('text=Separation Details').catch(() => {});
 
+      await page.getByRole('button', { name: 'Next', exact: true }).click().catch(() => {});
       await page.getByRole('button', { name: 'Go to Review' }).click().catch(() => {});
       await page.waitForSelector('text=Readiness', { timeout: 5000 }).catch(() => {});
       await page.getByRole('button', { name: /Create Document/ }).click();
@@ -217,11 +280,12 @@ async function main() {
       // appear — this is a separation-only document.
       const pageText = await page.evaluate(() => document.querySelector('.docPdfExportRoot[data-doc-id="separation"] .docPdfPage')?.textContent || '');
       check(!/pay rate|tax withholding|address change|phone change/i.test(pageText), 'No Employee Data Change content leaked into the printed form');
+      check(pageText.includes('Company Closeout'), 'Company Closeout section prints');
+      check(pageText.includes('Approvals'), 'Three-signature Approvals section prints');
 
-      // Discharge-only section must only print for the discharge fixture.
-      const hasDischargeSection = pageText.includes('Discharge');
-      const expectDischarge = fx.label === 'discharge';
-      check(hasDischargeSection === expectDischarge, `Discharge warning-history section only prints for the discharge fixture (present: ${hasDischargeSection}, expected: ${expectDischarge})`);
+      // Warning-notices row is only meaningful for the involuntary fixture.
+      const hasWarningRow = pageText.includes('Warning Notices Given?');
+      check(hasWarningRow === (fx.label === 'involuntary'), `Warning Notices row only prints for the involuntary fixture (present: ${hasWarningRow})`);
 
       check(consoleErrors.length === 0, `No console errors (${consoleErrors.length} found)`);
       check(pageErrors.length === 0, `No page errors (${pageErrors.length} found)`);
@@ -229,12 +293,12 @@ async function main() {
       await page.addStyleTag({ content: '.docPdfExportRoot[data-doc-id="separation"] { position: static !important; left: 0 !important; top: 0 !important; }' });
       await page.locator('.docPdfExportRoot[data-doc-id="separation"] .docPdfPage').first().screenshot({ path: path.join(outDir, `${fx.label}-page1.png`) }).catch(() => {});
 
-      summary.push({ fixture: fx.label, pageCount, hasDischargeSection, overflowReport, consoleErrors: consoleErrors.length, pageErrors: pageErrors.length });
+      summary.push({ fixture: fx.label, pageCount, overflowReport, consoleErrors: consoleErrors.length, pageErrors: pageErrors.length });
       await context.close();
     }
 
-    // ── 4. Mobile viewport (390px) ──
-    console.log('\n=== 4. Mobile viewport (390px) ===');
+    // ── 5. Mobile viewport (390px) ──
+    console.log('\n=== 5. Mobile viewport (390px) ===');
     {
       const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
       const page = await context.newPage();
@@ -256,9 +320,11 @@ async function main() {
       // Smoke-test the shared SignaturePad's native touch listener path
       // (see src/incident/SignaturePad.jsx) with real CDP touch dispatch,
       // not synthetic JS calls into the component's internals. Signature
-      // pads render on this same first step, no Next click required.
+      // pads are on the Closeout & Signatures step now.
       await page.getByRole('textbox', { name: 'Employee Name', exact: true }).fill('Touch Smoke Test');
       await page.getByRole('textbox', { name: 'Supervisor', exact: true }).fill('Casey Renn');
+      await page.getByRole('button', { name: 'Next', exact: true }).click();
+      await page.waitForSelector('text=Closeout & Signatures');
       await page.locator('.signaturePad', { hasText: 'Supervisor Signature' }).getByRole('button', { name: 'Add signature' }).click();
       const canvas = page.locator('canvas.signatureCanvas').first();
       await canvas.scrollIntoViewIfNeeded();
@@ -285,8 +351,8 @@ async function main() {
       await context.close();
     }
 
-    // ── 5. Finish Document confirmation and editing lock ──
-    console.log('\n=== 5. Finish Document confirmation and editing lock ===');
+    // ── 6. Finish Document confirmation and editing lock ──
+    console.log('\n=== 6. Finish Document confirmation and editing lock ===');
     {
       const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
       const page = await context.newPage();
@@ -297,8 +363,10 @@ async function main() {
       await page.getByRole('textbox', { name: 'Employee Name', exact: true }).fill('Finish Lock Test');
       await page.getByRole('textbox', { name: 'Supervisor', exact: true }).fill('Casey Renn');
       await page.getByRole('button', { name: 'Resignation', exact: true }).click();
-      await page.getByRole('textbox', { name: 'Detailed Explanation', exact: true }).fill('Test explanation.');
-      await page.getByRole('button', { name: 'No', exact: true }).click(); // "Would you re-hire?" -- only Yes/No pair present for a non-Discharge reason
+      await page.getByRole('textbox', { name: 'Explanation / Supporting Details', exact: true }).fill('Test explanation.');
+      await page.getByRole('button', { name: 'Next', exact: true }).click();
+      await page.waitForSelector('text=Closeout & Signatures');
+      await page.locator('.field', { hasText: 'Eligible for rehire?' }).getByRole('button', { name: 'Yes', exact: true }).click();
       await page.locator('.signaturePad', { hasText: 'Supervisor Signature' }).getByRole('button', { name: 'Add signature' }).click();
       const canvas = page.locator('canvas.signatureCanvas').first();
       await canvas.scrollIntoViewIfNeeded();
@@ -338,7 +406,7 @@ async function main() {
     server.kill();
   }
 
-  console.log(`\n[5/5] Done. ${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);
+  console.log(`\n[7/7] Done. ${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);
   if (failures > 0) {
     console.log('--- preview server output (tail) ---');
     console.log(serverOutput.slice(-2000));

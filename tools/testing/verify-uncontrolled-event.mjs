@@ -143,12 +143,12 @@ async function main() {
       await page.waitForSelector('.pdfReadyPanel', { timeout: 30000 });
       const headline = await page.locator('.pdfReadyHeadline').innerText();
       console.log(`  PDF ready: ${headline}`);
-      // This form has more structured sections than Disciplinary (info +
-      // classification + outcome + narrative + notifications + two full
-      // signature blocks) — 1-2 clean pages for a typical report is the
-      // realistic expectation, not a forced single page (see Section 3's
-      // fixture tests for the same reasoning).
-      check(/^[12] pages?$/.test(headline.trim()), `Normal-length content fits within 2 pages (got "${headline.trim()}")`);
+      // The two-column layout (Event Classification | Outcome/Impact,
+      // Immediate Actions | Notifications/Attachments — see the source-
+      // fidelity PDF rebuild) halves the vertical space a typical report
+      // needs, so normal-length content now fits on 1 page (see Section 3's
+      // fixture tests for the same expectation).
+      check(/^1 page$/.test(headline.trim()), `Normal-length content fits on 1 page (got "${headline.trim()}")`);
 
       const downloadPromise = page.waitForEvent('download');
       await page.locator('button', { hasText: 'Download Document' }).click();
@@ -188,12 +188,11 @@ async function main() {
     // ── 3. PDF fixtures: near miss / spill / long timeline ──
     console.log('\n=== 3. PDF fixtures (page count + no clipping) ===');
     const fixtures = [
-      // This form has more structured sections than Disciplinary (info +
-      // classification + outcome + narrative + notifications + two full
-      // signature blocks) — 1-2 clean pages for a typical report is the
-      // realistic expectation, not a forced single page.
-      { name: 'uncontrolled-near-miss.json', label: 'near-miss', expectMaxPages: 2 },
-      { name: 'uncontrolled-spill.json', label: 'spill', expectMaxPages: 2 },
+      { name: 'uncontrolled-near-miss.json', label: 'near-miss', expectMaxPages: 1 },
+      { name: 'uncontrolled-spill.json', label: 'spill', expectMaxPages: 1 },
+      // Deliberately pathological (no real report would have a timeline
+      // this long) — the important thing is safe, uncapped-but-unclipped
+      // pagination, not hitting a specific page count.
       { name: 'uncontrolled-long-timeline.json', label: 'long-timeline', expectMaxPages: 8 },
     ];
     const summary = [];

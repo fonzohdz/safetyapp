@@ -1,85 +1,173 @@
 import {
-  SEPARATION_STEPS, separationStepStatus, SEPARATION_REASONS,
+  SEPARATION_STEPS, separationStepStatus, SEPARATION_TYPES, SEPARATION_REASON_GROUPS,
+  REHIRE_STATUSES, PROPERTY_RETURNED_OPTIONS, ACCESS_REMOVED_OPTIONS,
   getSeparationReadinessChecks, isSeparationReady, isSeparationPrintFinal,
 } from './separationModel';
 import {
-  Field, TextAreaField, SegmentedToggle, StepPanel, StepFooter,
+  Field, TextAreaField, SegmentedToggle, ChipGroup, StepPanel, StepFooter,
   BuilderHeader, ReviewExportPanel, SignaturePad,
 } from '../FormPrimitives';
-import { LockedContext } from '../lockedContext';
+import { LockedContext, useLocked } from '../lockedContext';
 
-/* ── Step: Separation Details ──
-   Single content step (plus Review) — this is a short, separation-only
-   form (see separationModel.js's own comment on scope), not a multi-part
-   wizard like the longer documents in this mission. */
-function StepDetails({ model, upd, next }) {
-  const isDischarge = model.separationReason === 'Discharge';
+function toggleInList(list, item) {
+  return (list || []).includes(item) ? list.filter(x => x !== item) : [...(list || []), item];
+}
+
+/* Simple single boolean toggle button -- same pattern as Medical Event's
+   "Provider Note Attached" -- for the two plain checkbox-style closeout
+   items the source form has no other options for (Final timesheet
+   submitted / Expenses resolved). */
+function BooleanToggle({ label, value, onChange, onLabel = 'Yes', offLabel = 'No' }) {
+  const locked = useLocked();
   return (
-    <StepPanel title="Separation Details" intro="Employee information, the reason for separation, and a brief explanation.">
+    <label className="field">
+      <span>{label}</span>
+      <div className="yesNoToggle">
+        <button
+          type="button"
+          aria-pressed={value}
+          aria-disabled={locked}
+          className={`btn${value ? ' active yes' : ''}`}
+          onClick={() => { if (!locked) onChange(!value); }}
+        >
+          {value ? onLabel : offLabel}
+        </button>
+      </div>
+    </label>
+  );
+}
+
+/* ── Step: Separation Details — employee info, type, reason, explanation ── */
+function StepDetails({ model, upd, next }) {
+  return (
+    <StepPanel title="Separation Details" intro="Employee information, the type and reason for separation, and a brief explanation.">
       <div className="formSection">
         <span className="formSectionHeading">Employee Information</span>
         <div className="formGrid">
-          <Field label="Employee Name" value={model.employeeName} onChange={v => upd({ employeeName: v })} />
+          <div className="formPairRow">
+            <Field label="Employee Name" value={model.employeeName} onChange={v => upd({ employeeName: v })} />
+            <Field label="Employee ID" value={model.employeeId} onChange={v => upd({ employeeId: v })} />
+          </div>
+          <div className="formPairRow">
+            <Field label="Position" value={model.position} onChange={v => upd({ position: v })} />
+            <Field label="Project / Location" value={model.projectLocation} onChange={v => upd({ projectLocation: v })} />
+          </div>
           <div className="formPairRow">
             <Field label="Supervisor" value={model.supervisor} onChange={v => upd({ supervisor: v })} />
-            <Field label="Position" value={model.position} onChange={v => upd({ position: v })} />
+            <Field label="Last Day Worked" type="date" value={model.lastDayWorked} onChange={v => upd({ lastDayWorked: v })} />
           </div>
-          <Field label="Separation Date" type="date" value={model.separationDate} onChange={v => upd({ separationDate: v })} />
+          <div className="formPairRow">
+            <Field label="Effective Separation Date" type="date" value={model.effectiveSeparationDate} onChange={v => upd({ effectiveSeparationDate: v })} />
+            <Field label="Date Submitted" type="date" value={model.dateSubmitted} onChange={v => upd({ dateSubmitted: v })} />
+          </div>
         </div>
       </div>
 
       <div className="formSection">
-        <span className="formSectionHeading">Reason for Separation</span>
+        <span className="formSectionHeading">Separation Details</span>
         <SegmentedToggle
-          label="Reason"
+          label="Separation Type"
+          value={model.separationType}
+          onChange={v => upd({ separationType: v })}
+          options={SEPARATION_TYPES}
+        />
+        {SEPARATION_REASON_GROUPS.map((group, i) => (
+          <SegmentedToggle
+            key={i}
+            label={i === 0 ? 'Reason' : undefined}
+            value={model.separationReason}
+            onChange={v => upd({ separationReason: v })}
+            options={group.map(r => ({ value: r, label: r }))}
+          />
+        ))}
+        <SegmentedToggle
           value={model.separationReason}
           onChange={v => upd({ separationReason: v })}
-          options={SEPARATION_REASONS.map(r => ({ value: r, label: r }))}
+          options={[{ value: 'Other', label: 'Other' }]}
         />
         {model.separationReason === 'Other' && (
           <Field label="Other reason — specify" value={model.separationReasonOther} onChange={v => upd({ separationReasonOther: v })} />
         )}
-        <TextAreaField label="Detailed Explanation" rows={5} value={model.detailedExplanation} onChange={v => upd({ detailedExplanation: v })} />
+        <TextAreaField label="Explanation / Supporting Details" rows={5} value={model.detailedExplanation} onChange={v => upd({ detailedExplanation: v })} />
       </div>
 
-      {isDischarge && (
-        <div className="formSection">
-          <span className="formSectionHeading">Discharge — Warning History</span>
-          <SegmentedToggle
-            label="Were warning notices given?"
-            value={model.warningNoticesGiven}
-            onChange={v => upd({ warningNoticesGiven: v })}
-            options={[{ value: 'yes', label: 'Yes', tone: 'yes' }, { value: 'no', label: 'No', tone: 'no' }]}
-          />
-          {model.warningNoticesGiven === 'yes' && (
-            <Field label="How many warning notices?" value={model.warningNoticesCount} onChange={v => upd({ warningNoticesCount: v })} />
-          )}
-        </div>
-      )}
+      <StepFooter hasNext onNext={next} />
+    </StepPanel>
+  );
+}
 
+/* ── Step: Closeout & Signatures — discipline/rehire, company closeout, signatures ── */
+function StepCloseout({ model, upd, prev, next }) {
+  const isInvoluntary = model.separationType === 'involuntary';
+  return (
+    <StepPanel title="Closeout & Signatures" intro="Discipline and rehire status, company closeout, and approvals.">
       <div className="formSection">
-        <span className="formSectionHeading">Re-hire Eligibility</span>
+        <span className="formSectionHeading">Discipline / Rehire Status</span>
+        {isInvoluntary && (
+          <>
+            <SegmentedToggle
+              label="If involuntary, were warning notices given?"
+              value={model.warningNoticesGiven}
+              onChange={v => upd({ warningNoticesGiven: v })}
+              options={[{ value: 'yes', label: 'Yes', tone: 'yes' }, { value: 'no', label: 'No', tone: 'no' }, { value: 'na', label: 'N/A' }]}
+            />
+            {model.warningNoticesGiven === 'yes' && (
+              <Field label="How many warning notices?" value={model.warningNoticesCount} onChange={v => upd({ warningNoticesCount: v })} />
+            )}
+          </>
+        )}
         <SegmentedToggle
-          label="Would you re-hire this employee?"
-          value={model.wouldRehire}
-          onChange={v => upd({ wouldRehire: v })}
+          label="Documentation attached?"
+          value={model.documentationAttached}
+          onChange={v => upd({ documentationAttached: v })}
           options={[{ value: 'yes', label: 'Yes', tone: 'yes' }, { value: 'no', label: 'No', tone: 'no' }]}
         />
+        <SegmentedToggle
+          label="Eligible for rehire?"
+          value={model.eligibleForRehire}
+          onChange={v => upd({ eligibleForRehire: v })}
+          options={REHIRE_STATUSES}
+        />
+        {model.eligibleForRehire === 'no' && (
+          <Field label="Reason not eligible for rehire" value={model.rehireReasonIfNo} onChange={v => upd({ rehireReasonIfNo: v })} />
+        )}
       </div>
 
       <div className="formSection">
-        <span className="formSectionHeading">Signatures</span>
+        <span className="formSectionHeading">Company Closeout</span>
+        <ChipGroup label="Property returned (check all that apply)" options={PROPERTY_RETURNED_OPTIONS} selected={model.propertyReturned} onToggle={opt => upd({ propertyReturned: toggleInList(model.propertyReturned, opt) })} />
+        {(model.propertyReturned || []).includes('Other') && (
+          <Field label="Other property — specify" value={model.propertyReturnedOther} onChange={v => upd({ propertyReturnedOther: v })} />
+        )}
+        <ChipGroup label="Access removed (check all that apply)" options={ACCESS_REMOVED_OPTIONS} selected={model.accessRemoved} onToggle={opt => upd({ accessRemoved: toggleInList(model.accessRemoved, opt) })} />
+        {(model.accessRemoved || []).includes('Other') && (
+          <Field label="Other access — specify" value={model.accessRemovedOther} onChange={v => upd({ accessRemovedOther: v })} />
+        )}
+        <BooleanToggle label="Final timesheet submitted" value={model.finalTimesheetSubmitted} onChange={v => upd({ finalTimesheetSubmitted: v })} />
+        <BooleanToggle label="Expenses / receipts resolved" value={model.expensesResolved} onChange={v => upd({ expensesResolved: v })} />
+        <TextAreaField label="Outstanding property / notes" rows={3} value={model.outstandingPropertyNotes} onChange={v => upd({ outstandingPropertyNotes: v })} />
+      </div>
+
+      <div className="formSection">
+        <span className="formSectionHeading">Acknowledgement / Approvals</span>
+        <p className="helperText">Employee signature acknowledges receipt and does not necessarily indicate agreement.</p>
+        <BooleanToggle label="Employee refused / unavailable to sign" value={model.employeeRefusedToSign} onChange={v => upd({ employeeRefusedToSign: v })} />
+        <div className="formPairRow">
+          <SignaturePad label="Employee Signature" value={model.employeeSignatureData} disabled={model.employeeRefusedToSign} onChange={data => upd({ employeeSignatureData: data, employeeSignatureDate: data ? new Date().toISOString().slice(0, 10) : model.employeeSignatureDate })} />
+          <Field label="Employee Signature Date" type="date" value={model.employeeSignatureDate} onChange={v => upd({ employeeSignatureDate: v })} disabled={model.employeeRefusedToSign} />
+        </div>
         <div className="formPairRow">
           <SignaturePad label="Supervisor Signature" value={model.supervisorSignatureData} onChange={data => upd({ supervisorSignatureData: data, supervisorSignatureDate: data ? new Date().toISOString().slice(0, 10) : model.supervisorSignatureDate })} />
           <Field label="Supervisor Signature Date" type="date" value={model.supervisorSignatureDate} onChange={v => upd({ supervisorSignatureDate: v })} />
         </div>
+        <Field label="HR / Management Name" value={model.hrName} onChange={v => upd({ hrName: v })} />
         <div className="formPairRow">
-          <SignaturePad label="Employee Signature" value={model.employeeSignatureData} onChange={data => upd({ employeeSignatureData: data, employeeSignatureDate: data ? new Date().toISOString().slice(0, 10) : model.employeeSignatureDate })} />
-          <Field label="Employee Signature Date" type="date" value={model.employeeSignatureDate} onChange={v => upd({ employeeSignatureDate: v })} />
+          <SignaturePad label="HR / Management Signature" value={model.hrSignatureData} onChange={data => upd({ hrSignatureData: data, hrSignatureDate: data ? new Date().toISOString().slice(0, 10) : model.hrSignatureDate })} />
+          <Field label="HR / Management Signature Date" type="date" value={model.hrSignatureDate} onChange={v => upd({ hrSignatureDate: v })} />
         </div>
       </div>
 
-      <StepFooter hasNext onNext={next} nextLabel="Go to Review" />
+      <StepFooter hasBack hasNext onBack={prev} onNext={next} nextLabel="Go to Review" />
     </StepPanel>
   );
 }
@@ -119,6 +207,7 @@ export default function SeparationWorkflow({
         <div className="workflowShell stacked">
           <div className="workflowLeft">
             {step === 'details' && <StepDetails model={model} upd={upd} next={next} />}
+            {step === 'closeout' && <StepCloseout model={model} upd={upd} prev={prev} next={next} />}
             {step === 'review' && (
               <ReviewExportPanel
                 title="Review & Export"

@@ -1,6 +1,7 @@
 import {
   MEDICAL_EVENT_STEPS, medicalEventStepStatus,
   SYMPTOM_ONSET_OPTIONS, RESPONSE_ACTIONS, MEDICAL_EVALUATION_TYPES, WORK_STATUS_OPTIONS, INITIAL_CLASSIFICATIONS,
+  MEDICAL_ATTACHMENT_OPTIONS,
   getMedicalEventReadinessChecks, isMedicalEventReady, isMedicalEventPrintFinal,
 } from './medicalEventModel';
 import {
@@ -98,6 +99,14 @@ function StepEvaluation({ model, upd, prev, next }) {
             </button>
           </div>
         </label>
+      </div>
+
+      <div className="formSection">
+        <span className="formSectionHeading">Attachments</span>
+        <ChipGroup label="Attached to this report (check all that apply)" options={MEDICAL_ATTACHMENT_OPTIONS} selected={model.attachments} onToggle={opt => upd({ attachments: toggleInList(model.attachments, opt) })} />
+        {(model.attachments || []).includes('Other') && (
+          <Field label="Other attachment — specify" value={model.attachmentOther} onChange={v => upd({ attachmentOther: v })} />
+        )}
       </div>
 
       <div className="formSection">

@@ -61,6 +61,8 @@ export const INITIAL_CLASSIFICATIONS = [
   { value: 'pendingReview', label: 'Pending Review' },
 ];
 
+export const MEDICAL_ATTACHMENT_OPTIONS = ['Photos', 'Video', 'Other'];
+
 export function emptyMedicalEvent() {
   const now = new Date().toISOString();
   return {
@@ -97,6 +99,10 @@ export function emptyMedicalEvent() {
     workStatus: '', // '' | 'fullDuty' | 'restrictedDuty' | 'offWork' | 'pending'
     offWorkUntilDate: '',
     providerNoteAttached: false,
+
+    // Attachments
+    attachments: [],
+    attachmentOther: '',
 
     // Initial Classification (never auto-set by the app)
     initialClassification: '', // '' | 'nonOccupational' | 'workRelated' | 'pendingReview'

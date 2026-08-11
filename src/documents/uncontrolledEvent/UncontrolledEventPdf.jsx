@@ -27,43 +27,62 @@ function InfoBlock({ model }) {
   );
 }
 
-function ClassificationBlock({ model }) {
+/* Event Classification and Outcome/Impact side by side — genuinely
+   independent field groups that don't need each other's full page width,
+   and reading them as a pair (what kind of event / what it caused) matches
+   how a superintendent scans the source paper form. */
+function ClassificationOutcomeRow({ model }) {
   return (
-    <>
-      <GrayBar>Event Classification</GrayBar>
-      <CheckboxGrid options={EVENT_CLASSIFICATIONS} checked={model.eventClassifications} />
-      {(model.eventClassifications || []).includes('Other') && model.eventClassificationOther && (
-        <TextBlock title="Other Classification" text={model.eventClassificationOther} minHeightPx={24} />
-      )}
-    </>
+    <div className="docPdfTwoCol">
+      <div>
+        <GrayBar>Event Classification</GrayBar>
+        <CheckboxGrid options={EVENT_CLASSIFICATIONS} checked={model.eventClassifications} oneColumn />
+        {(model.eventClassifications || []).includes('Other') && model.eventClassificationOther && (
+          <TextBlock title="Other Classification" text={model.eventClassificationOther} minHeightPx={20} />
+        )}
+      </div>
+      <div>
+        <GrayBar>Outcome / Impact</GrayBar>
+        <CheckboxGrid options={EVENT_OUTCOMES} checked={model.eventOutcomes} oneColumn />
+        {(model.eventOutcomes || []).includes('Other') && model.eventOutcomeOther && (
+          <TextBlock title="Other Outcome" text={model.eventOutcomeOther} minHeightPx={20} />
+        )}
+        {model.estimatedCost && <TextBlock title="Estimated Cost" text={model.estimatedCost} minHeightPx={20} />}
+      </div>
+    </div>
   );
 }
 
-function OutcomeBlock({ model }) {
+/* Immediate Actions Taken and Notifications/Attachments side by side.
+   immediateActionsTaken is still chunked via buildTextBlocks (see the
+   blocks list below) but with a smaller maxChars than a full-width field
+   would use — at half page width the same text wraps to roughly double
+   the line count, so the chunk threshold that keeps a full-width block
+   safely under one page's capacity would let a half-width block overflow
+   and silently clip. Only the first (paired) chunk renders in this
+   two-column row; any further chunks fall back to a full-width
+   "(continued)" block below it. */
+function ActionsNotificationsRow({ model }) {
   return (
-    <>
-      <GrayBar>Outcome / Impact</GrayBar>
-      <CheckboxGrid options={EVENT_OUTCOMES} checked={model.eventOutcomes} />
-      {(model.eventOutcomes || []).includes('Other') && model.eventOutcomeOther && (
-        <TextBlock title="Other Outcome" text={model.eventOutcomeOther} minHeightPx={24} />
-      )}
-      {model.estimatedCost && <TextBlock title="Estimated Cost" text={model.estimatedCost} minHeightPx={20} />}
-    </>
-  );
-}
-
-
-function NotificationsBlock({ model }) {
-  return (
-    <>
-      <GrayBar>Notifications / Attachments</GrayBar>
-      <CheckboxGrid options={NOTIFICATION_OPTIONS} checked={model.notifications} />
-      <CheckboxGrid options={ATTACHMENT_OPTIONS} checked={model.attachments} />
-      {(model.attachments || []).includes('Other') && model.attachmentOther && (
-        <TextBlock title="Other Attachment" text={model.attachmentOther} minHeightPx={20} />
-      )}
-      <TextBlock title="Witnesses" text={model.witnesses} minHeightPx={30} />
-    </>
+    <div className="docPdfTwoCol">
+      <div>
+        <TextBlock title="Immediate Actions Taken" text={model.immediateActionsTaken} minHeightPx={50} />
+        <TextBlock title="Witnesses" text={model.witnesses} minHeightPx={30} />
+      </div>
+      <div>
+        <GrayBar>Notifications / Attachments</GrayBar>
+        {/* Default 2-column grid (not oneColumn) even at half page width --
+            these option labels are short enough not to wrap at that column
+            width, and stacking one-per-row here was the single biggest
+            contributor to this row overflowing onto a near-empty
+            continuation page for otherwise normal-length reports. */}
+        <CheckboxGrid options={NOTIFICATION_OPTIONS} checked={model.notifications} />
+        <CheckboxGrid options={ATTACHMENT_OPTIONS} checked={model.attachments} />
+        {(model.attachments || []).includes('Other') && model.attachmentOther && (
+          <TextBlock title="Other Attachment" text={model.attachmentOther} minHeightPx={18} />
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -95,18 +114,21 @@ export function UncontrolledEventPdfExportRoot({ model, pageRefsRef }) {
 
   const blocks = useMemo(() => ([
     { id: 'info', render: () => <InfoBlock model={model} /> },
-    { id: 'classification', render: () => <ClassificationBlock model={model} /> },
-    { id: 'outcome', render: () => <OutcomeBlock model={model} /> },
+    { id: 'classificationOutcome', render: () => <ClassificationOutcomeRow model={model} /> },
     // Split so a genuinely long timeline can never itself be taller than
-    // one page — see splitTextBlocks.js. Two separate, independently
-    // page-breakable blocks instead of one combined narrative block.
+    // one page — see splitTextBlocks.js. Full width (not paired) since it's
+    // the primary narrative and can run long.
     ...buildTextBlocks('whatHappened', model.whatHappened, (chunk, isFirst) => (
       <TextBlock title={isFirst ? 'What Happened / Brief Summary / Timeline' : 'What Happened (continued)'} text={chunk} minHeightPx={isFirst ? 70 : 30} />
     )),
+    // Paired with Notifications/Attachments at half page width — a smaller
+    // maxChars than whatHappened's since the same text takes roughly twice
+    // the vertical space at half width (see ActionsNotificationsRow).
     ...buildTextBlocks('immediateActions', model.immediateActionsTaken, (chunk, isFirst) => (
-      <TextBlock title={isFirst ? 'Immediate Actions Taken' : 'Immediate Actions Taken (continued)'} text={chunk} minHeightPx={isFirst ? 50 : 30} />
-    )),
-    { id: 'notifications', render: () => <NotificationsBlock model={model} /> },
+      isFirst
+        ? <ActionsNotificationsRow model={{ ...model, immediateActionsTaken: chunk }} />
+        : <TextBlock title="Immediate Actions Taken (continued)" text={chunk} minHeightPx={24} />
+    ), 700),
     { id: 'signatures', render: () => <SignaturesBlock model={model} /> },
     // eslint-disable-next-line react-hooks/exhaustive-deps
   ]), [

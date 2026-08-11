@@ -1,7 +1,7 @@
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import {
-  DocPdfPageShell, GrayBar, InfoTable, TextBlock, CheckboxGrid, SignatureRow,
-  label, value, fmtDate,
+  DocPdfPageShell, GrayBar, InfoTable, TextBlock, CheckboxGrid, SignatureRow, NumberedBar,
+  label, value, pairRow, fmtDate,
 } from '../DocPdfShell';
 import { useBlockPagination } from '../useBlockPagination';
 import { buildTextBlocks } from '../splitTextBlocks';
@@ -18,15 +18,13 @@ function InfoBlock({ model }) {
   return (
     <>
       <InfoTable rows={[
-        [label('Employee Name', '32%'), value(model.employeeName)],
-        [label('Supervisor'), value(model.supervisor)],
-        [label('Position'), value(model.position)],
-        [label('Date'), value(fmtDate(model.noticeDate))],
+        pairRow('Employee Name', model.employeeName, 'Date', fmtDate(model.noticeDate)),
+        pairRow('Supervisor', model.supervisor, 'Position', model.position),
       ]}
       />
       <div style={{ marginTop: 6 }}>
         <GrayBar>Warning Level</GrayBar>
-        <CheckboxGrid options={WARNING_LEVELS.map(w => w.label)} checked={warningLevelLabel(model.warningLevel)} />
+        <CheckboxGrid options={WARNING_LEVELS.map(w => w.label)} checked={warningLevelLabel(model.warningLevel)} oneRow />
       </div>
     </>
   );
@@ -34,11 +32,14 @@ function InfoBlock({ model }) {
 
 /* Each numbered section becomes 1+ pagination blocks — split so a
    pathologically long single section (see splitTextBlocks.js) can never
-   itself be taller than one whole page and silently clip. */
+   itself be taller than one whole page and silently clip. Uses NumberedBar
+   (thin outlined header) rather than GrayBar's full gray fill — with 7
+   sections in a row on this document, a heavy gray block per section reads
+   much heavier than the source paper form actually is. */
 function sectionBlocks(idPrefix, number, title, text) {
   return buildTextBlocks(idPrefix, text, (chunk, isFirst) => (
     <>
-      <GrayBar>{isFirst ? `${number}. ${title}` : `${number}. ${title} (continued)`}</GrayBar>
+      <NumberedBar number={isFirst ? number : undefined}>{isFirst ? title : `${title} (continued)`}</NumberedBar>
       <TextBlock text={chunk} minHeightPx={isFirst ? 40 : 24} />
     </>
   ));

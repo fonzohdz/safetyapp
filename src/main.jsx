@@ -36,7 +36,7 @@ import MedicalEventWorkflow from './documents/medicalEvent/MedicalEventWorkflow'
 import { MedicalEventPdfExportRoot } from './documents/medicalEvent/MedicalEventPdf';
 import {
   emptySeparation, hasMeaningfulSeparationContent, isSeparationReady,
-  buildSeparationExportName,
+  buildSeparationExportName, migrateSeparationShape,
 } from './documents/separation/separationModel';
 import SeparationWorkflow from './documents/separation/SeparationWorkflow';
 import { SeparationPdfExportRoot } from './documents/separation/SeparationPdf';
@@ -1226,6 +1226,7 @@ function App() {
     storageKey: DOCUMENT_STORAGE_KEYS.separation,
     emptyModel: emptySeparation,
     hasMeaningfulContent: hasMeaningfulSeparationContent,
+    migrateShape: migrateSeparationShape,
     firstStepId: 'details',
     active: activeDoc === 'separation',
   });

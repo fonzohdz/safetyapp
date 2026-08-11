@@ -65,6 +65,39 @@
 .docPdfGrayBar + .docPdfInfoTable td { border-top: 1px solid #999; }
 .docPdfGrayBar + .docPdfTextBlockWrap .docPdfTextBlock { border-top: 1px solid #999; }
 
+/* Thin outlined numbered section header -- see NumberedBar in DocPdfShell.jsx. */
+.docPdfNumberedBar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #999;
+  border-bottom: none;
+  padding: 3px 8px;
+  font-weight: 700;
+  font-size: 9.5pt;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+  background: #fff;
+}
+.docPdfNumberedBarBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border: 1.2px solid #333;
+  border-radius: 50%;
+  font-size: 8pt;
+  font-weight: 700;
+  flex: none;
+  background: #efefef;
+}
+.docPdfBody > .docPdfNumberedBar + * { margin-top: 0; }
+.docPdfNumberedBar + .docPdfInfoTable th,
+.docPdfNumberedBar + .docPdfInfoTable td { border-top: 1px solid #999; }
+.docPdfNumberedBar + .docPdfTextBlockWrap .docPdfTextBlock { border-top: 1px solid #999; }
+.docPdfNumberedBar + .docPdfCheckboxGrid { border: 1px solid #999; border-top: none; }
+
 .docPdfInfoTable { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .docPdfInfoTable th, .docPdfInfoTable td {
   border: 1px solid #999;
@@ -102,8 +135,17 @@
   justify-content: center;
 }
 
+/* Two independent field groups side by side on one page-width row (e.g.
+   Uncontrolled Event's Event Classification | Outcome/Impact, and
+   Immediate Actions | Notifications/Attachments) — each column is its own
+   self-contained GrayBar/TextBlock/CheckboxGrid stack, same visual
+   language as a full-width block just at half width. `align-items: start`
+   so a shorter right column doesn't stretch to match a taller left one. */
+.docPdfTwoCol { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; align-items: start; }
+
 .docPdfCheckboxGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 14px; padding: 4px 2px; }
 .docPdfCheckboxGrid.oneColumn { grid-template-columns: 1fr; }
+.docPdfCheckboxGrid.oneRow { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 1fr; }
 .docPdfCheckboxRow { display: flex; align-items: center; gap: 6px; font-size: 9.5pt; line-height: 1.3; }
 .docPdfCheckbox {
   width: 10px;
@@ -124,6 +166,25 @@
 .docPdfSignatureImg { height: 0.55in; max-width: 100%; object-fit: contain; object-position: left bottom; }
 .docPdfSignatureLine { border-bottom: 1px solid #333; height: 0.55in; }
 .docPdfSignatureCaption { font-size: 8pt; border-top: 1px solid #333; padding-top: 2px; text-transform: uppercase; letter-spacing: .3px; color: #333; }
+
+/* Three (or more)-across approval block — e.g. Separation's Employee /
+   Supervisor / HR-Management row. Shorter signature height than the
+   two-column .docPdfSignatureRow since three columns share the same page
+   width. */
+.docPdfMultiSignatureRow { display: grid; gap: 10px; align-items: end; }
+.docPdfMultiSignatureRow .docPdfSignatureImg { height: 0.45in; }
+.docPdfMultiSignatureRow .docPdfSignatureLine { height: 0.45in; }
+.docPdfSignatureDateCaption { font-size: 7.6pt; color: #555; margin-top: 1px; }
+.docPdfSignatureNote {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 7.8pt;
+  font-style: italic;
+  color: #777;
+  text-align: center;
+  padding: 0 4px;
+}
 
 .docPdfWatermark {
   position: absolute;

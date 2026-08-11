@@ -144,7 +144,10 @@ async function main() {
       await page.waitForSelector('.pdfReadyPanel', { timeout: 30000 });
       const headline = await page.locator('.pdfReadyHeadline').innerText();
       console.log(`  PDF ready: ${headline}`);
-      check(/^[12] pages?$/.test(headline.trim()), `Normal-length content fits within 2 pages (got "${headline.trim()}")`);
+      // Paired employee-info cells + a tightened Medical Evaluation/Work
+      // Status/Attachments layout (see the source-fidelity PDF rebuild) keep
+      // signatures on page 1 for normal-length content.
+      check(/^1 page$/.test(headline.trim()), `Normal-length content fits on 1 page (got "${headline.trim()}")`);
 
       const downloadPromise = page.waitForEvent('download');
       await page.locator('button', { hasText: 'Download Document' }).click();
@@ -183,9 +186,9 @@ async function main() {
     // ── 3. PDF fixtures: non-occupational / work-event-reported / partial-unknown ──
     console.log('\n=== 3. PDF fixtures (page count + no clipping) ===');
     const fixtures = [
-      { name: 'medical-non-occupational.json', label: 'non-occupational', title: 'Dale Hutto', expectMaxPages: 2 },
-      { name: 'medical-work-event.json', label: 'work-event-reported', title: 'Regina Poe', expectMaxPages: 2 },
-      { name: 'medical-partial-unknown.json', label: 'partial-unknown', title: 'Marcus Doyle', expectMaxPages: 2 },
+      { name: 'medical-non-occupational.json', label: 'non-occupational', title: 'Dale Hutto', expectMaxPages: 1 },
+      { name: 'medical-work-event.json', label: 'work-event-reported', title: 'Regina Poe', expectMaxPages: 1 },
+      { name: 'medical-partial-unknown.json', label: 'partial-unknown', title: 'Marcus Doyle', expectMaxPages: 1 },
     ];
     const summary = [];
     for (const fx of fixtures) {
@@ -234,6 +237,10 @@ async function main() {
       });
       console.log(`  Printed Initial Classification: ${JSON.stringify(printedClassification)}`);
       check(Array.isArray(printedClassification) && printedClassification.length <= 1, 'Exactly the fixture-specified classification prints — never more than one auto-inferred option');
+
+      const pageText = await page.evaluate(() => document.querySelector('.docPdfExportRoot[data-doc-id="medicalEvent"] .docPdfPage')?.textContent || '');
+      check(pageText.includes('Attachments'), 'Attachments section prints');
+      check(pageText.includes('Provider Note Attached'), 'Provider Note Attached still prints (now inside Attachments, not Medical Evaluation)');
 
       check(consoleErrors.length === 0, `No console errors (${consoleErrors.length} found)`);
       check(pageErrors.length === 0, `No page errors (${pageErrors.length} found)`);

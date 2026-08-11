@@ -1,12 +1,13 @@
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import {
   DocPdfPageShell, GrayBar, InfoTable, TextBlock, CheckboxGrid, SignatureRow,
-  label, value, fmtDate,
+  label, value, pairRow, fmtDate,
 } from '../DocPdfShell';
 import { useBlockPagination } from '../useBlockPagination';
 import { buildTextBlocks } from '../splitTextBlocks';
 import {
   SYMPTOM_ONSET_OPTIONS, RESPONSE_ACTIONS, MEDICAL_EVALUATION_TYPES, WORK_STATUS_OPTIONS, INITIAL_CLASSIFICATIONS,
+  MEDICAL_ATTACHMENT_OPTIONS,
   isMedicalEventPrintFinal,
 } from './medicalEventModel';
 
@@ -21,12 +22,9 @@ function optionLabel(options, v) {
 function InfoBlock({ model }) {
   return (
     <InfoTable rows={[
-      [label('Employee Name', '34%'), value(model.employeeName)],
-      [label('Supervisor'), value(model.supervisor)],
-      [label('Position'), value(model.position)],
-      [label('Project / Location'), value(model.projectLocation)],
-      [label('Date'), value(fmtDate(model.eventDate))],
-      [label('Time Reported'), value(model.timeReported)],
+      pairRow('Employee Name', model.employeeName, 'Date', fmtDate(model.eventDate)),
+      pairRow('Supervisor', model.supervisor, 'Position', model.position),
+      pairRow('Project / Location', model.projectLocation, 'Time Reported', model.timeReported),
     ]}
     />
   );
@@ -62,26 +60,45 @@ function ResponseBlock({ model }) {
 }
 
 function EvaluationBlock({ model }) {
+  const evalLabel = optionLabel(MEDICAL_EVALUATION_TYPES, model.medicalEvaluationType) || (model.medicalEvaluationType === 'other' ? model.medicalEvaluationOther : '');
+  const workStatusLabel = model.workStatus === 'offWork' ? `Off Work Until ${fmtDate(model.offWorkUntilDate)}` : optionLabel(WORK_STATUS_OPTIONS, model.workStatus);
   return (
     <>
       <GrayBar>Medical Evaluation / Work Status</GrayBar>
       <InfoTable rows={[
-        [label('Medical Evaluation', '40%'), value(optionLabel(MEDICAL_EVALUATION_TYPES, model.medicalEvaluationType) || (model.medicalEvaluationType === 'other' ? model.medicalEvaluationOther : ''))],
-        [label('Clinic / Provider'), value(model.clinicProvider)],
-        [label('Work Status'), value(model.workStatus === 'offWork' ? `Off Work Until ${fmtDate(model.offWorkUntilDate)}` : optionLabel(WORK_STATUS_OPTIONS, model.workStatus))],
-        [label('Provider Note Attached'), value(model.providerNoteAttached ? 'Yes' : 'No')],
+        pairRow('Medical Evaluation', evalLabel, 'Clinic / Provider', model.clinicProvider),
+        [label('Work Status', '18%'), value(workStatusLabel)],
       ]}
       />
     </>
   );
 }
 
-function ClassificationBlock({ model }) {
+/* Attachments and Initial Classification side by side — two independent,
+   fairly short sections that don't each need the full page width. Pairing
+   them (rather than stacking, as an earlier pass did) was the fix for a
+   real "janky near-empty continuation page": a busier normal-length report
+   (e.g. a specific work event reported, several response actions, a full
+   evaluation) had visible blank space left on page 1 while Signatures alone
+   spilled to an almost-empty page 2 — this row's saved height keeps
+   Signatures on page 1 for that case too. */
+function AttachmentsClassificationRow({ model }) {
+  const options = (model.attachments || []).includes('Other') && model.attachmentOther
+    ? MEDICAL_ATTACHMENT_OPTIONS.map(o => (o === 'Other' ? `Other — ${model.attachmentOther}` : o))
+    : MEDICAL_ATTACHMENT_OPTIONS;
+  const checked = (model.attachments || []).map(o => (o === 'Other' && model.attachmentOther ? `Other — ${model.attachmentOther}` : o));
   return (
-    <>
-      <GrayBar>Initial Classification</GrayBar>
-      <CheckboxGrid options={INITIAL_CLASSIFICATIONS.map(c => c.label)} checked={optionLabel(INITIAL_CLASSIFICATIONS, model.initialClassification)} oneColumn />
-    </>
+    <div className="docPdfTwoCol">
+      <div>
+        <GrayBar>Attachments</GrayBar>
+        <InfoTable rows={[[label('Provider Note Attached', '55%'), value(model.providerNoteAttached ? 'Yes' : 'No')]]} />
+        <CheckboxGrid options={options} checked={checked} />
+      </div>
+      <div>
+        <GrayBar>Initial Classification</GrayBar>
+        <CheckboxGrid options={INITIAL_CLASSIFICATIONS.map(c => c.label)} checked={optionLabel(INITIAL_CLASSIFICATIONS, model.initialClassification)} oneColumn />
+      </div>
+    </div>
   );
 }
 
@@ -113,7 +130,7 @@ export function MedicalEventPdfExportRoot({ model, pageRefsRef }) {
       <TextBlock title={isFirst ? 'Safety / Supervisor Observations and Actions' : 'Safety / Supervisor Observations (continued)'} text={chunk} minHeightPx={isFirst ? 40 : 24} />
     )),
     { id: 'evaluation', render: () => <EvaluationBlock model={model} /> },
-    { id: 'classification', render: () => <ClassificationBlock model={model} /> },
+    { id: 'attachmentsClassification', render: () => <AttachmentsClassificationRow model={model} /> },
     { id: 'signatures', render: () => <SignaturesBlock model={model} /> },
     // eslint-disable-next-line react-hooks/exhaustive-deps
   ]), [
@@ -121,6 +138,7 @@ export function MedicalEventPdfExportRoot({ model, pageRefsRef }) {
     model.reportedSymptoms, model.symptomsOnset, model.specificWorkEventReported, model.workEventDescription,
     model.responseActions, model.responseActionsOther, model.safetyObservations,
     model.medicalEvaluationType, model.medicalEvaluationOther, model.clinicProvider, model.workStatus, model.offWorkUntilDate, model.providerNoteAttached,
+    model.attachments, model.attachmentOther,
     model.initialClassification,
     model.employeeSignatureData, model.employeeSignatureDate, model.supervisorSignatureData, model.supervisorSignatureDate,
   ]);

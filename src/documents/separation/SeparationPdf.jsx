@@ -1,63 +1,104 @@
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import {
-  DocPdfPageShell, GrayBar, InfoTable, TextBlock, SignatureRow,
-  label, value, fmtDate,
+  DocPdfPageShell, GrayBar, InfoTable, TextBlock, CheckboxGrid, MultiSignatureRow,
+  label, value, pairRow, fmtDate,
 } from '../DocPdfShell';
 import { useBlockPagination } from '../useBlockPagination';
 import { buildTextBlocks } from '../splitTextBlocks';
-import { isSeparationPrintFinal } from './separationModel';
+import {
+  SEPARATION_TYPES, SEPARATION_REASONS, REHIRE_STATUSES,
+  PROPERTY_RETURNED_OPTIONS, ACCESS_REMOVED_OPTIONS,
+  isSeparationPrintFinal,
+} from './separationModel';
 
 const FORM_TITLE = 'EMPLOYEE SEPARATION';
 const PAGE_BODY_CAPACITY_PX = 900;
 const PAGE_BODY_WIDTH_PX = 758;
 
+function optionLabel(options, v) {
+  return options.find(o => o.value === v)?.label || '';
+}
+
 function InfoBlock({ model }) {
-  const reason = model.separationReason === 'Other' && model.separationReasonOther
-    ? `Other — ${model.separationReasonOther}`
-    : model.separationReason;
   return (
     <InfoTable rows={[
-      [label('Employee Name', '34%'), value(model.employeeName)],
-      [label('Supervisor'), value(model.supervisor)],
-      [label('Position'), value(model.position)],
-      [label('Separation Date'), value(fmtDate(model.separationDate))],
-      [label('Reason for Separation'), value(reason)],
+      pairRow('Employee Name', model.employeeName, 'Employee ID', model.employeeId),
+      pairRow('Position', model.position, 'Project / Location', model.projectLocation),
+      pairRow('Supervisor', model.supervisor, 'Last Day Worked', fmtDate(model.lastDayWorked)),
+      pairRow('Effective Separation Date', fmtDate(model.effectiveSeparationDate), 'Date Submitted', fmtDate(model.dateSubmitted)),
     ]}
     />
   );
 }
 
-function DischargeBlock({ model }) {
-  if (model.separationReason !== 'Discharge') return null;
-  const warningText = model.warningNoticesGiven === 'yes'
-    ? `Yes — ${model.warningNoticesCount || 'count not specified'}`
-    : model.warningNoticesGiven === 'no' ? 'No' : '';
+function TypeReasonBlock({ model }) {
+  const reasonLabel = model.separationReason === 'Other' && model.separationReasonOther
+    ? `Other — ${model.separationReasonOther}`
+    : model.separationReason;
   return (
     <>
-      <GrayBar>Discharge — Warning History</GrayBar>
-      <InfoTable rows={[[label('Warning Notices Given?', '40%'), value(warningText)]]} />
+      <GrayBar>Separation Type / Reason</GrayBar>
+      <CheckboxGrid options={SEPARATION_TYPES.map(t => t.label)} checked={optionLabel(SEPARATION_TYPES, model.separationType)} oneColumn />
+      <CheckboxGrid options={SEPARATION_REASONS} checked={model.separationReason} />
+      <InfoTable rows={[[label('Reason', '18%'), value(reasonLabel)]]} />
     </>
   );
 }
 
-function RehireBlock({ model }) {
+function DisciplineRehireBlock({ model }) {
+  const isInvoluntary = model.separationType === 'involuntary';
+  const warningText = model.warningNoticesGiven === 'yes'
+    ? `Yes — ${model.warningNoticesCount || 'count not specified'}`
+    : model.warningNoticesGiven === 'no' ? 'No' : model.warningNoticesGiven === 'na' ? 'N/A' : '';
+  const rows = [];
+  if (isInvoluntary) rows.push([label('Warning Notices Given?', '38%'), value(warningText)]);
+  rows.push([label('Documentation Attached?', '38%'), value(model.documentationAttached === 'yes' ? 'Yes' : model.documentationAttached === 'no' ? 'No' : '')]);
+  rows.push([label('Eligible for Rehire?', '38%'), value(optionLabel(REHIRE_STATUSES, model.eligibleForRehire))]);
+  if (model.eligibleForRehire === 'no') rows.push([label('Reason Not Eligible', '38%'), value(model.rehireReasonIfNo)]);
   return (
     <>
-      <GrayBar>Re-hire Eligibility</GrayBar>
-      <InfoTable rows={[[label('Would You Re-hire This Employee?', '40%'), value(model.wouldRehire === 'yes' ? 'Yes' : model.wouldRehire === 'no' ? 'No' : '')]]} />
+      <GrayBar>Discipline / Rehire Status</GrayBar>
+      <InfoTable rows={rows} />
+    </>
+  );
+}
+
+function CloseoutBlock({ model }) {
+  const propertyOptions = (model.propertyReturned || []).includes('Other') && model.propertyReturnedOther
+    ? PROPERTY_RETURNED_OPTIONS.map(o => (o === 'Other' ? `Other — ${model.propertyReturnedOther}` : o))
+    : PROPERTY_RETURNED_OPTIONS;
+  const propertyChecked = (model.propertyReturned || []).map(o => (o === 'Other' && model.propertyReturnedOther ? `Other — ${model.propertyReturnedOther}` : o));
+  const accessOptions = (model.accessRemoved || []).includes('Other') && model.accessRemovedOther
+    ? ACCESS_REMOVED_OPTIONS.map(o => (o === 'Other' ? `Other — ${model.accessRemovedOther}` : o))
+    : ACCESS_REMOVED_OPTIONS;
+  const accessChecked = (model.accessRemoved || []).map(o => (o === 'Other' && model.accessRemovedOther ? `Other — ${model.accessRemovedOther}` : o));
+  return (
+    <>
+      <GrayBar>Company Closeout</GrayBar>
+      <InfoTable rows={[
+        pairRow('Final Timesheet Submitted?', model.finalTimesheetSubmitted ? 'Yes' : 'No', 'Expenses / Receipts Resolved?', model.expensesResolved ? 'Yes' : 'No', '30%'),
+      ]}
+      />
+      <CheckboxGrid options={propertyOptions} checked={propertyChecked} />
+      <CheckboxGrid options={accessOptions} checked={accessChecked} />
     </>
   );
 }
 
 function SignaturesBlock({ model }) {
+  const employeeItem = model.employeeRefusedToSign
+    ? { label: 'Employee Signature', note: 'Refused / Unavailable to Sign' }
+    : { label: 'Employee Signature', signatureData: model.employeeSignatureData, dateValue: model.employeeSignatureDate };
   return (
     <div style={{ marginTop: 6 }}>
-      <GrayBar>Signatures</GrayBar>
+      <GrayBar>Approvals</GrayBar>
       <div style={{ padding: '8px 2px' }}>
-        <SignatureRow label="Supervisor Signature" signatureData={model.supervisorSignatureData} dateValue={model.supervisorSignatureDate} />
-      </div>
-      <div style={{ padding: '8px 2px' }}>
-        <SignatureRow label="Employee Signature" signatureData={model.employeeSignatureData} dateValue={model.employeeSignatureDate} />
+        <MultiSignatureRow items={[
+          employeeItem,
+          { label: 'Supervisor Signature', signatureData: model.supervisorSignatureData, dateValue: model.supervisorSignatureDate },
+          { label: `HR / Management${model.hrName ? ` — ${model.hrName}` : ''}`, signatureData: model.hrSignatureData, dateValue: model.hrSignatureDate },
+        ]}
+        />
       </div>
     </div>
   );
@@ -69,22 +110,33 @@ export function SeparationPdfExportRoot({ model, pageRefsRef }) {
 
   const blocks = useMemo(() => ([
     { id: 'info', render: () => <InfoBlock model={model} /> },
+    { id: 'typeReason', render: () => <TypeReasonBlock model={model} /> },
     ...buildTextBlocks('explanation', model.detailedExplanation, (chunk, isFirst) => (
       <>
-        {isFirst && <GrayBar>Detailed Explanation</GrayBar>}
-        {!isFirst && <GrayBar>Detailed Explanation (continued)</GrayBar>}
-        <TextBlock text={chunk} minHeightPx={isFirst ? 60 : 30} />
+        {isFirst && <GrayBar>Explanation / Supporting Details</GrayBar>}
+        {!isFirst && <GrayBar>Explanation / Supporting Details (continued)</GrayBar>}
+        <TextBlock text={chunk} minHeightPx={isFirst ? 50 : 30} />
       </>
     )),
-    ...(model.separationReason === 'Discharge' ? [{ id: 'discharge', render: () => <DischargeBlock model={model} /> }] : []),
-    { id: 'rehire', render: () => <RehireBlock model={model} /> },
+    { id: 'discipline', render: () => <DisciplineRehireBlock model={model} /> },
+    { id: 'closeout', render: () => <CloseoutBlock model={model} /> },
+    ...buildTextBlocks('outstandingNotes', model.outstandingPropertyNotes, (chunk, isFirst) => (
+      <TextBlock title={isFirst ? 'Outstanding Property / Notes' : 'Outstanding Property / Notes (continued)'} text={chunk} minHeightPx={isFirst ? 24 : 20} />
+    )),
     { id: 'signatures', render: () => <SignaturesBlock model={model} /> },
     // eslint-disable-next-line react-hooks/exhaustive-deps
   ]), [
-    model.employeeName, model.supervisor, model.position, model.separationDate,
-    model.separationReason, model.separationReasonOther, model.detailedExplanation,
-    model.warningNoticesGiven, model.warningNoticesCount, model.wouldRehire,
-    model.supervisorSignatureData, model.supervisorSignatureDate, model.employeeSignatureData, model.employeeSignatureDate,
+    model.employeeName, model.employeeId, model.position, model.projectLocation, model.supervisor,
+    model.lastDayWorked, model.effectiveSeparationDate, model.dateSubmitted,
+    model.separationType, model.separationReason, model.separationReasonOther, model.detailedExplanation,
+    model.warningNoticesGiven, model.warningNoticesCount, model.documentationAttached,
+    model.eligibleForRehire, model.rehireReasonIfNo,
+    model.propertyReturned, model.propertyReturnedOther, model.accessRemoved, model.accessRemovedOther,
+    model.finalTimesheetSubmitted, model.expensesResolved, model.outstandingPropertyNotes,
+    model.employeeRefusedToSign,
+    model.employeeSignatureData, model.employeeSignatureDate,
+    model.supervisorSignatureData, model.supervisorSignatureDate,
+    model.hrName, model.hrSignatureData, model.hrSignatureDate,
   ]);
 
   const { pages, renderProbe } = useBlockPagination(blocks, PAGE_BODY_CAPACITY_PX, PAGE_BODY_WIDTH_PX, [blocks]);
