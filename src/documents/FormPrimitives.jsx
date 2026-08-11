@@ -1,6 +1,7 @@
 import { useRef, useLayoutEffect, useEffect, useState } from 'react';
 import SignaturePad from '../incident/SignaturePad';
 import { useLocked } from './lockedContext';
+import SpeakButton from '../voice/SpeakButton';
 
 /* ── Shared field-section/builder primitives for the four new documents ──
    Modeled directly on the local presentational primitives IncidentWorkflow.jsx
@@ -46,7 +47,7 @@ export function SelectField({ label, value, onChange, options, placeholder = 'Se
   );
 }
 
-export function TextAreaField({ label, help, value, onChange, rows = 4, placeholder = '' }) {
+export function TextAreaField({ label, help, value, onChange, rows = 4, placeholder = '', voice = false }) {
   const locked = useLocked();
   const ref = useRef(null);
   useLayoutEffect(() => {
@@ -57,7 +58,10 @@ export function TextAreaField({ label, help, value, onChange, rows = 4, placehol
   }, [value]);
   return (
     <label className="field">
-      <span>{label}</span>
+      <div className="fieldLabelRow">
+        <span>{label}</span>
+        {voice && <SpeakButton value={value} onChange={onChange} disabled={locked} />}
+      </div>
       {help && <small>{help}</small>}
       <textarea ref={ref} rows={rows} value={value || ''} placeholder={placeholder} onChange={e => onChange(e.target.value)} className="autoGrow" disabled={locked} />
     </label>

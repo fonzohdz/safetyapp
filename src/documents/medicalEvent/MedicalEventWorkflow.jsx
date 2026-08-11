@@ -36,7 +36,7 @@ function StepCondition({ model, upd, next }) {
 
       <div className="formSection">
         <span className="formSectionHeading">Employee-Reported Condition</span>
-        <TextAreaField label="Symptoms / Concerns (as reported by the employee)" rows={4} value={model.reportedSymptoms} onChange={v => upd({ reportedSymptoms: v })} />
+        <TextAreaField label="Symptoms / Concerns (as reported by the employee)" rows={4} value={model.reportedSymptoms} onChange={v => upd({ reportedSymptoms: v })} voice />
         <SegmentedToggle label="When Symptoms First Appeared" value={model.symptomsOnset} onChange={v => upd({ symptomsOnset: v })} options={SYMPTOM_ONSET_OPTIONS} />
         <SegmentedToggle
           label="Specific Work Event or Exposure Reported?"
@@ -46,7 +46,7 @@ function StepCondition({ model, upd, next }) {
         />
         {model.specificWorkEventReported === 'yes' && (
           <>
-            <TextAreaField label="Describe the work event / exposure reported" rows={3} value={model.workEventDescription} onChange={v => upd({ workEventDescription: v })} />
+            <TextAreaField label="Describe the work event / exposure reported" rows={3} value={model.workEventDescription} onChange={v => upd({ workEventDescription: v })} voice />
             <div className="pdfStaleWarning">
               <strong>A specific work event/exposure was reported.</strong>
               <p>Complete the Incident Reporting and Investigation Form when a specific work event or exposure is reported. This Medical Event form does not replace it, and this app will not create that report automatically or assume it is required — confirm with Safety/Supervision.</p>
@@ -61,7 +61,7 @@ function StepCondition({ model, upd, next }) {
         {(model.responseActions || []).includes('Other') && (
           <Field label="Other action — specify" value={model.responseActionsOther} onChange={v => upd({ responseActionsOther: v })} />
         )}
-        <TextAreaField label="Safety / Supervisor Observations and Actions" help="What safety/supervision directly observed and did — separate from what the employee reported above." rows={4} value={model.safetyObservations} onChange={v => upd({ safetyObservations: v })} />
+        <TextAreaField label="Safety / Supervisor Observations and Actions" help="What safety/supervision directly observed and did — separate from what the employee reported above." rows={4} value={model.safetyObservations} onChange={v => upd({ safetyObservations: v })} voice />
       </div>
 
       <StepFooter hasNext onNext={next} />

@@ -9,6 +9,7 @@ import BodyDiagram from './BodyDiagram';
 import IncidentPhotos from './IncidentPhotos';
 import { LockedContext, useLocked } from '../documents/lockedContext';
 import { ConfirmDialog } from '../documents/FormPrimitives';
+import SpeakButton from '../voice/SpeakButton';
 
 /* ── Small local presentational primitives ──
    Deliberately not imported from main.jsx (which exports nothing) -- kept
@@ -26,7 +27,7 @@ function Field({ label, value, onChange, type = 'text', placeholder = '' }) {
   );
 }
 
-function TextAreaField({ label, help, value, onChange, rows = 4, placeholder = '' }) {
+function TextAreaField({ label, help, value, onChange, rows = 4, placeholder = '', voice = false }) {
   const locked = useLocked();
   const ref = useRef(null);
   useLayoutEffect(() => {
@@ -37,7 +38,10 @@ function TextAreaField({ label, help, value, onChange, rows = 4, placeholder = '
   }, [value]);
   return (
     <label className="field">
-      <span>{label}</span>
+      <div className="fieldLabelRow">
+        <span>{label}</span>
+        {voice && <SpeakButton value={value} onChange={onChange} disabled={locked} />}
+      </div>
       {help && <small>{help}</small>}
       <textarea ref={ref} rows={rows} value={value || ''} placeholder={placeholder} onChange={e => onChange(e.target.value)} className="autoGrow" disabled={locked} />
     </label>
@@ -141,7 +145,7 @@ function StepDetails({ incident, upd, next }) {
         </div>
       </div>
       <Field label={c.incidentSpecificLocation} value={incident.incidentSpecificLocation} onChange={v => upd({ incidentSpecificLocation: v })} />
-      <TextAreaField label={c.detailedIncidentDescription} rows={6} value={incident.detailedIncidentDescription} onChange={v => upd({ detailedIncidentDescription: v })} />
+      <TextAreaField label={c.detailedIncidentDescription} rows={6} value={incident.detailedIncidentDescription} onChange={v => upd({ detailedIncidentDescription: v })} voice />
       <StepFooter hasNext onNext={next} />
     </StepPanel>
   );
@@ -209,7 +213,7 @@ function StepInjury({ incident, upd, prev, next }) {
             </div>
           </div>
           <Field label={c.treatingPhysicianOrClinic} value={incident.treatingPhysicianOrClinic} onChange={v => upd({ treatingPhysicianOrClinic: v })} />
-          <TextAreaField label={c.injuryRemarks} rows={3} value={incident.injuryRemarks} onChange={v => upd({ injuryRemarks: v })} />
+          <TextAreaField label={c.injuryRemarks} rows={3} value={incident.injuryRemarks} onChange={v => upd({ injuryRemarks: v })} voice />
 
           <div className="field">
             <span>{c.bodyDiagramTitle}</span>
@@ -260,7 +264,7 @@ function StepWitnesses({ incident, upd, prev, next }) {
               <Field label={c.email} type="email" value={w.email} onChange={v => updWitness(w.id, { email: v })} />
             </div>
           </div>
-          <TextAreaField label={c.statement} rows={3} value={w.statement} onChange={v => updWitness(w.id, { statement: v })} />
+          <TextAreaField label={c.statement} rows={3} value={w.statement} onChange={v => updWitness(w.id, { statement: v })} voice />
           <div className="formPairRow">
             <SignaturePad label={c.signature} value={w.signatureData} onChange={data => updWitness(w.id, { signatureData: data, signatureDate: data ? new Date().toISOString().slice(0, 10) : w.signatureDate })} />
             <Field label={c.signatureDate} type="date" value={w.signatureDate} onChange={v => updWitness(w.id, { signatureDate: v })} />
@@ -365,9 +369,9 @@ function StepNotes({ incident, upd, prev, next }) {
   }
   return (
     <StepPanel title={c.title}>
-      <TextAreaField label={c.immediateActionsTitle} help={c.immediateActionsPrompt} rows={5} value={incident.immediateActionsTaken} onChange={v => upd({ immediateActionsTaken: v })} />
-      <TextAreaField label={c.correctiveActionsTitle} help={c.correctiveActionsPrompt} rows={5} value={incident.correctivePreventiveActions} onChange={v => upd({ correctivePreventiveActions: v })} />
-      <TextAreaField label={c.safetyConsultantNotes} rows={4} value={incident.safetyConsultantNotes} onChange={v => upd({ safetyConsultantNotes: v })} />
+      <TextAreaField label={c.immediateActionsTitle} help={c.immediateActionsPrompt} rows={5} value={incident.immediateActionsTaken} onChange={v => upd({ immediateActionsTaken: v })} voice />
+      <TextAreaField label={c.correctiveActionsTitle} help={c.correctiveActionsPrompt} rows={5} value={incident.correctivePreventiveActions} onChange={v => upd({ correctivePreventiveActions: v })} voice />
+      <TextAreaField label={c.safetyConsultantNotes} rows={4} value={incident.safetyConsultantNotes} onChange={v => upd({ safetyConsultantNotes: v })} voice />
 
       <div className="formSection">
         <span className="formSectionHeading">{c.teamSectionTitle}</span>

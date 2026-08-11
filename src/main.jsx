@@ -5,6 +5,8 @@ import { PDFDocument } from 'pdf-lib';
 import './styles.css';
 import './incident/incident.css';
 import './documents/docPdf.css';
+import './voice/voice.css';
+import SpeakButton from './voice/SpeakButton';
 import { emptyIncident, hasMeaningfulIncidentContent, incidentStepProgress, incidentNextStepHint, isIncidentReady, isIncidentPrintFinal, migrateIncidentShape } from './incident/incidentModel';
 import { loadIncidentDraft, saveIncidentDraft, clearIncidentDraft, upsertIncidentRecord } from './incident/incidentStorage';
 import { deletePhotosForIncident } from './incident/incidentPhotoStorage';
@@ -2609,12 +2611,12 @@ function SuggestionsSheet({ title, onClose, children }) {
     </div>
   );
 }
-function FieldWithSuggestions({ label, value, onChange, onBlur, rows, placeholder, quickPanelTitle, sheetTitle, groups, onPick, onRemove, itemType, mode, fieldKey, activeSuggestion, setActiveSuggestion }) {
+function FieldWithSuggestions({ label, value, onChange, onBlur, rows, placeholder, quickPanelTitle, sheetTitle, groups, onPick, onRemove, itemType, mode, fieldKey, activeSuggestion, setActiveSuggestion, voice = false }) {
   const isTouchPrimary = useIsTouchPrimary();
   if (!isTouchPrimary) {
     return (
       <div className="fieldWithQuick">
-        <TA label={label} value={value} onChange={onChange} onBlur={onBlur} rows={rows} placeholder={placeholder} />
+        <TA label={label} value={value} onChange={onChange} onBlur={onBlur} rows={rows} placeholder={placeholder} voice={voice} />
         <QuickPanel title={quickPanelTitle} groups={groups} onPick={onPick} onRemove={onRemove} existingValue={value} itemType={itemType} mode={mode} />
       </div>
     );
@@ -2622,7 +2624,7 @@ function FieldWithSuggestions({ label, value, onChange, onBlur, rows, placeholde
   const isOpen = activeSuggestion === fieldKey;
   return (
     <div className="fieldStack">
-      <TA label={label} value={value} onChange={onChange} onBlur={onBlur} rows={rows} placeholder={placeholder} />
+      <TA label={label} value={value} onChange={onChange} onBlur={onBlur} rows={rows} placeholder={placeholder} voice={voice} />
       <button type="button" className="suggestionsTrigger" onClick={() => setActiveSuggestion(fieldKey)}>
         Suggestions
       </button>
@@ -2652,6 +2654,7 @@ function StepMeeting({ jsa, upd, prev, next }) {
             quickPanelTitle="Quick Topics" sheetTitle="Topic Suggestions" groups={TAILGATE_GROUPS} mode="single"
             onPick={item => upd({ tailgateTopic: item })} onRemove={() => upd({ tailgateTopic: '' })}
             fieldKey="topic" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
+            voice
           />
           <FieldWithSuggestions
             label="Previous Day Injury / Near Miss" value={jsa.previousDaySafety} onChange={v => upd({ previousDaySafety: v })} rows={4}
@@ -2659,6 +2662,7 @@ function StepMeeting({ jsa, upd, prev, next }) {
             quickPanelTitle="Quick Previous Day" sheetTitle="Previous Day Suggestions" groups={PREV_DAY_GROUPS} mode="single"
             onPick={item => upd({ previousDaySafety: item })} onRemove={() => upd({ previousDaySafety: '' })}
             fieldKey="previousDay" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
+            voice
           />
           <FieldWithSuggestions
             label="Overall Work Task or Activity" value={jsa.overallWorkTask} onChange={v => upd({ overallWorkTask: v })} rows={4}
@@ -2666,6 +2670,7 @@ function StepMeeting({ jsa, upd, prev, next }) {
             quickPanelTitle="Quick Overall Tasks" sheetTitle="Overall Task Suggestions" groups={OVERALL_TASK_GROUPS} mode="single"
             onPick={item => upd({ overallWorkTask: item })} onRemove={() => upd({ overallWorkTask: '' })}
             fieldKey="overallTask" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
+            voice
           />
         </div>
       </div>
@@ -2841,6 +2846,7 @@ function StepWork({ jsa, upd, addRow, updRow, removeRow, addSummaryAsRow, addRow
                 quickPanelTitle="Quick Daily Tasks" sheetTitle="Daily Task Suggestions" groups={taskGroups}
                 onPick={handleTaskPick} onRemove={handleTaskRemove}
                 fieldKey="dailyTasks" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
+                voice
               />
             </div>
           </div>
@@ -2853,6 +2859,7 @@ function StepWork({ jsa, upd, addRow, updRow, removeRow, addSummaryAsRow, addRow
                 quickPanelTitle="Quick Hazards" sheetTitle="Hazard Suggestions" groups={hazardGroups}
                 onPick={handleHazardPick} onRemove={handleHazardRemove}
                 fieldKey="hazards" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
+                voice
               />
             </div>
           </div>
@@ -2865,6 +2872,7 @@ function StepWork({ jsa, upd, addRow, updRow, removeRow, addSummaryAsRow, addRow
                 quickPanelTitle="Quick Controls" sheetTitle="Control Suggestions" groups={controlGroups}
                 onPick={handleControlPick} onRemove={handleControlRemove}
                 fieldKey="controls" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
+                voice
               />
             </div>
           </div>
@@ -2928,9 +2936,9 @@ function StepWork({ jsa, upd, addRow, updRow, removeRow, addSummaryAsRow, addRow
                     <button className="miniDanger" onClick={() => removeRow(i)}>Remove</button>
                   </div>
                   <div className="taskRowBody">
-                    <TA label="Task / Activity" value={row.step} onChange={v => updRow(i, { step: v })} rows={3} />
-                    <TA label="Task-Specific Hazards" value={row.hazards} onChange={v => updRow(i, { hazards: v })} onBlur={() => updRow(i, { hazards: dedupeList(splitLines(row.hazards)).join('\n') })} rows={3} />
-                    <TA label="Task-Specific Controls" value={row.controls} onChange={v => updRow(i, { controls: v })} onBlur={() => updRow(i, { controls: dedupeList(splitLines(row.controls)).join('\n') })} rows={3} />
+                    <TA label="Task / Activity" value={row.step} onChange={v => updRow(i, { step: v })} rows={3} voice />
+                    <TA label="Task-Specific Hazards" value={row.hazards} onChange={v => updRow(i, { hazards: v })} onBlur={() => updRow(i, { hazards: dedupeList(splitLines(row.hazards)).join('\n') })} rows={3} voice />
+                    <TA label="Task-Specific Controls" value={row.controls} onChange={v => updRow(i, { controls: v })} onBlur={() => updRow(i, { controls: dedupeList(splitLines(row.controls)).join('\n') })} rows={3} voice />
                   </div>
                 </div>
               ))}
@@ -3556,7 +3564,7 @@ function F({ label, value, onChange, type = 'text', placeholder = '' }) {
     </label>
   );
 }
-function TA({ label, value, onChange, onBlur, rows = 4, placeholder = '' }) {
+function TA({ label, value, onChange, onBlur, rows = 4, placeholder = '', voice = false }) {
   // Content-aware height: grows with typed content up to a CSS max-height,
   // then scrolls internally. Resizing style.height doesn't touch the value
   // or selection, so it never causes a cursor jump.
@@ -3569,7 +3577,10 @@ function TA({ label, value, onChange, onBlur, rows = 4, placeholder = '' }) {
   }, [value]);
   return (
     <label className="field">
-      <span>{label}</span>
+      <div className="fieldLabelRow">
+        <span>{label}</span>
+        {voice && <SpeakButton value={value} onChange={onChange} />}
+      </div>
       <textarea ref={ref} rows={rows} value={value || ''} placeholder={placeholder} onChange={e => onChange(e.target.value)} onBlur={onBlur} className="autoGrow" />
     </label>
   );

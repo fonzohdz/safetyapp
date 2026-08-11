@@ -58,8 +58,8 @@ function StepEvent({ model, upd, next }) {
 function StepNarrative({ model, upd, prev, next }) {
   return (
     <StepPanel title="Narrative & Notifications" intro="What happened, what was done right away, and who was told.">
-      <TextAreaField label="What Happened / Brief Summary / Timeline" rows={6} value={model.whatHappened} onChange={v => upd({ whatHappened: v })} />
-      <TextAreaField label="Immediate Actions Taken" rows={4} value={model.immediateActionsTaken} onChange={v => upd({ immediateActionsTaken: v })} />
+      <TextAreaField label="What Happened / Brief Summary / Timeline" rows={6} value={model.whatHappened} onChange={v => upd({ whatHappened: v })} voice />
+      <TextAreaField label="Immediate Actions Taken" rows={4} value={model.immediateActionsTaken} onChange={v => upd({ immediateActionsTaken: v })} voice />
 
       <ChipGroup label="Notifications (check all that apply)" options={NOTIFICATION_OPTIONS} selected={model.notifications} onToggle={opt => upd({ notifications: toggleInList(model.notifications, opt) })} />
       <ChipGroup label="Attachments (check all that apply)" options={ATTACHMENT_OPTIONS} selected={model.attachments} onToggle={opt => upd({ attachments: toggleInList(model.attachments, opt) })} />

@@ -1,0 +1,48 @@
+/* Speech-to-text UI — shared across main.jsx's TA, IncidentWorkflow's local
+   TextAreaField, and FormPrimitives' TextAreaField. Each of those wraps its
+   existing label row in .fieldLabelRow only where the optional `voice` prop
+   is passed; everywhere else is untouched. */
+
+.fieldLabelRow { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+
+.voiceControl { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+
+.voiceBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0;
+  cursor: pointer;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.voiceBtn:hover:not(:disabled) { color: var(--text); border-color: color-mix(in srgb, var(--focus) 45%, var(--line) 55%); }
+.voiceBtn:disabled { opacity: .45; cursor: not-allowed; }
+.voiceBtn.listening {
+  color: var(--focus);
+  border-color: var(--focus);
+  background: color-mix(in srgb, var(--focus) 12%, var(--surface-2));
+}
+.voiceBtn.listening svg { animation: voicePulse 1.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .voiceBtn.listening svg { animation: none; } }
+@keyframes voicePulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+
+.voiceStatus { font-size: 12px; color: var(--muted); }
+.voiceStatus.voiceError { color: var(--danger); }
+
+.voiceHint { font-size: 12.5px; color: var(--muted); font-weight: 500; text-transform: none; letter-spacing: 0; }
+
+/* Phone: keep the mic button comfortably tappable and let it wrap under a
+   long label rather than compressing either. */
+@media (max-width: 680px) {
+  .fieldLabelRow { flex-wrap: wrap; }
+  .voiceBtn { min-height: 36px; padding: 7px 14px; }
+}

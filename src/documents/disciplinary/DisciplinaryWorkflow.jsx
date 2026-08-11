@@ -29,19 +29,19 @@ function StepNotice({ model, upd, next }) {
       />
 
       <NumberedSection number={1} title="What Occurred">
-        <TextAreaField label="Describe what happened" rows={5} value={model.whatOccurred} onChange={v => upd({ whatOccurred: v })} />
+        <TextAreaField label="Describe what happened" rows={5} value={model.whatOccurred} onChange={v => upd({ whatOccurred: v })} voice />
       </NumberedSection>
 
       <NumberedSection number={2} title="Earlier Warnings / Discussions" help="Any earlier verbal or written warnings, or discussions, on this same issue. Leave blank if this is the first occurrence.">
-        <TextAreaField label="Prior warnings or discussions" rows={3} value={model.earlierWarnings} onChange={v => upd({ earlierWarnings: v })} />
+        <TextAreaField label="Prior warnings or discussions" rows={3} value={model.earlierWarnings} onChange={v => upd({ earlierWarnings: v })} voice />
       </NumberedSection>
 
       <NumberedSection number={3} title="Company Policy States">
-        <TextAreaField label="Relevant policy" rows={3} value={model.companyPolicyStates} onChange={v => upd({ companyPolicyStates: v })} />
+        <TextAreaField label="Relevant policy" rows={3} value={model.companyPolicyStates} onChange={v => upd({ companyPolicyStates: v })} voice />
       </NumberedSection>
 
       <NumberedSection number={4} title="Employee Statement" help="The employee's own account, in their own words.">
-        <TextAreaField label="Employee statement" rows={4} value={model.employeeStatement} onChange={v => upd({ employeeStatement: v })} />
+        <TextAreaField label="Employee statement" rows={4} value={model.employeeStatement} onChange={v => upd({ employeeStatement: v })} voice />
       </NumberedSection>
 
       <StepFooter hasNext onNext={next} />
@@ -54,15 +54,15 @@ function StepResponse({ model, upd, prev, next }) {
   return (
     <StepPanel title="Corrective Action" intro="What the employee must do, what the company will do, and the consequence if this is not corrected.">
       <NumberedSection number={5} title="Corrective Action Required of Employee">
-        <TextAreaField label="Corrective action" rows={4} value={model.correctiveActionRequired} onChange={v => upd({ correctiveActionRequired: v })} />
+        <TextAreaField label="Corrective action" rows={4} value={model.correctiveActionRequired} onChange={v => upd({ correctiveActionRequired: v })} voice />
       </NumberedSection>
 
       <NumberedSection number={6} title="The Company Will">
-        <TextAreaField label="Company action" rows={3} value={model.companyWill} onChange={v => upd({ companyWill: v })} />
+        <TextAreaField label="Company action" rows={3} value={model.companyWill} onChange={v => upd({ companyWill: v })} voice />
       </NumberedSection>
 
       <NumberedSection number={7} title="If Behavior Is Not Corrected / Performance Does Not Improve">
-        <TextAreaField label="Consequence" rows={3} value={model.ifNotCorrected} onChange={v => upd({ ifNotCorrected: v })} />
+        <TextAreaField label="Consequence" rows={3} value={model.ifNotCorrected} onChange={v => upd({ ifNotCorrected: v })} voice />
       </NumberedSection>
 
       <div className="formSection">
