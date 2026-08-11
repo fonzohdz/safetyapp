@@ -134,20 +134,20 @@ export const MEDICAL_EVENT_STEPS = [
 export function getMedicalEventReadinessChecks(model) {
   const has = v => String(v || '').trim().length > 0;
   const checks = [
-    { key: 'employeeName', label: 'Employee name', ok: has(model.employeeName) },
-    { key: 'supervisor', label: 'Supervisor', ok: has(model.supervisor) },
-    { key: 'eventDate', label: 'Date', ok: has(model.eventDate) },
-    { key: 'reportedSymptoms', label: 'Employee-reported symptoms / concerns', ok: has(model.reportedSymptoms) },
-    { key: 'symptomsOnset', label: 'When symptoms first appeared', ok: has(model.symptomsOnset) },
-    { key: 'specificWorkEventReported', label: 'Specific work event/exposure question answered', ok: has(model.specificWorkEventReported) },
-    { key: 'initialClassification', label: 'Initial classification selected', ok: has(model.initialClassification) },
-    { key: 'supervisorSignature', label: 'Supervisor / Safety signature', ok: Boolean(model.supervisorSignatureData) },
+    { key: 'employeeName', label: 'Employee name', ok: has(model.employeeName), step: 'condition' },
+    { key: 'supervisor', label: 'Supervisor', ok: has(model.supervisor), step: 'condition' },
+    { key: 'eventDate', label: 'Date', ok: has(model.eventDate), step: 'condition' },
+    { key: 'reportedSymptoms', label: 'Employee-reported symptoms / concerns', ok: has(model.reportedSymptoms), step: 'condition' },
+    { key: 'symptomsOnset', label: 'When symptoms first appeared', ok: has(model.symptomsOnset), step: 'condition' },
+    { key: 'specificWorkEventReported', label: 'Specific work event/exposure question answered', ok: has(model.specificWorkEventReported), step: 'condition' },
+    { key: 'initialClassification', label: 'Initial classification selected', ok: has(model.initialClassification), step: 'evaluation' },
+    { key: 'supervisorSignature', label: 'Supervisor / Safety signature', ok: Boolean(model.supervisorSignatureData), step: 'evaluation' },
   ];
   if (model.specificWorkEventReported === 'yes') {
-    checks.push({ key: 'workEventDescription', label: 'Work event/exposure description', ok: has(model.workEventDescription) });
+    checks.push({ key: 'workEventDescription', label: 'Work event/exposure description', ok: has(model.workEventDescription), step: 'condition' });
   }
   if (model.workStatus === 'offWork') {
-    checks.push({ key: 'offWorkUntilDate', label: '"Off Work Until" date', ok: has(model.offWorkUntilDate) });
+    checks.push({ key: 'offWorkUntilDate', label: '"Off Work Until" date', ok: has(model.offWorkUntilDate), step: 'evaluation' });
   }
   return checks;
 }

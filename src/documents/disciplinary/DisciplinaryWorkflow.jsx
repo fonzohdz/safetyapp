@@ -134,6 +134,7 @@ export default function DisciplinaryWorkflow({
                 onStartNew={onStartNew}
                 startNewLabel="Start a new disciplinary notice"
                 onBack={prev}
+                onJumpCheck={chk => setStep(chk.step)}
               />
             )}
           </div>

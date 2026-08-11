@@ -224,6 +224,7 @@ export default function SeparationWorkflow({
                 onStartNew={onStartNew}
                 startNewLabel="Start a new separation record"
                 onBack={prev}
+                onJumpCheck={chk => setStep(chk.step)}
               />
             )}
           </div>

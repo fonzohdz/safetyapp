@@ -130,19 +130,19 @@ export const UNCONTROLLED_EVENT_STEPS = [
 export function getUncontrolledEventReadinessChecks(model) {
   const has = v => String(v || '').trim().length > 0;
   const checks = [
-    { key: 'workplaceLocation', label: 'Workplace location / project', ok: has(model.workplaceLocation) },
-    { key: 'eventDate', label: 'Date of event', ok: has(model.eventDate) },
-    { key: 'eventClassifications', label: 'At least one event classification selected', ok: (model.eventClassifications || []).length > 0 },
-    { key: 'eventOutcomes', label: 'At least one outcome/impact selected', ok: (model.eventOutcomes || []).length > 0 },
-    { key: 'whatHappened', label: 'What happened / summary', ok: has(model.whatHappened) },
-    { key: 'reportedByName', label: 'Reported by name', ok: has(model.reportedByName) },
-    { key: 'reportedBySignature', label: 'Reported by signature', ok: Boolean(model.reportedBySignatureData) },
+    { key: 'workplaceLocation', label: 'Workplace location / project', ok: has(model.workplaceLocation), step: 'event' },
+    { key: 'eventDate', label: 'Date of event', ok: has(model.eventDate), step: 'event' },
+    { key: 'eventClassifications', label: 'At least one event classification selected', ok: (model.eventClassifications || []).length > 0, step: 'event' },
+    { key: 'eventOutcomes', label: 'At least one outcome/impact selected', ok: (model.eventOutcomes || []).length > 0, step: 'event' },
+    { key: 'whatHappened', label: 'What happened / summary', ok: has(model.whatHappened), step: 'narrative' },
+    { key: 'reportedByName', label: 'Reported by name', ok: has(model.reportedByName), step: 'narrative' },
+    { key: 'reportedBySignature', label: 'Reported by signature', ok: Boolean(model.reportedBySignatureData), step: 'narrative' },
   ];
   if ((model.eventClassifications || []).includes('Other')) {
-    checks.push({ key: 'eventClassificationOther', label: 'Other classification (specify)', ok: has(model.eventClassificationOther) });
+    checks.push({ key: 'eventClassificationOther', label: 'Other classification (specify)', ok: has(model.eventClassificationOther), step: 'event' });
   }
   if ((model.eventOutcomes || []).includes('Other')) {
-    checks.push({ key: 'eventOutcomeOther', label: 'Other outcome (specify)', ok: has(model.eventOutcomeOther) });
+    checks.push({ key: 'eventOutcomeOther', label: 'Other outcome (specify)', ok: has(model.eventOutcomeOther), step: 'event' });
   }
   return checks;
 }

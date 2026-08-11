@@ -327,43 +327,43 @@ export function hasMeaningfulIncidentContent(incident) {
 export function getIncidentReadinessChecks(incident) {
   const has = v => String(v || '').trim().length > 0;
   const checks = [
-    { key: 'workplaceLocation', label: 'Workplace location', ok: has(incident.workplaceLocation) },
-    { key: 'incidentDate', label: 'Incident date', ok: has(incident.incidentDate) },
-    { key: 'incidentTime', label: 'Incident time', ok: has(incident.incidentTime) },
-    { key: 'writtenReportDateTime', label: 'Written report date/time', ok: has(incident.writtenReportDateTime) },
-    { key: 'reportedToSupervisorDateTime', label: 'Reported-to-supervisor date/time', ok: has(incident.reportedToSupervisorDateTime) },
-    { key: 'investigatorName', label: 'Investigator name', ok: has(incident.investigatorName) },
-    { key: 'investigatorTitle', label: 'Investigator title', ok: has(incident.investigatorTitle) },
-    { key: 'investigatorContact', label: 'Investigator phone or email', ok: has(incident.investigatorPhone) || has(incident.investigatorEmail) },
-    { key: 'incidentSpecificLocation', label: 'Exact incident location', ok: has(incident.incidentSpecificLocation) },
-    { key: 'detailedIncidentDescription', label: 'Detailed incident description', ok: has(incident.detailedIncidentDescription) },
-    { key: 'injuryOccurred', label: 'Injury Yes/No selected', ok: incident.injuryOccurred === 'yes' || incident.injuryOccurred === 'no' },
-    { key: 'propertyDamageOccurred', label: 'Property Damage Yes/No selected', ok: incident.propertyDamageOccurred === 'yes' || incident.propertyDamageOccurred === 'no' },
-    { key: 'cause', label: 'At least one cause selected', ok: (incident.selectedCauses || []).length > 0 },
-    { key: 'superintendentResponse', label: 'Immediate actions and/or corrective/preventive actions', ok: has(incident.immediateActionsTaken) || has(incident.correctivePreventiveActions) },
-    { key: 'investigationTeam', label: 'At least one investigation-team member', ok: (incident.investigationTeam || []).some(m => has(m.name)) },
+    { key: 'workplaceLocation', label: 'Workplace location', ok: has(incident.workplaceLocation), step: 'details' },
+    { key: 'incidentDate', label: 'Incident date', ok: has(incident.incidentDate), step: 'details' },
+    { key: 'incidentTime', label: 'Incident time', ok: has(incident.incidentTime), step: 'details' },
+    { key: 'writtenReportDateTime', label: 'Written report date/time', ok: has(incident.writtenReportDateTime), step: 'details' },
+    { key: 'reportedToSupervisorDateTime', label: 'Reported-to-supervisor date/time', ok: has(incident.reportedToSupervisorDateTime), step: 'details' },
+    { key: 'investigatorName', label: 'Investigator name', ok: has(incident.investigatorName), step: 'details' },
+    { key: 'investigatorTitle', label: 'Investigator title', ok: has(incident.investigatorTitle), step: 'details' },
+    { key: 'investigatorContact', label: 'Investigator phone or email', ok: has(incident.investigatorPhone) || has(incident.investigatorEmail), step: 'details' },
+    { key: 'incidentSpecificLocation', label: 'Exact incident location', ok: has(incident.incidentSpecificLocation), step: 'details' },
+    { key: 'detailedIncidentDescription', label: 'Detailed incident description', ok: has(incident.detailedIncidentDescription), step: 'details' },
+    { key: 'injuryOccurred', label: 'Injury Yes/No selected', ok: incident.injuryOccurred === 'yes' || incident.injuryOccurred === 'no', step: 'injury' },
+    { key: 'propertyDamageOccurred', label: 'Property Damage Yes/No selected', ok: incident.propertyDamageOccurred === 'yes' || incident.propertyDamageOccurred === 'no', step: 'property' },
+    { key: 'cause', label: 'At least one cause selected', ok: (incident.selectedCauses || []).length > 0, step: 'cause' },
+    { key: 'superintendentResponse', label: 'Immediate actions and/or corrective/preventive actions', ok: has(incident.immediateActionsTaken) || has(incident.correctivePreventiveActions), step: 'notes' },
+    { key: 'investigationTeam', label: 'At least one investigation-team member', ok: (incident.investigationTeam || []).some(m => has(m.name)), step: 'notes' },
   ];
 
   if (incident.injuryOccurred === 'yes') {
-    checks.push({ key: 'injuredPartyName', label: 'Injured party name', ok: has(incident.injuredPartyName) });
-    checks.push({ key: 'injuryNature', label: 'At least one nature of injury selected', ok: (incident.injuryNature || []).length > 0 });
-    checks.push({ key: 'bodyPartsAffectedText', label: 'Body part(s) affected', ok: has(incident.bodyPartsAffectedText) });
-    checks.push({ key: 'treatmentLevel', label: 'Treatment level selected', ok: incident.treatmentLevel === 'firstAid' || incident.treatmentLevel === 'beyondFirstAid' });
+    checks.push({ key: 'injuredPartyName', label: 'Injured party name', ok: has(incident.injuredPartyName), step: 'injury' });
+    checks.push({ key: 'injuryNature', label: 'At least one nature of injury selected', ok: (incident.injuryNature || []).length > 0, step: 'injury' });
+    checks.push({ key: 'bodyPartsAffectedText', label: 'Body part(s) affected', ok: has(incident.bodyPartsAffectedText), step: 'injury' });
+    checks.push({ key: 'treatmentLevel', label: 'Treatment level selected', ok: incident.treatmentLevel === 'firstAid' || incident.treatmentLevel === 'beyondFirstAid', step: 'injury' });
     if ((incident.injuryNature || []).includes('Other')) {
-      checks.push({ key: 'injuryNatureOther', label: 'Other injury description (specify)', ok: has(incident.injuryNatureOther) });
+      checks.push({ key: 'injuryNatureOther', label: 'Other injury description (specify)', ok: has(incident.injuryNatureOther), step: 'injury' });
     }
   }
 
   if (incident.propertyDamageOccurred === 'yes') {
-    checks.push({ key: 'propertyOrMaterialDamaged', label: 'Property/material damaged', ok: has(incident.propertyOrMaterialDamaged) });
-    checks.push({ key: 'natureOfDamage', label: 'Nature of damage', ok: has(incident.natureOfDamage) });
-    checks.push({ key: 'objectMachineToolOrSubstance', label: 'Object/machine/tool/substance involved', ok: has(incident.objectMachineToolOrSubstance) });
-    checks.push({ key: 'approximateDamageCost', label: 'Approximate cost of damage', ok: has(incident.approximateDamageCost) });
+    checks.push({ key: 'propertyOrMaterialDamaged', label: 'Property/material damaged', ok: has(incident.propertyOrMaterialDamaged), step: 'property' });
+    checks.push({ key: 'natureOfDamage', label: 'Nature of damage', ok: has(incident.natureOfDamage), step: 'property' });
+    checks.push({ key: 'objectMachineToolOrSubstance', label: 'Object/machine/tool/substance involved', ok: has(incident.objectMachineToolOrSubstance), step: 'property' });
+    checks.push({ key: 'approximateDamageCost', label: 'Approximate cost of damage', ok: has(incident.approximateDamageCost), step: 'property' });
   }
 
   CAUSE_CATEGORIES.forEach(cat => {
     if ((incident.selectedCauses || []).includes(causeKey(cat.id, 'Other'))) {
-      checks.push({ key: `${cat.otherField}Check`, label: `${cat.label} \u2014 Other description (specify)`, ok: has(incident[cat.otherField]) });
+      checks.push({ key: `${cat.otherField}Check`, label: `${cat.label} \u2014 Other description (specify)`, ok: has(incident[cat.otherField]), step: 'cause' });
     }
   });
 

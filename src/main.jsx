@@ -813,13 +813,16 @@ function getReviewChecks(jsa, measurements) {
   const plan = resolvePagePlan(jsa, measurements);
   const fit = calcFitFromPlan(plan);
   return [
-    { label: 'Job site, location, and supervisor', ok: hasText(jsa.jobSite) && hasText(jsa.location) && hasText(jsa.superintendentForeman) },
-    { label: 'Date and emergency information', ok: hasText(jsa.date) && hasText(jsa.emergencyPhone) && hasText(jsa.musterPoint) },
-    { label: 'Tailgate topic and overall work activity', ok: hasText(jsa.tailgateTopic) && hasText(jsa.overallWorkTask) },
-    { label: 'At least one task', ok: getContentRows(jsa).some(row => hasText(row.step)) },
-    { label: 'Hazards identified', ok: getContentRows(jsa).some(row => hasText(row.hazards)) },
-    { label: 'Controls identified', ok: getContentRows(jsa).some(row => hasText(row.controls)) },
-    { label: `Signature setup (${Math.max(1, Number(jsa.signatureLineCount) || 1)} lines)`, ok: Number(jsa.signatureLineCount) >= 1 && Number(jsa.signatureLineCount) <= 100 },
+    { label: 'Job site, location, and supervisor', ok: hasText(jsa.jobSite) && hasText(jsa.location) && hasText(jsa.superintendentForeman), step: 'job' },
+    { label: 'Date and emergency information', ok: hasText(jsa.date) && hasText(jsa.emergencyPhone) && hasText(jsa.musterPoint), step: 'job' },
+    { label: 'Tailgate topic and overall work activity', ok: hasText(jsa.tailgateTopic) && hasText(jsa.overallWorkTask), step: 'meeting' },
+    { label: 'At least one task', ok: getContentRows(jsa).some(row => hasText(row.step)), step: 'work' },
+    { label: 'Hazards identified', ok: getContentRows(jsa).some(row => hasText(row.hazards)), step: 'work' },
+    { label: 'Controls identified', ok: getContentRows(jsa).some(row => hasText(row.controls)), step: 'work' },
+    { label: `Signature setup (${Math.max(1, Number(jsa.signatureLineCount) || 1)} lines)`, ok: Number(jsa.signatureLineCount) >= 1 && Number(jsa.signatureLineCount) <= 100, step: 'signatures' },
+    // No single earlier step reliably fixes an overflowing page plan (it can
+    // require trimming any of meeting/work/signatures) -- left non-clickable
+    // rather than guessing wrong.
     { label: `Page plan (${plan.totalPages} total page${plan.totalPages === 1 ? '' : 's'})`, ok: fit.status !== 'bad' },
   ];
 }
@@ -2473,7 +2476,7 @@ function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTem
           {jsaStep === 'meeting' && <StepMeeting jsa={jsa} upd={upd} prev={prev} next={next} />}
           {jsaStep === 'work' && <StepWork jsa={jsa} upd={upd} addRow={addRow} updRow={updRow} removeRow={removeRow} addSummaryAsRow={addSummaryAsRow} addRowTemplate={addRowTemplate} customQuick={settings.customQuick || { task: [], hazard: [], control: [] }} prev={prev} next={next} />}
           {jsaStep === 'signatures' && <StepSignatures jsa={jsa} upd={upd} sigCount={sigCount} prev={prev} next={next} />}
-          {jsaStep === 'review' && <StepReview jsa={jsa} upd={upd} fit={fit} saveName={saveName} setSaveName={setSaveName} saveTemplate={saveTemplate} updateTemplate={updateTemplate} saveDraft={saveDraft} markReady={markReady} exportPdf={exportPdf} legacyBrowserPrint={legacyBrowserPrint} pdfExportState={pdfExportState} isPdfStale={isPdfStale} shareGeneratedPdfClick={shareGeneratedPdfClick} downloadGeneratedPdfClick={downloadGeneratedPdfClick} clearDraft={clearDraft} prev={prev} next={next} />}
+          {jsaStep === 'review' && <StepReview jsa={jsa} upd={upd} fit={fit} saveName={saveName} setSaveName={setSaveName} saveTemplate={saveTemplate} updateTemplate={updateTemplate} saveDraft={saveDraft} markReady={markReady} exportPdf={exportPdf} legacyBrowserPrint={legacyBrowserPrint} pdfExportState={pdfExportState} isPdfStale={isPdfStale} shareGeneratedPdfClick={shareGeneratedPdfClick} downloadGeneratedPdfClick={downloadGeneratedPdfClick} clearDraft={clearDraft} prev={prev} next={next} setJsaStep={setJsaStep} />}
 
           {!canSideBySide && jsaStep === 'review' && (
             <details className="detailedRowsDisclosure">
@@ -2979,7 +2982,7 @@ function StepSignatures({ jsa, upd, sigCount, prev, next }) {
 }
 
 /* ── Step: Review / Export ── */
-function StepReview({ jsa, upd, fit, saveName, setSaveName, saveTemplate, updateTemplate, saveDraft, markReady, exportPdf, legacyBrowserPrint, pdfExportState, isPdfStale, shareGeneratedPdfClick, downloadGeneratedPdfClick, clearDraft, prev, next }) {
+function StepReview({ jsa, upd, fit, saveName, setSaveName, saveTemplate, updateTemplate, saveDraft, markReady, exportPdf, legacyBrowserPrint, pdfExportState, isPdfStale, shareGeneratedPdfClick, downloadGeneratedPdfClick, clearDraft, prev, next, setJsaStep }) {
   const measurements = usePageMeasurements();
   const plan = useMemo(() => resolvePagePlan(jsa, measurements), [jsa, measurements]);
   const checks = useMemo(() => getReviewChecks(jsa, measurements), [jsa, measurements]);
@@ -3009,10 +3012,16 @@ function StepReview({ jsa, upd, fit, saveName, setSaveName, saveTemplate, update
             <p className="reviewFitMessage">{fit.message}</p>
             <div className="reviewChecklist">
               {checks.map(check => (
-                <div className={`reviewCheck${check.ok ? ' ok' : ' missing'}`} key={check.label}>
+                <button
+                  type="button"
+                  className={`reviewCheck${check.ok ? ' ok' : ' missing'}`}
+                  key={check.label}
+                  onClick={() => setJsaStep(check.step)}
+                  disabled={check.ok || !check.step}
+                >
                   <span>{check.ok ? '✓' : '!'}</span>
                   <p>{check.label}</p>
-                </div>
+                </button>
               ))}
             </div>
             <div className="exportPlanGrid">

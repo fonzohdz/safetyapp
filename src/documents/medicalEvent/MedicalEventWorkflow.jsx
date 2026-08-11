@@ -184,6 +184,7 @@ export default function MedicalEventWorkflow({
                 onStartNew={onStartNew}
                 startNewLabel="Start a new medical event report"
                 onBack={prev}
+                onJumpCheck={chk => setStep(chk.step)}
               />
             )}
           </div>

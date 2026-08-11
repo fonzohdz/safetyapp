@@ -403,7 +403,7 @@ function StepNotes({ incident, upd, prev, next }) {
 }
 
 /* ── Step: Review & Export ── */
-function StepReview({ incident, prev, pdfExportState, isPdfStale, onGeneratePdf, onDownload, onMarkReady, onStartNew }) {
+function StepReview({ incident, prev, pdfExportState, isPdfStale, onGeneratePdf, onDownload, onMarkReady, onStartNew, setStep }) {
   const c = t.review;
   const [confirmingFinish, setConfirmingFinish] = useState(false);
   const checks = getIncidentReadinessChecks(incident);
@@ -422,10 +422,16 @@ function StepReview({ incident, prev, pdfExportState, isPdfStale, onGeneratePdf,
         {status === 'draft' && <p className="helperText">{checklistComplete ? c.markReadyHint : c.draftExplain}</p>}
         <div className="incidentReadinessList">
           {checks.map(chk => (
-            <div key={chk.key} className={`incidentReadinessItem ${chk.ok ? 'ok' : 'pending'}`}>
+            <button
+              key={chk.key}
+              type="button"
+              className={`incidentReadinessItem ${chk.ok ? 'ok' : 'pending'}`}
+              onClick={() => setStep(chk.step)}
+              disabled={chk.ok || status !== 'draft'}
+            >
               <span className="checkIcon">{chk.ok ? '\u2713' : '\u2022'}</span>
               <span>{chk.label}</span>
-            </div>
+            </button>
           ))}
         </div>
         {status === 'draft' && (
@@ -551,6 +557,7 @@ export default function IncidentWorkflow({
                 onDownload={onDownload}
                 onMarkReady={onMarkReady}
                 onStartNew={onStartNew}
+                setStep={setStep}
               />
             )}
           </div>

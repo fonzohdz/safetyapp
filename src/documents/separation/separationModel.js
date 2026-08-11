@@ -177,25 +177,25 @@ export const SEPARATION_STEPS = [
 export function getSeparationReadinessChecks(model) {
   const has = v => String(v || '').trim().length > 0;
   const checks = [
-    { key: 'employeeName', label: 'Employee name', ok: has(model.employeeName) },
-    { key: 'supervisor', label: 'Supervisor', ok: has(model.supervisor) },
-    { key: 'effectiveSeparationDate', label: 'Effective separation date', ok: has(model.effectiveSeparationDate) },
-    { key: 'separationReason', label: 'Reason for separation selected', ok: has(model.separationReason) },
-    { key: 'detailedExplanation', label: 'Detailed explanation', ok: has(model.detailedExplanation) },
-    { key: 'eligibleForRehire', label: 'Re-hire eligibility answered', ok: has(model.eligibleForRehire) },
-    { key: 'supervisorSignature', label: 'Supervisor signature', ok: Boolean(model.supervisorSignatureData) },
+    { key: 'employeeName', label: 'Employee name', ok: has(model.employeeName), step: 'details' },
+    { key: 'supervisor', label: 'Supervisor', ok: has(model.supervisor), step: 'details' },
+    { key: 'effectiveSeparationDate', label: 'Effective separation date', ok: has(model.effectiveSeparationDate), step: 'details' },
+    { key: 'separationReason', label: 'Reason for separation selected', ok: has(model.separationReason), step: 'details' },
+    { key: 'detailedExplanation', label: 'Detailed explanation', ok: has(model.detailedExplanation), step: 'details' },
+    { key: 'eligibleForRehire', label: 'Re-hire eligibility answered', ok: has(model.eligibleForRehire), step: 'closeout' },
+    { key: 'supervisorSignature', label: 'Supervisor signature', ok: Boolean(model.supervisorSignatureData), step: 'closeout' },
   ];
   if (model.separationReason === 'Other') {
-    checks.push({ key: 'separationReasonOther', label: 'Other reason (specify)', ok: has(model.separationReasonOther) });
+    checks.push({ key: 'separationReasonOther', label: 'Other reason (specify)', ok: has(model.separationReasonOther), step: 'details' });
   }
   if (model.separationType === 'involuntary') {
-    checks.push({ key: 'warningNoticesGiven', label: 'Were warning notices given?', ok: has(model.warningNoticesGiven) });
+    checks.push({ key: 'warningNoticesGiven', label: 'Were warning notices given?', ok: has(model.warningNoticesGiven), step: 'closeout' });
     if (model.warningNoticesGiven === 'yes') {
-      checks.push({ key: 'warningNoticesCount', label: 'Number of warning notices given', ok: has(model.warningNoticesCount) });
+      checks.push({ key: 'warningNoticesCount', label: 'Number of warning notices given', ok: has(model.warningNoticesCount), step: 'closeout' });
     }
   }
   if (model.eligibleForRehire === 'no') {
-    checks.push({ key: 'rehireReasonIfNo', label: 'Reason not eligible for rehire', ok: has(model.rehireReasonIfNo) });
+    checks.push({ key: 'rehireReasonIfNo', label: 'Reason not eligible for rehire', ok: has(model.rehireReasonIfNo), step: 'closeout' });
   }
   return checks;
 }

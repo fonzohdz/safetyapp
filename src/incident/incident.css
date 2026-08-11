@@ -185,7 +185,26 @@ html[data-theme='dark'] .builderHeaderSaved.error { color: #ff8a80; }
 }
 
 .incidentReadinessList { display: grid; gap: 6px; }
-.incidentReadinessItem { display: flex; align-items: center; gap: 8px; font-size: 13.5px; }
+/* A checklist row is a <button> so pending items can jump straight to the
+   step that needs attention -- reset native button chrome so it still reads
+   as plain text, not a UI control, until the pending/hover states below. */
+.incidentReadinessItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 3px 4px;
+  border-radius: 6px;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: default;
+}
+.incidentReadinessItem.pending:not(:disabled) { cursor: pointer; }
+.incidentReadinessItem.pending:not(:disabled):hover { background: var(--surface-2); }
 .incidentReadinessItem .checkIcon { width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; flex: none; }
 .incidentReadinessItem.ok .checkIcon { background: color-mix(in srgb, #2e7d32 20%, transparent); color: #1b5e20; }
 .incidentReadinessItem.pending .checkIcon { background: var(--surface-3); color: var(--muted); }

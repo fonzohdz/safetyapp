@@ -86,14 +86,14 @@ export const DISCIPLINARY_STEPS = [
 export function getDisciplinaryReadinessChecks(model) {
   const has = v => String(v || '').trim().length > 0;
   return [
-    { key: 'employeeName', label: 'Employee name', ok: has(model.employeeName) },
-    { key: 'supervisor', label: 'Supervisor', ok: has(model.supervisor) },
-    { key: 'noticeDate', label: 'Date', ok: has(model.noticeDate) },
-    { key: 'warningLevel', label: 'Warning level selected', ok: has(model.warningLevel) },
-    { key: 'whatOccurred', label: 'Section 1 — What occurred', ok: has(model.whatOccurred) },
-    { key: 'correctiveActionRequired', label: 'Section 5 — Corrective action required', ok: has(model.correctiveActionRequired) },
-    { key: 'employeeSignature', label: 'Employee signature', ok: Boolean(model.employeeSignatureData) },
-    { key: 'managerSignature', label: 'Manager signature', ok: Boolean(model.managerSignatureData) },
+    { key: 'employeeName', label: 'Employee name', ok: has(model.employeeName), step: 'notice' },
+    { key: 'supervisor', label: 'Supervisor', ok: has(model.supervisor), step: 'notice' },
+    { key: 'noticeDate', label: 'Date', ok: has(model.noticeDate), step: 'notice' },
+    { key: 'warningLevel', label: 'Warning level selected', ok: has(model.warningLevel), step: 'notice' },
+    { key: 'whatOccurred', label: 'Section 1 — What occurred', ok: has(model.whatOccurred), step: 'notice' },
+    { key: 'correctiveActionRequired', label: 'Section 5 — Corrective action required', ok: has(model.correctiveActionRequired), step: 'response' },
+    { key: 'employeeSignature', label: 'Employee signature', ok: Boolean(model.employeeSignatureData), step: 'response' },
+    { key: 'managerSignature', label: 'Manager signature', ok: Boolean(model.managerSignatureData), step: 'response' },
   ];
 }
 

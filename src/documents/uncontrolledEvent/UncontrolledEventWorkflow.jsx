@@ -146,6 +146,7 @@ export default function UncontrolledEventWorkflow({
                 onStartNew={onStartNew}
                 startNewLabel="Start a new uncontrolled event report"
                 onBack={prev}
+                onJumpCheck={chk => setStep(chk.step)}
               />
             )}
           </div>

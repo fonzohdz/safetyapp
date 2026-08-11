@@ -239,14 +239,25 @@ export function BuilderHeader({ kicker, title, statusBadgeLabel, statusBadgeClas
   );
 }
 
-export function ReadinessChecklist({ checks }) {
+// Pending rows become buttons that jump straight to the step that needs
+// attention (onJump receives the whole check, so the caller can read
+// chk.step / chk.fieldId) -- "the user should not have to hunt" per the
+// zero-training mission. Completed rows stay non-interactive; there's
+// nothing to jump to once a check is satisfied.
+export function ReadinessChecklist({ checks, onJump }) {
   return (
     <div className="incidentReadinessList">
       {checks.map(chk => (
-        <div key={chk.key} className={`incidentReadinessItem ${chk.ok ? 'ok' : 'pending'}`}>
+        <button
+          key={chk.key}
+          type="button"
+          className={`incidentReadinessItem ${chk.ok ? 'ok' : 'pending'}`}
+          onClick={() => onJump?.(chk)}
+          disabled={chk.ok || !onJump || !chk.step}
+        >
           <span className="checkIcon">{chk.ok ? '✓' : '•'}</span>
           <span>{chk.label}</span>
-        </div>
+        </button>
       ))}
     </div>
   );
@@ -272,7 +283,7 @@ export function ReviewExportPanel({
   generatingLabel = 'Creating…', generateLabel = 'Create Document', regenerateLabel = 'Update Document',
   downloadLabel = 'Download Document',
   onStartNew, startNewLabel = 'Start a new report',
-  onBack,
+  onBack, onJumpCheck,
 }) {
   const [confirmingFinish, setConfirmingFinish] = useState(false);
   const isGenerating = pdfExportState?.phase === 'generating';
@@ -284,7 +295,7 @@ export function ReviewExportPanel({
           <strong>Readiness</strong>
         </div>
         {status === 'draft' && <p className="helperText">{checklistComplete ? markReadyHintText : draftExplainText}</p>}
-        <ReadinessChecklist checks={checks} />
+        <ReadinessChecklist checks={checks} onJump={status === 'draft' ? onJumpCheck : undefined} />
         {status === 'draft' && (
           <div className="reviewPrimaryAction">
             <button type="button" className="btn secondary" onClick={() => setConfirmingFinish(true)} disabled={!checklistComplete}>{markReadyLabel}</button>
