@@ -2614,12 +2614,12 @@ function SuggestionsSheet({ title, onClose, children }) {
     </div>
   );
 }
-function FieldWithSuggestions({ label, value, onChange, onBlur, rows, placeholder, quickPanelTitle, sheetTitle, groups, onPick, onRemove, itemType, mode, fieldKey, activeSuggestion, setActiveSuggestion, voice = false }) {
+function FieldWithSuggestions({ label, value, onChange, onBlur, rows, placeholder, quickPanelTitle, sheetTitle, groups, onPick, onRemove, itemType, mode, fieldKey, activeSuggestion, setActiveSuggestion, voice = false, voiceMode = 'narrative' }) {
   const isTouchPrimary = useIsTouchPrimary();
   if (!isTouchPrimary) {
     return (
       <div className="fieldWithQuick">
-        <TA label={label} value={value} onChange={onChange} onBlur={onBlur} rows={rows} placeholder={placeholder} voice={voice} />
+        <TA label={label} value={value} onChange={onChange} onBlur={onBlur} rows={rows} placeholder={placeholder} voice={voice} voiceMode={voiceMode} />
         <QuickPanel title={quickPanelTitle} groups={groups} onPick={onPick} onRemove={onRemove} existingValue={value} itemType={itemType} mode={mode} />
       </div>
     );
@@ -2627,7 +2627,7 @@ function FieldWithSuggestions({ label, value, onChange, onBlur, rows, placeholde
   const isOpen = activeSuggestion === fieldKey;
   return (
     <div className="fieldStack">
-      <TA label={label} value={value} onChange={onChange} onBlur={onBlur} rows={rows} placeholder={placeholder} voice={voice} />
+      <TA label={label} value={value} onChange={onChange} onBlur={onBlur} rows={rows} placeholder={placeholder} voice={voice} voiceMode={voiceMode} />
       <button type="button" className="suggestionsTrigger" onClick={() => setActiveSuggestion(fieldKey)}>
         Suggestions
       </button>
@@ -2849,7 +2849,7 @@ function StepWork({ jsa, upd, addRow, updRow, removeRow, addSummaryAsRow, addRow
                 quickPanelTitle="Quick Daily Tasks" sheetTitle="Daily Task Suggestions" groups={taskGroups}
                 onPick={handleTaskPick} onRemove={handleTaskRemove}
                 fieldKey="dailyTasks" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
-                voice
+                voice voiceMode="list"
               />
             </div>
           </div>
@@ -2862,7 +2862,7 @@ function StepWork({ jsa, upd, addRow, updRow, removeRow, addSummaryAsRow, addRow
                 quickPanelTitle="Quick Hazards" sheetTitle="Hazard Suggestions" groups={hazardGroups}
                 onPick={handleHazardPick} onRemove={handleHazardRemove}
                 fieldKey="hazards" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
-                voice
+                voice voiceMode="list"
               />
             </div>
           </div>
@@ -2875,7 +2875,7 @@ function StepWork({ jsa, upd, addRow, updRow, removeRow, addSummaryAsRow, addRow
                 quickPanelTitle="Quick Controls" sheetTitle="Control Suggestions" groups={controlGroups}
                 onPick={handleControlPick} onRemove={handleControlRemove}
                 fieldKey="controls" activeSuggestion={activeSuggestion} setActiveSuggestion={setActiveSuggestion}
-                voice
+                voice voiceMode="list"
               />
             </div>
           </div>
@@ -3573,7 +3573,7 @@ function F({ label, value, onChange, type = 'text', placeholder = '' }) {
     </label>
   );
 }
-function TA({ label, value, onChange, onBlur, rows = 4, placeholder = '', voice = false }) {
+function TA({ label, value, onChange, onBlur, rows = 4, placeholder = '', voice = false, voiceMode = 'narrative' }) {
   // Content-aware height: grows with typed content up to a CSS max-height,
   // then scrolls internally. Resizing style.height doesn't touch the value
   // or selection, so it never causes a cursor jump.
@@ -3589,7 +3589,7 @@ function TA({ label, value, onChange, onBlur, rows = 4, placeholder = '', voice 
     <label className="field">
       <div className="fieldLabelRow">
         <span id={labelId}>{label}</span>
-        {voice && <SpeakButton value={value} onChange={onChange} />}
+        {voice && <SpeakButton value={value} onChange={onChange} mode={voiceMode} />}
       </div>
       <textarea ref={ref} rows={rows} value={value || ''} placeholder={placeholder} onChange={e => onChange(e.target.value)} onBlur={onBlur} className="autoGrow" aria-labelledby={voice ? labelId : undefined} />
     </label>

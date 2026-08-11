@@ -5,7 +5,8 @@
 
 .fieldLabelRow { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 
-.voiceControl { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.voiceControl { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+.voiceControlRow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 
 .voiceBtn {
   display: inline-flex;
@@ -39,6 +40,11 @@
 .voiceStatus.voiceError { color: var(--danger); }
 
 .voiceHint { font-size: 12.5px; color: var(--muted); font-weight: 500; text-transform: none; letter-spacing: 0; }
+
+/* JSA Tasks/Hazards/Controls only (mode="list") -- a one-line reminder that
+   speech there splits into separate list items, shown only while idle so it
+   doesn't compete with the "Listening…"/error status text. */
+.voiceListHint { font-size: 11.5px; color: var(--muted); font-weight: 500; text-align: right; max-width: 220px; }
 
 /* Phone: keep the mic button comfortably tappable and let it wrap under a
    long label rather than compressing either. */
