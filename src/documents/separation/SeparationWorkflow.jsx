@@ -8,6 +8,7 @@ import {
   BuilderHeader, ReviewExportPanel, SignaturePad,
 } from '../FormPrimitives';
 import { LockedContext, useLocked } from '../lockedContext';
+import { downloadDraftFile, buildDraftFilename } from '../../shared/draftTransfer';
 
 function toggleInList(list, item) {
   return (list || []).includes(item) ? list.filter(x => x !== item) : [...(list || []), item];
@@ -223,6 +224,7 @@ export default function SeparationWorkflow({
                 onDownload={onDownload}
                 onStartNew={onStartNew}
                 startNewLabel="Start a new separation record"
+                onExportDraft={() => downloadDraftFile('separation', model, buildDraftFilename(model.employeeName, 'Separation', model.effectiveSeparationDate))}
                 onBack={prev}
                 onJumpCheck={chk => setStep(chk.step)}
               />

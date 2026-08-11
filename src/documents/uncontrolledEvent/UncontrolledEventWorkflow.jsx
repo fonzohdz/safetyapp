@@ -8,6 +8,7 @@ import {
   BuilderHeader, ReviewExportPanel, SignaturePad,
 } from '../FormPrimitives';
 import { LockedContext } from '../lockedContext';
+import { downloadDraftFile, buildDraftFilename } from '../../shared/draftTransfer';
 
 function toggleInList(list, item) {
   return (list || []).includes(item) ? list.filter(x => x !== item) : [...(list || []), item];
@@ -145,6 +146,7 @@ export default function UncontrolledEventWorkflow({
                 onDownload={onDownload}
                 onStartNew={onStartNew}
                 startNewLabel="Start a new uncontrolled event report"
+                onExportDraft={() => downloadDraftFile('uncontrolledEvent', model, buildDraftFilename(model.workplaceLocation, 'Uncontrolled Event', model.eventDate))}
                 onBack={prev}
                 onJumpCheck={chk => setStep(chk.step)}
               />

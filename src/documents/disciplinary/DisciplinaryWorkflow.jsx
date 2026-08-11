@@ -7,6 +7,7 @@ import {
   BuilderHeader, ReviewExportPanel, SignaturePad,
 } from '../FormPrimitives';
 import { LockedContext } from '../lockedContext';
+import { downloadDraftFile, buildDraftFilename } from '../../shared/draftTransfer';
 
 /* ── Step: Notice Details — employee info, warning level, sections 1-4 ── */
 function StepNotice({ model, upd, next }) {
@@ -133,6 +134,7 @@ export default function DisciplinaryWorkflow({
                 onDownload={onDownload}
                 onStartNew={onStartNew}
                 startNewLabel="Start a new disciplinary notice"
+                onExportDraft={() => downloadDraftFile('disciplinary', model, buildDraftFilename(model.employeeName, 'Disciplinary Notice', model.noticeDate))}
                 onBack={prev}
                 onJumpCheck={chk => setStep(chk.step)}
               />

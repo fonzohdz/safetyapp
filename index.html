@@ -10,6 +10,22 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icons/safety-icon.svg" type="image/svg+xml" />
     <title>Safety Documentation Center</title>
+
+    <!-- Without these, iMessage/Slack/etc. link previews fall back to
+         guessing an image from the page instead of using one we choose —
+         in this app's case that guess landed on a body-diagram graphic used
+         internally by the Incident Report PDF, not anything meant to be a
+         preview picture. These tags make every link-preview generator show
+         the company logo and a real title/description instead. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Safety Documentation Center" />
+    <meta property="og:description" content="Shackelford Construction and Hauling's field safety documentation app — JSAs, incident reports, and more, built for the job site." />
+    <meta property="og:url" content="https://fonzohdz.github.io/safetyapp/" />
+    <meta property="og:image" content="https://fonzohdz.github.io/safetyapp/icons/shackelford-logo.webp" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Safety Documentation Center" />
+    <meta name="twitter:description" content="Shackelford Construction and Hauling's field safety documentation app." />
+    <meta name="twitter:image" content="https://fonzohdz.github.io/safetyapp/icons/shackelford-logo.webp" />
   </head>
   <body>
     <div id="root"></div>

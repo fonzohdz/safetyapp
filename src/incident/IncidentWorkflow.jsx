@@ -10,6 +10,7 @@ import IncidentPhotos from './IncidentPhotos';
 import { LockedContext, useLocked } from '../documents/lockedContext';
 import { ConfirmDialog } from '../documents/FormPrimitives';
 import SpeakButton from '../voice/SpeakButton';
+import { downloadDraftFile, buildDraftFilename } from '../shared/draftTransfer';
 
 /* ── Small local presentational primitives ──
    Deliberately not imported from main.jsx (which exports nothing) -- kept
@@ -483,6 +484,12 @@ function StepReview({ incident, prev, pdfExportState, isPdfStale, onGeneratePdf,
             <p className="helperText pdfReadyHelper">Download the document, then open it to print.</p>
           </div>
         )}
+      </div>
+
+      <div className="card">
+        <div className="cardHeader"><strong>Send to Someone Else to Finish</strong></div>
+        <p className="helperText">Save a file you can text, email, or AirDrop to someone else. They can open it in this app and pick up right where you left off — the checklist above doesn't need to be done first.</p>
+        <button type="button" className="btn secondary" onClick={() => downloadDraftFile('incident', incident, buildDraftFilename(incident.workplaceLocation, 'Incident Report', incident.incidentDate))}>Export Draft File</button>
       </div>
 
       <button type="button" className="btn ghost" onClick={onStartNew}>{c.startNew}</button>

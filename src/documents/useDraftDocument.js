@@ -136,6 +136,21 @@ export function useDraftDocument({ storageKey, emptyModel, hasMeaningfulContent,
     return hasMeaningfulContent(persisted) || hasMeaningfulContent(model);
   }
 
+  // Loads externally-sourced data (an imported draft file) as this
+  // document's current draft — same normalization loadSaved() applies to
+  // this device's own localStorage, and persisted immediately (not left to
+  // the autosave debounce) so an import survives even if the tab closes
+  // right after.
+  function replaceWith(rawData) {
+    clearTimeout(autoSaveTimer.current);
+    const normalized = { ...emptyModel(), ...migrateShape(rawData) };
+    setModelRaw(normalized);
+    setSavedDraft(normalized);
+    lastSnapshot.current = '';
+    setStep(firstStepId);
+    saveDraft(storageKey, normalized);
+  }
+
   function discard() {
     clearDraft(storageKey);
     setSavedDraft(null);
@@ -145,7 +160,7 @@ export function useDraftDocument({ storageKey, emptyModel, hasMeaningfulContent,
     model, upd, setModel: setModelRaw,
     step, setStep,
     savedDraft, saveStatus,
-    saveNow, markReady, markCompleted, resetToBlank, loadSaved, hasExistingContent, discard,
+    saveNow, markReady, markCompleted, resetToBlank, loadSaved, hasExistingContent, discard, replaceWith,
   };
 }
 

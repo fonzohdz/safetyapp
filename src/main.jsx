@@ -18,6 +18,7 @@ import { DOCUMENT_STORAGE_KEYS } from './documents/storage';
 import { useDraftDocument, saveStatusLabel } from './documents/useDraftDocument';
 import { usePdfExport } from './documents/usePdfExport';
 import { printedFingerprint } from './documents/printedFingerprint';
+import { downloadDraftFile, buildDraftFilename, readFileAsText, parseDraftFileText } from './shared/draftTransfer';
 import {
   emptyDisciplinary, hasMeaningfulDisciplinaryContent, isDisciplinaryReady,
   buildDisciplinaryExportName, warningLevelLabel,
@@ -1026,16 +1027,18 @@ function useFocusTrapDialog(onCancel) {
   return dialogRef;
 }
 
-function ConfirmReplaceDialog({ templateName, onCancel, onContinue }) {
+function ConfirmReplaceDialog({ templateName, isImport, onCancel, onContinue }) {
   const dialogRef = useFocusTrapDialog(onCancel);
   return (
     <div className="dialogOverlay" onMouseDown={e => { if (e.target === e.currentTarget) onCancel(); }}>
       <div className="dialogPanel" role="alertdialog" aria-modal="true" aria-labelledby="confirmReplaceTitle" aria-describedby="confirmReplaceBody" ref={dialogRef}>
         <h3 id="confirmReplaceTitle">Replace current draft?</h3>
         <p id="confirmReplaceBody">
-          {templateName
-            ? `Loading "${templateName}" will replace the JSA you're currently editing. This can't be undone.`
-            : "Starting a new blank JSA will replace the one you're currently editing. This can't be undone."}
+          {isImport
+            ? "Importing this draft file will replace the JSA you're currently editing on this device. This can't be undone."
+            : templateName
+              ? `Loading "${templateName}" will replace the JSA you're currently editing. This can't be undone.`
+              : "Starting a new blank JSA will replace the one you're currently editing. This can't be undone."}
         </p>
         <div className="dialogActions">
           <button className="btn ghost" onClick={onCancel}>Cancel</button>
@@ -1391,7 +1394,7 @@ function App() {
   // contract JSA/Incident's own requestStartBlank functions implement by
   // hand, generalized once instead of copy-pasted per document. `activate`
   // is the doc's own goX() above (sets tab/activeDoc so its builder mounts).
-  function makeDraftEntryPoints(doc, activate, confirmMessage) {
+  function makeDraftEntryPoints(doc, activate, confirmMessage, docLabel) {
     function startBlank() {
       doc.resetToBlank();
       activate();
@@ -1405,12 +1408,24 @@ function App() {
       activate();
       showToast('Saved draft loaded.');
     }
-    return { startBlank, requestStartBlank, loadSavedDraft };
+    // Entry point for an imported draft file (see importDraftFile below) —
+    // same "confirm before replacing meaningful existing content" guard as
+    // every other entry point here, so importing can never silently wipe
+    // out in-progress work on this device.
+    function importDraft(data) {
+      if (doc.hasExistingContent() && !confirm(`Importing this draft will replace the current ${docLabel} on this device. Continue?`)) return false;
+      doc.replaceWith(data);
+      activate();
+      showToast(`${docLabel} draft imported. Review each step and finish when ready.`);
+      return true;
+    }
+    return { startBlank, requestStartBlank, loadSavedDraft, importDraft };
   }
 
   const disciplinaryEntry = makeDraftEntryPoints(
     disciplinary, goDisciplinary,
-    'Starting a new disciplinary notice will replace the current draft. Continue?'
+    'Starting a new disciplinary notice will replace the current draft. Continue?',
+    'disciplinary notice'
   );
   function markDisciplinaryReady() {
     if (disciplinary.markReady(isDisciplinaryReady)) showToast('Document finished and locked from editing.');
@@ -1424,7 +1439,8 @@ function App() {
 
   const uncontrolledEventEntry = makeDraftEntryPoints(
     uncontrolledEvent, () => { setTab('documents'); setActiveDoc('uncontrolledEvent'); },
-    'Starting a new uncontrolled event report will replace the current draft. Continue?'
+    'Starting a new uncontrolled event report will replace the current draft. Continue?',
+    'uncontrolled event report'
   );
   function markUncontrolledEventReady() {
     if (uncontrolledEvent.markReady(isUncontrolledEventReady)) showToast('Document finished and locked from editing.');
@@ -1438,7 +1454,8 @@ function App() {
 
   const medicalEventEntry = makeDraftEntryPoints(
     medicalEvent, () => { setTab('documents'); setActiveDoc('medicalEvent'); },
-    'Starting a new medical event report will replace the current draft. Continue?'
+    'Starting a new medical event report will replace the current draft. Continue?',
+    'medical event report'
   );
   function markMedicalEventReady() {
     if (medicalEvent.markReady(isMedicalEventReady)) showToast('Document finished and locked from editing.');
@@ -1452,7 +1469,8 @@ function App() {
 
   const separationEntry = makeDraftEntryPoints(
     separation, () => { setTab('documents'); setActiveDoc('separation'); },
-    'Starting a new employee separation record will replace the current draft. Continue?'
+    'Starting a new employee separation record will replace the current draft. Continue?',
+    'employee separation record'
   );
   function markSeparationReady() {
     if (separation.markReady(isSeparationReady)) showToast('Document finished and locked from editing.');
@@ -1513,6 +1531,25 @@ function App() {
     resetIncidentToBlank();
     goIncident('details');
     showToast('Started a new incident report.');
+  }
+  // Entry point for an imported Incident draft file (see importDraftFile
+  // below) — same normalization loadSavedIncidentDraft() applies to this
+  // device's own localStorage, persisted immediately, and guarded the same
+  // way every other "replace the current incident report" action here is.
+  function importIncidentDraft(data) {
+    const normalized = { ...emptyIncident(), ...migrateIncidentShape(data) };
+    setIncident(normalized);
+    setSavedIncidentDraft(normalized);
+    setIncidentPdfExportState(null);
+    saveIncidentDraft(normalized);
+    goIncident('details');
+    showToast('Incident report draft imported. Review each step and finish when ready.');
+  }
+  function requestImportIncident(data) {
+    const persisted = loadIncidentDraft() || savedIncidentDraft;
+    const hasExisting = hasMeaningfulIncidentContent(persisted) || hasMeaningfulIncidentContent(incident);
+    if (hasExisting && !confirm('Importing this draft will replace the current incident report on this device. Continue?')) return;
+    importIncidentDraft(data);
   }
 
   // Cancels any pending autosave timer and writes the exact current report
@@ -1677,12 +1714,60 @@ function App() {
     if (hasMeaningfulJsaContent(jsa)) { setConfirmReplace({ action: 'template', templateId: id }); return; }
     loadTemplate(id);
   }
+  // Entry point for an imported JSA draft file (see importDraftFile below) —
+  // same normalization loadSavedDraft() applies to this device's own
+  // localStorage, persisted immediately, and guarded by the same
+  // ConfirmReplaceDialog every other JSA "replace the draft" action uses.
+  function loadImportedJsa(data) {
+    const normalized = { ...emptyJsa(), ...data, taskRows: withRowIds(data.taskRows) };
+    setJsa(normalized);
+    setSavedDraft(normalized);
+    setTemplateId('blank-jsa');
+    localStorage.setItem(KEYS.draft, JSON.stringify(normalized));
+    goJsa('job');
+    showToast('JSA draft imported. Review each step and finish when ready.');
+  }
+  function requestImportJsa(data) {
+    if (hasMeaningfulJsaContent(jsa)) { setConfirmReplace({ action: 'import', importData: data }); return; }
+    loadImportedJsa(data);
+  }
   function confirmReplaceContinue() {
     if (confirmReplace?.action === 'blank') startBlank();
     else if (confirmReplace?.action === 'template') loadTemplate(confirmReplace.templateId);
+    else if (confirmReplace?.action === 'import') loadImportedJsa(confirmReplace.importData);
     setConfirmReplace(null);
   }
   function confirmReplaceCancel() { setConfirmReplace(null); }
+
+  // Single entry point for "Import a Draft" on the Documents tab — reads
+  // whatever file was picked, validates it's a recognized draft-file
+  // envelope (see parseDraftFileText), and routes to the correct document
+  // type's own import handler based on the file's own docType, not
+  // whichever button the user happened to click. Never touches any app
+  // state until the file has been fully validated.
+  async function importDraftFile(file) {
+    let text;
+    try {
+      text = await readFileAsText(file);
+    } catch {
+      showToast('Could not read that file.');
+      return;
+    }
+    const parsed = parseDraftFileText(text);
+    if (!parsed.ok) { showToast(parsed.error); return; }
+    const { docType, data } = parsed;
+    if (docType === 'jsa') { requestImportJsa(data); return; }
+    if (docType === 'incident') { requestImportIncident(data); return; }
+    const entryByType = {
+      disciplinary: disciplinaryEntry,
+      uncontrolledEvent: uncontrolledEventEntry,
+      medicalEvent: medicalEventEntry,
+      separation: separationEntry,
+    };
+    const entry = entryByType[docType];
+    if (!entry) { showToast('Unrecognized document type in that file.'); return; }
+    entry.importDraft(data);
+  }
   function saveTemplate() {
     const name = saveName.trim();
     if (!name) { showToast('Enter a name for the template first.'); return; }
@@ -1982,6 +2067,7 @@ function App() {
               medicalEvent: medicalEventEntry.requestStartBlank,
               separation: separationEntry.requestStartBlank,
             }}
+            onImportFile={importDraftFile}
             />
           )}
           {tab === 'documents' && activeDoc === 'jsa-start' && (
@@ -2062,6 +2148,7 @@ function App() {
       {confirmReplace && (
         <ConfirmReplaceDialog
           templateName={confirmReplace.action === 'template' ? allTemplates.find(t => t.id === confirmReplace.templateId)?.name : null}
+          isImport={confirmReplace.action === 'import'}
           onCancel={confirmReplaceCancel}
           onContinue={confirmReplaceContinue}
         />
@@ -2281,12 +2368,18 @@ function HomeView({ savedDraft, customTemplates, startBlank, setTab, loadSavedDr
    that document (JSA and Incident keep their own existing entry-point
    functions; the four new documents each get a requestStart* function from
    their own useDraftDocument instance). */
-function DocCenterView({ startHandlers }) {
+function DocCenterView({ startHandlers, onImportFile }) {
   const grouped = DOCUMENT_CATEGORY_ORDER.map(catId => ({
     catId,
     label: DOCUMENT_CATEGORIES[catId],
     docs: DOCUMENT_REGISTRY.filter(d => d.status === 'available' && d.category === catId),
   })).filter(g => g.docs.length);
+  const importInputRef = useRef(null);
+  function onImportInputChange(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (file) onImportFile(file);
+  }
 
   return (
     <div className="sectionStack">
@@ -2295,6 +2388,19 @@ function DocCenterView({ startHandlers }) {
         <h2>Documents</h2>
         <p>Start or open a document type that's available now. Planned types will arrive in later releases.</p>
       </div>
+
+      <section className="homeSection">
+        <div className="listItem">
+          <div className="itemInfo">
+            <strong>Import a Draft</strong>
+            <p>Received a draft file from someone in the field? Import it here to keep working on it — no need to retype anything.</p>
+          </div>
+          <div className="itemActions">
+            <input ref={importInputRef} type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={onImportInputChange} />
+            <button className="btn secondary sm" onClick={() => importInputRef.current?.click()}>Import Draft</button>
+          </div>
+        </div>
+      </section>
 
       {grouped.map(g => (
         <section className="homeSection" key={g.catId}>
@@ -3103,6 +3209,12 @@ function StepReview({ jsa, upd, fit, saveName, setSaveName, saveTemplate, update
           <div className="reviewSecondaryActions">
             <button type="button" className="btn ghost sm" onClick={() => setShowDocOptions(true)} disabled={isGenerating}>Document Options</button>
             <span className="reviewAutosaveNote">Drafts autosave automatically.</span>
+          </div>
+
+          <div className="card">
+            <div className="cardHeader"><strong>Send to Someone Else to Finish</strong></div>
+            <p className="helperText">Save a file you can text, email, or AirDrop to someone else. They can open it in this app and pick up right where you left off — this doesn't need to be complete first.</p>
+            <button type="button" className="btn secondary" onClick={() => downloadDraftFile('jsa', jsa, buildDraftFilename(jsa.jobSite || jsa.location, 'JSA', jsa.date))}>Export Draft File</button>
           </div>
         </div>
       </div>
