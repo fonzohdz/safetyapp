@@ -2017,7 +2017,7 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
    the largest explicit `height` among its cells — so this still only ever
    grows a row for taller content, it can't force rows shorter, but it
    actually takes effect as the intended floor. */
-.documentPage .printTaskTable td { height: 24px; padding: 4px; font-size: 9.8px; line-height: 1.18; vertical-align: top; white-space: pre-line; overflow-wrap: break-word; }
+.documentPage .printTaskTable td { height: 24px; padding: 4px; font-size: 9.8px; line-height: 1.18; vertical-align: middle; white-space: pre-line; overflow-wrap: break-word; }
 .documentPage .continuationFlag { flex: 0 0 auto; margin-top: 3px; border: 1px solid #9b111e; padding: 3px 5px; text-align: center; font-size: 7px; font-weight: 700; color: #7f1d1d; background: #fff1f2; }
 /* Normal flow, not position:absolute -- confirmed on physical iPad Safari
    AirPrint as the source of every logical page fragmenting into two physical
@@ -2211,7 +2211,7 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
      .documentPage-scoped screen padding of 4px instead of this 3.5/4.5px —
      see the comment on the info-table padding above for why that matters
      now that pagination measures real heights). */
-  .printTaskTable td { height: 24px; padding: 3.5px 4.5px !important; font-size: 9.8px; line-height: 1.18; vertical-align: top; white-space: pre-line; overflow-wrap: break-word; }
+  .printTaskTable td { height: 24px; padding: 3.5px 4.5px !important; font-size: 9.8px; line-height: 1.18; vertical-align: middle; white-space: pre-line; overflow-wrap: break-word; }
   .printTaskTable tr { break-inside: avoid; page-break-inside: avoid; }
   .continuationTaskTable { margin-top: 6px; }
   .continuationTaskTable td { height: 35px; font-size: 9.8px; line-height: 1.2; }
@@ -2404,7 +2404,7 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 .printMeasureRoot .printTaskTable th:nth-child(2), .pdfExportRoot .printTaskTable th:nth-child(2), .printMeasureRoot .printTaskTable td:nth-child(2), .pdfExportRoot .printTaskTable td:nth-child(2) { width: 32%; }
 .printMeasureRoot .printTaskTable th:nth-child(3), .pdfExportRoot .printTaskTable th:nth-child(3), .printMeasureRoot .printTaskTable td:nth-child(3), .pdfExportRoot .printTaskTable td:nth-child(3) { width: 37%; }
 .printMeasureRoot .printTaskTable th, .pdfExportRoot .printTaskTable th { text-transform: uppercase; font-size: 9.2px; padding: 3px 4px; background: #dedede; }
-.printMeasureRoot .printTaskTable td, .pdfExportRoot .printTaskTable td { height: 24px; padding: 3.5px 4.5px; font-size: 9.8px; line-height: 1.32; vertical-align: top; white-space: pre-line; overflow-wrap: break-word; }
+.printMeasureRoot .printTaskTable td, .pdfExportRoot .printTaskTable td { height: 24px; padding: 3.5px 4.5px; font-size: 9.8px; line-height: 1.32; vertical-align: middle; white-space: pre-line; overflow-wrap: break-word; }
 .printMeasureRoot .continuationTaskTable td, .pdfExportRoot .continuationTaskTable td { height: 35px; font-size: 9.8px; line-height: 1.34; }
 .printMeasureRoot .continuationInfoTable th, .pdfExportRoot .continuationInfoTable th, .printMeasureRoot .continuationInfoTable td, .pdfExportRoot .continuationInfoTable td,
 .printMeasureRoot .signInInfoTable th, .pdfExportRoot .signInInfoTable th, .printMeasureRoot .signInInfoTable td, .pdfExportRoot .signInInfoTable td { font-size: 8.6px; padding: 3px 4px; }
