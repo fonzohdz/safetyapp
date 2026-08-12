@@ -25,6 +25,7 @@ import {
 } from './documents/disciplinary/disciplinaryModel';
 import DisciplinaryWorkflow from './documents/disciplinary/DisciplinaryWorkflow';
 import { DisciplinaryPdfExportRoot } from './documents/disciplinary/DisciplinaryPdf';
+import { drawDisciplinaryPdf } from './documents/disciplinary/disciplinaryPdfDraw';
 import {
   emptyUncontrolledEvent, hasMeaningfulUncontrolledEventContent, isUncontrolledEventReady, isUncontrolledEventPrintFinal,
   buildUncontrolledEventExportName,
@@ -1231,6 +1232,10 @@ function App() {
     buildFilename: () => `${buildDisciplinaryExportName(disciplinary.model)}.pdf`,
     fingerprint: `${printedFingerprint(disciplinary.model)}|${isDisciplinaryPrintFinal(disciplinary.model)}`,
     showToast: msg => showToast(msg),
+    // Drawn directly into the PDF rather than screenshotted — see pdfDraw.js.
+    // Disciplinary is the first document on this path; the other three still
+    // use the capture pipeline until this one is proven.
+    renderPdf: onProgress => drawDisciplinaryPdf(disciplinary.model, onProgress),
   });
 
   // ── Uncontrolled Event Report state ──

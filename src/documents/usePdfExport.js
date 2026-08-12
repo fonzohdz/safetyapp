@@ -11,7 +11,11 @@ import { capturePagesToPdf, shareGeneratedPdf, downloadGeneratedPdf } from './pd
    Returns pageRefsRef — the caller's PDF page-shell component must populate
    pageRefsRef.current = [{ type, el }, ...] in a useLayoutEffect, exactly
    like PdfExportRoot / IncidentPdfExportRoot already do. */
-export function usePdfExport({ buildFilename, fingerprint, onGenerated, showToast }) {
+/* `renderPdf` (optional) replaces the screenshot pipeline for one document:
+   an async (onProgress) => { blob, pageCount } that draws the PDF directly
+   (see pdfDraw.js). Documents that don't pass it keep capturePagesToPdf
+   exactly as before, so this can be adopted one form at a time. */
+export function usePdfExport({ buildFilename, fingerprint, onGenerated, showToast, renderPdf }) {
   const [pdfExportState, setPdfExportState] = useState(null);
   const pageRefsRef = useRef([]);
   const isPdfStale = pdfExportState?.phase === 'ready' && pdfExportState.fingerprint !== fingerprint;
@@ -21,9 +25,12 @@ export function usePdfExport({ buildFilename, fingerprint, onGenerated, showToas
     const filename = buildFilename();
     try {
       setPdfExportState({ phase: 'generating', status: 'preparing' });
-      const { blob, pageCount } = await capturePagesToPdf(pageRefsRef, (pageIndex, totalPages) => {
+      const onProgress = (pageIndex, totalPages) => {
         setPdfExportState({ phase: 'generating', status: 'rendering', pageIndex, totalPages });
-      });
+      };
+      const { blob, pageCount } = renderPdf
+        ? await renderPdf(onProgress)
+        : await capturePagesToPdf(pageRefsRef, onProgress);
       setPdfExportState({ phase: 'ready', blob, filename, pageCount, fingerprint, shareMessage: null });
       onGenerated?.(pageCount);
     } catch (err) {
