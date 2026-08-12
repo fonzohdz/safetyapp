@@ -412,7 +412,14 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:focus-v
 /* Dark theme: slightly heavier/more deliberate primary button — a touch
    more padding and letter-spacing, not a brighter or more playful color. */
 html[data-theme='dark'] .btn.primary { padding: 9px 16px; letter-spacing: .2px; }
-.btn.secondary { background: #111113; color: #fff; border-color: #111113; }
+/* Outlined neutral, NOT a near-black fill. This used to be #111113 — a
+   hardcoded literal that ignored the palette and rendered as the single
+   heaviest element in the light UI, louder than the red .primary it was
+   supposed to sit beneath. On Review & Export that inverted the hierarchy
+   outright: "Export Draft File" (a utility) out-shouted "Create Document"
+   (the actual next action). Three deliberate weights now: primary = red
+   fill, secondary = surface + strong border, ghost = filled gray, quietest. */
+.btn.secondary { background: var(--surface); color: var(--text); border-color: var(--line-strong); }
 html[data-theme='dark'] .btn.secondary { background: var(--surface-3); color: var(--text); border-color: var(--line); }
 .btn.ghost { background: var(--surface-2); color: var(--text); border-color: var(--line); }
 .btn.ghost:hover:not(:disabled), .btn.outline:hover:not(:disabled), .btn.secondary:hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent) 45%, var(--line) 55%); }
@@ -1496,6 +1503,21 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 /* ── Review/export ── */
 .reviewPrimaryAction { display: flex; }
 .reviewPrimaryAction .btn { width: 100%; }
+/* Mark Complete / Mark Incomplete are consequential but they are NOT the
+   primary action on this screen — Create Document is. Full-width bars for
+   all three left the user with three identical-width blocks and no way to
+   tell which one to press, so these sit at natural width instead. */
+.reviewInlineAction { display: flex; }
+.reviewInlineAction .btn { width: auto; min-width: 210px; }
+/* "Start a new ___" discards the current document — it must never read as
+   wide/primary next to the real primary action. */
+/* justify-self as well as align-self — StepPanel is a grid, so a bare
+   width:auto still stretches across the inline axis. */
+.reviewStartNew { width: auto; align-self: start; justify-self: start; }
+@media (max-width: 680px) {
+  .reviewInlineAction .btn { width: 100%; min-width: 0; }
+  .reviewStartNew { width: 100%; }
+}
 .reviewSecondaryActions {
   display: flex;
   align-items: center;

@@ -289,23 +289,33 @@ export function ReviewExportPanel({
   const [confirmingFinish, setConfirmingFinish] = useState(false);
   const isGenerating = pdfExportState?.phase === 'generating';
   const isReady = pdfExportState?.phase === 'ready';
+  const remainingCount = checks.filter(c => !c.ok).length;
   return (
     <StepPanel title={title}>
       <div className="card">
         <div className="cardHeader">
           <strong>Readiness</strong>
         </div>
-        {status === 'draft' && <p className="helperText">{checklistComplete ? markReadyHintText : draftExplainText}</p>}
+        {status === 'draft' && (
+          <p className="helperText">
+            {checklistComplete
+              ? markReadyHintText
+              /* Say exactly how much is left and that the rows are tappable —
+                 "complete the checklist below" made the user count for
+                 themselves and didn't reveal that a row jumps to its field. */
+              : `${remainingCount} ${remainingCount === 1 ? 'item' : 'items'} still needed — tap one to go straight to it.`}
+          </p>
+        )}
         <ReadinessChecklist checks={checks} onJump={status === 'draft' ? onJumpCheck : undefined} />
         {status === 'draft' && (
-          <div className="reviewPrimaryAction">
+          <div className="reviewInlineAction">
             <button type="button" className="btn secondary" onClick={() => setConfirmingFinish(true)} disabled={!checklistComplete}>{markReadyLabel}</button>
           </div>
         )}
         {status !== 'draft' && (
           <>
             <p className="helperText">Marked complete. Editing is locked while it's marked this way — creating or updating the PDF does not change this.</p>
-            <div className="reviewPrimaryAction">
+            <div className="reviewInlineAction">
               <button type="button" className="btn secondary" onClick={onMarkIncomplete}>Mark Incomplete</button>
             </div>
           </>
@@ -363,7 +373,7 @@ export function ReviewExportPanel({
         )}
       </div>
 
-      {onStartNew && <button type="button" className="btn ghost" onClick={onStartNew}>{startNewLabel}</button>}
+      {onStartNew && <button type="button" className="btn ghost reviewStartNew" onClick={onStartNew}>{startNewLabel}</button>}
       <StepFooter hasBack onBack={onBack} />
     </StepPanel>
   );

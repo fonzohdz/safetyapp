@@ -420,7 +420,13 @@ function StepReview({ incident, prev, pdfExportState, isPdfStale, onGeneratePdf,
           <strong>{c.readinessTitle}</strong>
           <p>{headline}</p>
         </div>
-        {status === 'draft' && <p className="helperText">{checklistComplete ? c.markReadyHint : c.draftExplain}</p>}
+        {status === 'draft' && (
+          <p className="helperText">
+            {checklistComplete
+              ? c.markReadyHint
+              : `${checks.filter(k => !k.ok).length} ${checks.filter(k => !k.ok).length === 1 ? 'item' : 'items'} still needed — tap one to go straight to it.`}
+          </p>
+        )}
         <div className="incidentReadinessList">
           {checks.map(chk => (
             <button
@@ -436,14 +442,14 @@ function StepReview({ incident, prev, pdfExportState, isPdfStale, onGeneratePdf,
           ))}
         </div>
         {status === 'draft' && (
-          <div className="reviewPrimaryAction">
+          <div className="reviewInlineAction">
             <button className="btn secondary" onClick={() => setConfirmingFinish(true)} disabled={!checklistComplete}>{c.markReady}</button>
           </div>
         )}
         {status !== 'draft' && (
           <>
             <p className="helperText">Marked complete. Editing is locked while it's marked this way — creating or updating the PDF does not change this.</p>
-            <div className="reviewPrimaryAction">
+            <div className="reviewInlineAction">
               <button className="btn secondary" onClick={onMarkIncomplete}>Mark Incomplete</button>
             </div>
           </>

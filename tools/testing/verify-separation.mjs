@@ -414,7 +414,12 @@ async function main() {
   }
 }
 
-main().catch(err => {
+main().then(() => {
+  // Explicit success exit: the spawned 'vite preview' grandchild keeps Node's
+  // event loop alive on Windows even after server.kill(), so a PASSING run
+  // would otherwise hang until the caller's timeout instead of finishing.
+  process.exit(0);
+}).catch(err => {
   console.error('Verification script crashed:', err);
   process.exit(1);
 });
