@@ -40,7 +40,13 @@ function sectionBlocks(idPrefix, number, title, text) {
   return buildTextBlocks(idPrefix, text, (chunk, isFirst) => (
     <>
       <NumberedBar number={isFirst ? number : undefined}>{isFirst ? title : `${title} (continued)`}</NumberedBar>
-      <TextBlock text={chunk} minHeightPx={isFirst ? 40 : 24} />
+      {/* 52, not 40: at 40 a notice with short answers left the bottom third
+          of the page empty while every writing box was cramped — the page
+          read as top-heavy AND stingy at the same time. A paper form gives
+          you room to write; taller boxes spend that space where it's
+          actually useful. Long content still paginates normally (block
+          heights are real-measured, see useBlockPagination). */}
+      <TextBlock text={chunk} minHeightPx={isFirst ? 52 : 28} />
     </>
   ));
 }

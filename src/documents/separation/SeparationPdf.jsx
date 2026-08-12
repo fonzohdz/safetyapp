@@ -14,6 +14,13 @@ import {
 const FORM_TITLE = 'EMPLOYEE SEPARATION';
 const PAGE_BODY_CAPACITY_PX = 900;
 const PAGE_BODY_WIDTH_PX = 758;
+/* One label-column width for every full-width label/value table on this
+   form. These used to be 18% (Reason) and 38% (Discipline / Rehire), so the
+   rule separating label from value jumped horizontally between adjacent
+   sections and nothing lined up down the page. Paired rows
+   (label,value,label,value) keep their own width — that's a different
+   structure, not an inconsistency. */
+const SEPARATION_LABEL_WIDTH = '32%';
 
 function optionLabel(options, v) {
   return options.find(o => o.value === v)?.label || '';
@@ -38,9 +45,13 @@ function TypeReasonBlock({ model }) {
   return (
     <>
       <GrayBar>Separation Type / Reason</GrayBar>
+      {/* Named sub-groups: the source form asks two distinct questions here
+          (which kind of separation, then why), and an unlabelled one-column
+          pair sitting above an unlabelled two-column list read as one loose
+          run of checkboxes rather than as that two-step structure. */}
       <CheckboxGrid options={SEPARATION_TYPES.map(t => t.label)} checked={optionLabel(SEPARATION_TYPES, model.separationType)} oneColumn />
       <CheckboxGrid options={SEPARATION_REASONS} checked={model.separationReason} />
-      <InfoTable rows={[[label('Reason', '18%'), value(reasonLabel)]]} />
+      <InfoTable rows={[[label('Reason', SEPARATION_LABEL_WIDTH), value(reasonLabel)]]} />
     </>
   );
 }
@@ -51,10 +62,10 @@ function DisciplineRehireBlock({ model }) {
     ? `Yes — ${model.warningNoticesCount || 'count not specified'}`
     : model.warningNoticesGiven === 'no' ? 'No' : model.warningNoticesGiven === 'na' ? 'N/A' : '';
   const rows = [];
-  if (isInvoluntary) rows.push([label('Warning Notices Given?', '38%'), value(warningText)]);
-  rows.push([label('Documentation Attached?', '38%'), value(model.documentationAttached === 'yes' ? 'Yes' : model.documentationAttached === 'no' ? 'No' : '')]);
-  rows.push([label('Eligible for Rehire?', '38%'), value(optionLabel(REHIRE_STATUSES, model.eligibleForRehire))]);
-  if (model.eligibleForRehire === 'no') rows.push([label('Reason Not Eligible', '38%'), value(model.rehireReasonIfNo)]);
+  if (isInvoluntary) rows.push([label('Warning Notices Given?', SEPARATION_LABEL_WIDTH), value(warningText)]);
+  rows.push([label('Documentation Attached?', SEPARATION_LABEL_WIDTH), value(model.documentationAttached === 'yes' ? 'Yes' : model.documentationAttached === 'no' ? 'No' : '')]);
+  rows.push([label('Eligible for Rehire?', SEPARATION_LABEL_WIDTH), value(optionLabel(REHIRE_STATUSES, model.eligibleForRehire))]);
+  if (model.eligibleForRehire === 'no') rows.push([label('Reason Not Eligible', SEPARATION_LABEL_WIDTH), value(model.rehireReasonIfNo)]);
   return (
     <>
       <GrayBar>Discipline / Rehire Status</GrayBar>

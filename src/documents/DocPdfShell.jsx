@@ -138,12 +138,19 @@ export function CheckboxGrid({ options, checked, oneColumn, oneRow }) {
 export function SignatureRow({ label: sigLabel, dateLabel = 'Date', signatureData, dateValue }) {
   return (
     <div className="docPdfSignatureRow">
+      {/* One slot carries THE signing rule whether or not a signature image
+          is present. Previously the rule was drawn twice — once by the
+          line/date div's border-bottom and again by the caption's
+          border-top — which printed as two parallel hairlines under every
+          signature and every date. */}
       <div className="docPdfSignatureBlock">
-        {signatureData ? <img src={signatureData} alt="Signature" className="docPdfSignatureImg" /> : <div className="docPdfSignatureLine" />}
+        <div className="docPdfSignatureSlot">
+          {signatureData && <img src={signatureData} alt="Signature" className="docPdfSignatureImg" />}
+        </div>
         <span className="docPdfSignatureCaption">{sigLabel}</span>
       </div>
       <div className="docPdfSignatureBlock">
-        <div className="docPdfSignatureLine" style={{ display: 'flex', alignItems: 'flex-end', fontSize: '10pt', paddingBottom: 2 }}>
+        <div className="docPdfSignatureSlot docPdfSignatureSlotDate">
           <span className="docPdfSigDateText">{fmtDate(dateValue)}</span>
         </div>
         <span className="docPdfSignatureCaption">{dateLabel}</span>
@@ -163,13 +170,11 @@ export function MultiSignatureRow({ items }) {
     <div className="docPdfMultiSignatureRow" style={{ gridTemplateColumns: `repeat(${items.length}, 1fr)` }}>
       {items.map((it, i) => (
         <div className="docPdfSignatureBlock" key={i}>
-          {it.note ? (
-            <div className="docPdfSignatureLine docPdfSignatureNote"><span className="docPdfSigNoteText">{it.note}</span></div>
-          ) : it.signatureData ? (
-            <img src={it.signatureData} alt="Signature" className="docPdfSignatureImg" />
-          ) : (
-            <div className="docPdfSignatureLine" />
-          )}
+          <div className={`docPdfSignatureSlot${it.note ? ' docPdfSignatureNote' : ''}`}>
+            {it.note
+              ? <span className="docPdfSigNoteText">{it.note}</span>
+              : it.signatureData && <img src={it.signatureData} alt="Signature" className="docPdfSignatureImg" />}
+          </div>
           <span className="docPdfSignatureCaption">{it.label}</span>
           {!it.note && <span className="docPdfSignatureDateCaption">{fmtDate(it.dateValue)}</span>}
         </div>

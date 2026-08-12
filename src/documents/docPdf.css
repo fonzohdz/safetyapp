@@ -56,7 +56,14 @@
 
 .docPdfBody { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; position: relative; z-index: 1; }
 .docPdfHeader { position: relative; z-index: 1; }
-.docPdfBody > * { margin-top: 6px; }
+/* Section rhythm is proximity, not decoration. A subsection label used to
+   sit 5px from its own field while consecutive sections were only 6px
+   apart — so a label read as equally attached to the section above it as to
+   the box it titles, and the whole page felt like an undifferentiated stack
+   of rectangles. Widening the between-section gap and tightening the
+   label-to-field gap (see .docPdfTextBlockWrap) is what makes the two-tier
+   hierarchy legible. */
+.docPdfBody > * { margin-top: 7px; }
 .docPdfBody > *:first-child { margin-top: 0; }
 .docPdfBody > .docPdfGrayBar + * { margin-top: 0; }
 
@@ -74,11 +81,17 @@
 .docPdfGrayBar + .docPdfInfoTable td { border-top: 1px solid #999; }
 .docPdfGrayBar + .docPdfTextBlockWrap .docPdfTextBlock { border-top: 1px solid #999; }
 
-/* Thin outlined numbered section header -- see NumberedBar in DocPdfShell.jsx. */
+/* Numbered section header -- see NumberedBar in DocPdfShell.jsx. This is the
+   caption band OF the writing box below it, not a separate object: it shares
+   the box's border and carries a light tint so the pair reads as one
+   composed unit. It used to be pure white with its own full outline, which
+   made every numbered section print as two stacked bordered rectangles.
+   The tint is deliberately lighter than .docPdfGrayBar's #d9d9d9 — a
+   numbered section is a subsection, and the hierarchy has to stay visible. */
 .docPdfNumberedBar {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   border: 1px solid #999;
   border-bottom: none;
   padding: 3px 8px;
@@ -86,7 +99,7 @@
   font-size: 9.5pt;
   text-transform: uppercase;
   letter-spacing: .3px;
-  background: #fff;
+  background: #f2f2f2;
 }
 .docPdfNumberedBarBadge {
   display: inline-flex;
@@ -99,7 +112,7 @@
   font-size: 8pt;
   font-weight: 700;
   flex: none;
-  background: #efefef;
+  background: #fff;
 }
 .docPdfBody > .docPdfNumberedBar + * { margin-top: 0; }
 .docPdfNumberedBar + .docPdfInfoTable th,
@@ -155,19 +168,24 @@
 .docPdfExportRoot .docPdfTextBlockHelp,
 .docPdfExportRoot .docPdfSigDateText { display: inline-block; transform: translateY(-4px); }
 
-.docPdfTextBlockWrap { display: flex; flex-direction: column; gap: 5px; }
-.docPdfTextBlockTitle { font-weight: 700; font-size: 9.5pt; text-transform: uppercase; }
+.docPdfTextBlockWrap { display: flex; flex-direction: column; gap: 3px; }
+/* THE subsection label. Two-tier hierarchy on these forms: a GrayBar marks a
+   MAJOR division of the document; this marks a prompt/subsection beneath
+   one. Matches the bar's type treatment (weight, size, tracking) so they
+   read as the same family at two levels, and binds tightly to the field it
+   titles via .docPdfTextBlockWrap's small gap. */
+.docPdfTextBlockTitle { font-weight: 700; font-size: 9.5pt; text-transform: uppercase; letter-spacing: .3px; line-height: 1.25; }
 .docPdfTextBlockHelp { font-size: 8.3pt; line-height: 1.3; color: #333; font-style: italic; }
-/* Permanent standard: text inside a bordered field/box is vertically
-   centered, not top-pinned -- a short answer in a box sized (via
-   minHeightPx) for several lines used to sit glued to the top with empty
-   space below. flex column + justify-content: center centers short
-   content; once wrapped text fills/exceeds the box, centering has no
-   visible effect and normal padding/line-height governs, so long content
-   is never squeezed. */
+/* Narrative fields are top-set, like every paper form: writing starts at the
+   top of the box and grows down. These used to be justify-content: center,
+   which floated a one-line answer in the middle of a tall box — fine for a
+   single-line table cell, wrong for a field someone writes into, and one of
+   the things that made these read as web content in a rectangle rather than
+   as a form. Single-line VALUE cells keep their centering (.docPdfInfoTable
+   td/th, vertical-align: middle); this rule governs only the writing boxes. */
 .docPdfTextBlock {
   border: 1px solid #999;
-  padding: 5px 8px;
+  padding: 6px 8px;
   font-size: 9.7pt;
   line-height: 1.35;
   white-space: pre-wrap;
@@ -175,18 +193,33 @@
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
 }
 
 /* Two independent field groups side by side on one page-width row (e.g.
    Uncontrolled Event's Event Classification | Outcome/Impact, and
    Immediate Actions | Notifications/Attachments) — each column is its own
    self-contained GrayBar/TextBlock/CheckboxGrid stack, same visual
-   language as a full-width block just at half width. `align-items: start`
-   so a shorter right column doesn't stretch to match a taller left one. */
-.docPdfTwoCol { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; align-items: start; }
+   language as a full-width block just at half width.
 
-.docPdfCheckboxGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 14px; padding: 4px 2px; }
+   `align-items: stretch` (was `start`): a paired row whose two columns ended
+   at different heights read as two unrelated mini-forms sitting near each
+   other rather than one section — Uncontrolled's stubby WITNESSES box beside
+   a much taller NOTIFICATIONS list was the worst case. Both columns now run
+   to the same bottom edge, and the last writing box in a short column takes
+   up the slack instead of leaving a ragged gap. */
+.docPdfTwoCol { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; align-items: stretch; }
+.docPdfTwoCol > * { display: flex; flex-direction: column; }
+.docPdfTwoCol > * > .docPdfTextBlockWrap:last-child { flex: 1 1 auto; }
+.docPdfTwoCol > * > .docPdfTextBlockWrap:last-child > .docPdfTextBlock { flex: 1 1 auto; }
+/* Inside a column, a subsection needs the same breathing room it gets at
+   full width — without this a writing box butted straight against the
+   checkbox list above it (Uncontrolled's ESTIMATED COST under the Outcome
+   list, WITNESSES under Immediate Actions) and read as stranded. */
+.docPdfTwoCol > * > .docPdfTextBlockWrap { margin-top: 6px; }
+.docPdfTwoCol > * > .docPdfTextBlockWrap:first-child { margin-top: 0; }
+
+.docPdfCheckboxGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 14px; padding: 2px 2px; }
 .docPdfCheckboxGrid.oneColumn { grid-template-columns: 1fr; }
 .docPdfCheckboxGrid.oneRow { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 1fr; }
 .docPdfCheckboxRow { display: flex; align-items: center; gap: 6px; font-size: 9.5pt; line-height: 1.3; }
@@ -207,28 +240,48 @@
 .docPdfCheckboxRow.checked > span:last-child { font-weight: 700; }
 
 .docPdfSignatureRow { display: grid; grid-template-columns: 2.2fr 1.1fr; gap: 10px; align-items: end; }
-.docPdfSignatureBlock { display: flex; flex-direction: column; gap: 2px; }
-.docPdfSignatureImg { height: 0.55in; max-width: 100%; object-fit: contain; object-position: left bottom; }
-.docPdfSignatureLine { border-bottom: 1px solid #333; height: 0.55in; }
-.docPdfSignatureCaption { font-size: 8pt; border-top: 1px solid #333; padding-top: 2px; text-transform: uppercase; letter-spacing: .3px; color: #333; }
+.docPdfSignatureBlock { display: flex; flex-direction: column; gap: 0; }
+/* The slot owns the signing rule — exactly one hairline, whether the block
+   holds a signature image, a typed date, a "refused to sign" note, or
+   nothing at all. The caption below it draws no rule of its own; it used to,
+   which is why every signature and date printed with a doubled line. */
+.docPdfSignatureSlot {
+  height: 0.55in;
+  border-bottom: 1px solid #333;
+  display: flex;
+  align-items: flex-end;
+  overflow: visible;
+}
+.docPdfSignatureSlotDate { font-size: 10pt; padding: 0 0 3px 2px; }
+/* Explicit height, not 100% — the slot is a flex container with
+   align-items: flex-end, so a percentage height has no definite base to
+   resolve against and the image falls back to intrinsic size, printing
+   noticeably smaller than it should. */
+.docPdfSignatureImg { height: 0.55in; width: 100%; flex: none; object-fit: contain; object-position: left bottom; }
+.docPdfSignatureCaption { font-size: 8pt; padding-top: 3px; text-transform: uppercase; letter-spacing: .3px; color: #333; }
 
 /* Three (or more)-across approval block — e.g. Separation's Employee /
    Supervisor / HR-Management row. Shorter signature height than the
    two-column .docPdfSignatureRow since three columns share the same page
    width. */
-.docPdfMultiSignatureRow { display: grid; gap: 10px; align-items: end; }
+/* `start`, not `end`: bottom-aligning columns that don't all carry a date
+   caption (a "Refused / Unavailable to Sign" column has none) pushed that
+   column's caption down to line up with its neighbours' DATE line, so the
+   captions printed on two different baselines. Aligning from the top puts
+   every signing rule and every caption on one line, which is what makes the
+   approval row read as one composed block. */
+.docPdfMultiSignatureRow { display: grid; gap: 10px; align-items: start; }
+.docPdfMultiSignatureRow .docPdfSignatureSlot { height: 0.45in; }
 .docPdfMultiSignatureRow .docPdfSignatureImg { height: 0.45in; }
-.docPdfMultiSignatureRow .docPdfSignatureLine { height: 0.45in; }
 .docPdfSignatureDateCaption { font-size: 7.6pt; color: #555; margin-top: 1px; }
 .docPdfSignatureNote {
-  display: flex;
   align-items: center;
   justify-content: center;
   font-size: 7.8pt;
   font-style: italic;
   color: #777;
   text-align: center;
-  padding: 0 4px;
+  padding: 0 4px 3px;
 }
 
 .docPdfWatermark {
