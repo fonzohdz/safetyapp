@@ -27,6 +27,8 @@ import DisciplinaryWorkflow from './documents/disciplinary/DisciplinaryWorkflow'
 import { DisciplinaryPdfExportRoot } from './documents/disciplinary/DisciplinaryPdf';
 import { drawDisciplinaryPdf } from './documents/disciplinary/disciplinaryPdfDraw';
 import { drawSeparationPdf } from './documents/separation/separationPdfDraw';
+import { drawMedicalEventPdf } from './documents/medicalEvent/medicalEventPdfDraw';
+import { drawUncontrolledEventPdf } from './documents/uncontrolledEvent/uncontrolledEventPdfDraw';
 import {
   emptyUncontrolledEvent, hasMeaningfulUncontrolledEventContent, isUncontrolledEventReady, isUncontrolledEventPrintFinal,
   buildUncontrolledEventExportName,
@@ -1251,6 +1253,7 @@ function App() {
     buildFilename: () => `${buildUncontrolledEventExportName(uncontrolledEvent.model)}.pdf`,
     fingerprint: `${printedFingerprint(uncontrolledEvent.model)}|${isUncontrolledEventPrintFinal(uncontrolledEvent.model)}`,
     showToast: msg => showToast(msg),
+    renderPdf: onProgress => drawUncontrolledEventPdf(uncontrolledEvent.model, onProgress),
   });
 
   // ── Employee Medical Event state ──
@@ -1265,6 +1268,7 @@ function App() {
     buildFilename: () => `${buildMedicalEventExportName(medicalEvent.model)}.pdf`,
     fingerprint: `${printedFingerprint(medicalEvent.model)}|${isMedicalEventPrintFinal(medicalEvent.model)}`,
     showToast: msg => showToast(msg),
+    renderPdf: onProgress => drawMedicalEventPdf(medicalEvent.model, onProgress),
   });
 
   // ── Employee Separation state ──
