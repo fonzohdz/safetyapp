@@ -59,7 +59,7 @@ export function GrayBar({ children }) {
 export function NumberedBar({ number, children }) {
   return (
     <div className="docPdfNumberedBar">
-      {number != null && <span className="docPdfNumberedBarBadge"><span className="docPdfBarText">{number}</span></span>}
+      {number != null && <span className="docPdfNumberedBarBadge"><span className="docPdfBarText">{number}.</span></span>}
       <span className="docPdfBarText">{children}</span>
     </div>
   );

@@ -115,18 +115,15 @@
   letter-spacing: .3px;
   background: #f2f2f2;
 }
+/* A plain numeral, not a circled one. The ringed badge was doing too much
+   for what it says — at 15px the ring is fussy detail on a document that is
+   otherwise all straight rules, and a numbered form section reads perfectly
+   well as "1." min-width keeps every section title starting at the same x,
+   which is what the ring was really buying. */
 .docPdfNumberedBarBadge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 15px;
-  height: 15px;
-  border: 1.2px solid #333;
-  border-radius: 50%;
-  font-size: 8pt;
   font-weight: 700;
   flex: none;
-  background: #fff;
+  min-width: 12px;
 }
 .docPdfBody > .docPdfNumberedBar + * { margin-top: 0; }
 .docPdfNumberedBar + .docPdfInfoTable th,
@@ -267,11 +264,15 @@
   overflow: visible;
 }
 .docPdfSignatureSlotDate { font-size: 10pt; padding: 0 0 3px 2px; }
-/* Explicit height, not 100% — the slot is a flex container with
-   align-items: flex-end, so a percentage height has no definite base to
-   resolve against and the image falls back to intrinsic size, printing
-   noticeably smaller than it should. */
-.docPdfSignatureImg { height: 0.55in; width: 100%; flex: none; object-fit: contain; object-position: left bottom; }
+/* Fixed height, INTRINSIC width — never a percentage width. html2canvas does
+   not reliably honour object-fit, so it paints the image to fill whatever box
+   the element occupies: give the box an aspect ratio the signature doesn't
+   have and the signature comes out horizontally stretched, which is what
+   `width: 100%` here did. Letting width resolve from the image's own
+   proportions makes distortion impossible regardless of what object-fit does.
+   A signature that looks small is a signature drawn small on the pad — that
+   is real information, and stretching it to fill the line destroys it. */
+.docPdfSignatureImg { height: 0.55in; width: auto; max-width: 100%; flex: none; }
 .docPdfSignatureCaption { font-size: 8pt; padding-top: 3px; text-transform: uppercase; letter-spacing: .3px; color: #333; }
 
 /* Three (or more)-across approval block — e.g. Separation's Employee /
@@ -286,7 +287,7 @@
    approval row read as one composed block. */
 .docPdfMultiSignatureRow { display: grid; gap: 10px; align-items: start; }
 .docPdfMultiSignatureRow .docPdfSignatureSlot { height: 0.45in; }
-.docPdfMultiSignatureRow .docPdfSignatureImg { height: 0.45in; }
+.docPdfMultiSignatureRow .docPdfSignatureImg { height: 0.45in; width: auto; }
 .docPdfSignatureDateCaption { font-size: 7.6pt; color: #555; margin-top: 1px; }
 .docPdfSignatureNote {
   align-items: center;
