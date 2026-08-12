@@ -122,14 +122,14 @@ async function main() {
       const pendingItems = await page.locator('.incidentReadinessItem.pending').count();
       check(pendingItems === 0, `Readiness checklist fully satisfied (${pendingItems} pending item(s))`);
 
-      await page.getByRole('button', { name: 'Finish Document', exact: true }).click();
-      await page.locator('.dialogPanel', { hasText: 'Finish this document?' }).getByRole('button', { name: 'Finish Document', exact: true }).click();
+      await page.getByRole('button', { name: 'Mark Complete', exact: true }).click();
+      await page.locator('.dialogPanel', { hasText: 'Mark this document complete?' }).getByRole('button', { name: 'Mark Complete', exact: true }).click();
       await page.waitForTimeout(300);
       // .badge renders text-transform:uppercase — innerText reflects that
       // CSS-rendered casing, so compare case-insensitively against the
-      // underlying "Finished" label the component actually sets.
+      // underlying "Completed" label the component actually sets.
       const badgeText = await page.locator('.builderHeaderBadges .badge').innerText();
-      check(badgeText.trim().toLowerCase() === 'finished', `Status badge reads "Finished" after confirming Finish Document (got "${badgeText.trim()}")`);
+      check(badgeText.trim().toLowerCase() === 'completed', `Status badge reads "Completed" after confirming Mark Complete (got "${badgeText.trim()}")`);
 
       await page.getByRole('button', { name: /Create Document/ }).click();
       await page.waitForSelector('.pdfReadyPanel', { timeout: 30000 });
@@ -149,7 +149,10 @@ async function main() {
       const raw = await page.evaluate(key => window.localStorage.getItem(key), STORAGE_KEY);
       const persisted = JSON.parse(raw || 'null');
       check(Boolean(persisted) && persisted.employeeName === 'Jordan Blake', 'Draft persisted to localStorage under sdc.discipline.draft.v1 after reload');
-      check(persisted?.status === 'completed', `Status is "completed" after a successful PDF export (got "${persisted?.status}")`);
+      // Mark Complete stores 'ready' ('completed' is the accepted legacy
+      // value) — and creating/downloading the PDF must NOT change status
+      // (auto-locking on export was removed by the completion-toggle work).
+      check(persisted?.status === 'ready' || persisted?.status === 'completed', `Locked status persisted across reload (got "${persisted?.status}")`);
 
       check(consoleErrors.length === 0, `No console errors (${consoleErrors.length} found)${consoleErrors.length ? ': ' + consoleErrors.join(' | ') : ''}`);
       check(pageErrors.length === 0, `No page errors (${pageErrors.length} found)${pageErrors.length ? ': ' + pageErrors.join(' | ') : ''}`);
@@ -295,8 +298,8 @@ async function main() {
       await context.close();
     }
 
-    // ── 5. Finish Document confirmation and editing lock ──
-    console.log('\n=== 5. Finish Document confirmation and editing lock ===');
+    // ── 5. Mark Complete confirmation and editing lock ──
+    console.log('\n=== 5. Mark Complete confirmation and editing lock ===');
     {
       const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
       const page = await context.newPage();
@@ -325,15 +328,15 @@ async function main() {
       await page.getByRole('button', { name: 'Go to Review' }).click();
       await page.waitForSelector('text=Readiness');
 
-      const finishBtn = page.getByRole('button', { name: 'Finish Document', exact: true });
-      check(await finishBtn.isEnabled(), 'Finish Document is enabled once the checklist is complete');
+      const finishBtn = page.getByRole('button', { name: 'Mark Complete', exact: true });
+      check(await finishBtn.isEnabled(), 'Mark Complete is enabled once the checklist is complete');
       await finishBtn.click();
-      const dialog = page.locator('.dialogPanel', { hasText: 'Finish this document?' });
-      check(await dialog.isVisible(), 'Confirmation dialog appears on Finish Document click');
-      await dialog.getByRole('button', { name: 'Finish Document', exact: true }).click();
+      const dialog = page.locator('.dialogPanel', { hasText: 'Mark this document complete?' });
+      check(await dialog.isVisible(), 'Confirmation dialog appears on Mark Complete click');
+      await dialog.getByRole('button', { name: 'Mark Complete', exact: true }).click();
       await page.waitForTimeout(300);
       const badge = await page.locator('.builderHeaderBadges .badge').innerText();
-      check(badge.toLowerCase() === 'finished', `Badge reads "Finished" after confirming (got "${badge}")`);
+      check(badge.toLowerCase() === 'completed', `Badge reads "Completed" after confirming (got "${badge}")`);
 
       await page.getByRole('tab', { name: /Notice Details/ }).click();
       const nameField = page.getByRole('textbox', { name: 'Employee Name', exact: true });

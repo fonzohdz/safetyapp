@@ -191,7 +191,7 @@ export default function SeparationWorkflow({
       <BuilderHeader
         kicker="Employee Separation"
         title={model.employeeName || 'Untitled Separation'}
-        statusBadgeLabel={locked ? 'Finished' : 'Draft'}
+        statusBadgeLabel={locked ? 'Completed' : 'Draft'}
         statusBadgeClass={model.status === 'draft' ? 'draft' : 'avail'}
         saveStatus={saveStatus}
         saveStatusState={saveStatusState}

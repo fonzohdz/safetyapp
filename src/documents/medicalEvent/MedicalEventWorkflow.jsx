@@ -151,7 +151,7 @@ export default function MedicalEventWorkflow({
       <BuilderHeader
         kicker="Employee Medical Event"
         title={model.employeeName || 'Untitled Medical Event'}
-        statusBadgeLabel={locked ? 'Finished' : 'Draft'}
+        statusBadgeLabel={locked ? 'Completed' : 'Draft'}
         statusBadgeClass={model.status === 'draft' ? 'draft' : 'avail'}
         saveStatus={saveStatus}
         saveStatusState={saveStatusState}

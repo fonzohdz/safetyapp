@@ -202,7 +202,9 @@
   line-height: 1;
 }
 .docPdfCheckbox.checked { background: #000; color: #fff; }
-.docPdfCheckboxRow.checked span:last-child { font-weight: 700; }
+/* Direct child only — the ✓ mark inside the box is its own span now (see
+   CheckboxGrid) and must not inherit the label's bold. */
+.docPdfCheckboxRow.checked > span:last-child { font-weight: 700; }
 
 .docPdfSignatureRow { display: grid; grid-template-columns: 2.2fr 1.1fr; gap: 10px; align-items: end; }
 .docPdfSignatureBlock { display: flex; flex-direction: column; gap: 2px; }

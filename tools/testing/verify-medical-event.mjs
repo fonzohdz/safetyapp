@@ -134,11 +134,11 @@ async function main() {
       const pendingItems = await page.locator('.incidentReadinessItem.pending').count();
       check(pendingItems === 0, `Readiness satisfied with only the required Supervisor signature (${pendingItems} pending item(s))`);
 
-      await page.getByRole('button', { name: 'Finish Document', exact: true }).click();
-      await page.locator('.dialogPanel', { hasText: 'Finish this document?' }).getByRole('button', { name: 'Finish Document', exact: true }).click();
+      await page.getByRole('button', { name: 'Mark Complete', exact: true }).click();
+      await page.locator('.dialogPanel', { hasText: 'Mark this document complete?' }).getByRole('button', { name: 'Mark Complete', exact: true }).click();
       await page.waitForTimeout(300);
       const badgeText = await page.locator('.builderHeaderBadges .badge').innerText();
-      check(badgeText.trim().toLowerCase() === 'finished', `Status badge reads "Finished" (got "${badgeText.trim()}")`);
+      check(badgeText.trim().toLowerCase() === 'completed', `Status badge reads "Completed" (got "${badgeText.trim()}")`);
 
       await page.getByRole('button', { name: /Create Document/ }).click();
       await page.waitForSelector('.pdfReadyPanel', { timeout: 30000 });
@@ -158,7 +158,7 @@ async function main() {
       const raw = await page.evaluate(key => window.localStorage.getItem(key), STORAGE_KEY);
       const persisted = JSON.parse(raw || 'null');
       check(Boolean(persisted) && persisted.employeeName === 'Jordan Blake', 'Draft persisted under sdc.medical.draft.v1 after reload');
-      check(persisted?.status === 'completed', `Status is "completed" after PDF export (got "${persisted?.status}")`);
+      check(persisted?.status === 'ready' || persisted?.status === 'completed', `Locked status persisted across reload (got "${persisted?.status}")`);
       check(persisted?.employeeSignatureData == null, 'Employee signature correctly left unset (optional "if able" field, never fabricated)');
 
       check(consoleErrors.length === 0, `No console errors (${consoleErrors.length} found)${consoleErrors.length ? ': ' + consoleErrors.join(' | ') : ''}`);
@@ -232,7 +232,7 @@ async function main() {
         const idx = bars.findIndex(b => b.textContent.includes('Initial Classification'));
         if (idx < 0) return null;
         const grid = bars[idx].nextElementSibling;
-        const checked = grid ? Array.from(grid.querySelectorAll('.docPdfCheckboxRow.checked span:last-child')).map(s => s.textContent) : [];
+        const checked = grid ? Array.from(grid.querySelectorAll('.docPdfCheckboxRow.checked > span:last-child')).map(s => s.textContent) : [];
         return checked;
       });
       console.log(`  Printed Initial Classification: ${JSON.stringify(printedClassification)}`);
@@ -311,8 +311,8 @@ async function main() {
       await context.close();
     }
 
-    // ── 5. Finish Document confirmation and editing lock ──
-    console.log('\n=== 5. Finish Document confirmation and editing lock ===');
+    // ── 5. Mark Complete confirmation and editing lock ──
+    console.log('\n=== 5. Mark Complete confirmation and editing lock ===');
     {
       const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
       const page = await context.newPage();
@@ -340,15 +340,15 @@ async function main() {
       await page.getByRole('button', { name: 'Go to Review' }).click();
       await page.waitForSelector('text=Readiness');
 
-      const finishBtn = page.getByRole('button', { name: 'Finish Document', exact: true });
-      check(await finishBtn.isEnabled(), 'Finish Document is enabled once the checklist is complete');
+      const finishBtn = page.getByRole('button', { name: 'Mark Complete', exact: true });
+      check(await finishBtn.isEnabled(), 'Mark Complete is enabled once the checklist is complete');
       await finishBtn.click();
-      const dialog = page.locator('.dialogPanel', { hasText: 'Finish this document?' });
-      check(await dialog.isVisible(), 'Confirmation dialog appears on Finish Document click');
-      await dialog.getByRole('button', { name: 'Finish Document', exact: true }).click();
+      const dialog = page.locator('.dialogPanel', { hasText: 'Mark this document complete?' });
+      check(await dialog.isVisible(), 'Confirmation dialog appears on Mark Complete click');
+      await dialog.getByRole('button', { name: 'Mark Complete', exact: true }).click();
       await page.waitForTimeout(300);
       const badge = await page.locator('.builderHeaderBadges .badge').innerText();
-      check(badge.toLowerCase() === 'finished', `Badge reads "Finished" after confirming (got "${badge}")`);
+      check(badge.toLowerCase() === 'completed', `Badge reads "Completed" after confirming (got "${badge}")`);
 
       await page.getByRole('tab', { name: /Event & Response/ }).click();
       const nameField = page.getByRole('textbox', { name: 'Employee Name', exact: true });

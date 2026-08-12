@@ -113,7 +113,7 @@ export default function UncontrolledEventWorkflow({
       <BuilderHeader
         kicker="Uncontrolled Event Report"
         title={model.workplaceLocation || 'Untitled Uncontrolled Event'}
-        statusBadgeLabel={locked ? 'Finished' : 'Draft'}
+        statusBadgeLabel={locked ? 'Completed' : 'Draft'}
         statusBadgeClass={model.status === 'draft' ? 'draft' : 'avail'}
         saveStatus={saveStatus}
         saveStatusState={saveStatusState}

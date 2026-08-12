@@ -101,7 +101,7 @@ export default function DisciplinaryWorkflow({
       <BuilderHeader
         kicker="Employee Disciplinary Notice"
         title={model.employeeName || 'Untitled Disciplinary Notice'}
-        statusBadgeLabel={locked ? 'Finished' : 'Draft'}
+        statusBadgeLabel={locked ? 'Completed' : 'Draft'}
         statusBadgeClass={model.status === 'draft' ? 'draft' : 'avail'}
         saveStatus={saveStatus}
         saveStatusState={saveStatusState}

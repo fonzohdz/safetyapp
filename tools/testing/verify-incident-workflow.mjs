@@ -16,12 +16,12 @@
 //      localStorage; Cancel must preserve it, Continue must truly reset.
 //   2. Save Now / Save failed -- manual save must reflect real success/
 //      failure, and must never fall back to "Saved" after a failure.
-//   3. Finish Document -> confirmation -> locked -- clicking Finish Document
+//   3. Mark Complete -> confirmation -> locked -- clicking Mark Complete
 //      opens a confirmation dialog (Cancel leaves the report editable and
 //      still Draft); confirming locks the report read-only (fields
 //      genuinely disabled, not just a "revert to Draft on next edit" -- see
 //      the app-wide draft/finish/lock UX mission) and the badge reads
-//      "Finished".
+//      "Completed".
 //
 // Exits nonzero if any check fails.
 
@@ -215,8 +215,8 @@ const READY_FIXTURE = JSON.stringify({
 });
 
 async function testFinishDocumentLock(browser) {
-  const a = makeAssertions('Finish Document -> confirmation -> locked (section 3)');
-  console.log('\n=== 3. Finish Document confirmation and editing lock ===');
+  const a = makeAssertions('Mark Complete -> confirmation -> locked (section 3)');
+  console.log('\n=== 3. Mark Complete confirmation and editing lock ===');
   const context = await browser.newContext({ viewport: { width: 1200, height: 900 } });
   await context.addInitScript((json) => {
     window.localStorage.setItem('sdc.incident.draft.v1', json);
@@ -229,14 +229,14 @@ async function testFinishDocumentLock(browser) {
   await page.getByRole('button', { name: 'Continue Incident Report' }).click();
   await page.getByRole('tab', { name: /^Review & Export/ }).click();
 
-  console.log('  [2/7] Clicking Finish Document...');
-  const finishBtn = page.getByRole('button', { name: 'Finish Document', exact: true });
-  a.check(await finishBtn.isEnabled(), 'Finish Document is enabled once all readiness checks pass');
+  console.log('  [2/7] Clicking Mark Complete...');
+  const finishBtn = page.getByRole('button', { name: 'Mark Complete', exact: true });
+  a.check(await finishBtn.isEnabled(), 'Mark Complete is enabled once all readiness checks pass');
   await finishBtn.click();
 
   console.log('  [3/7] Confirmation dialog appears -- Cancel leaves the report editable...');
-  const dialog = page.locator('.dialogPanel', { hasText: 'Finish this document?' });
-  a.check(await dialog.isVisible(), 'Confirmation dialog appears on Finish Document click');
+  const dialog = page.locator('.dialogPanel', { hasText: 'Mark this document complete?' });
+  a.check(await dialog.isVisible(), 'Confirmation dialog appears on Mark Complete click');
   await dialog.getByRole('button', { name: 'Cancel' }).click();
   a.check(await page.locator('.dialogPanel').count() === 0, 'Dialog closes on Cancel');
   // .badge is rendered with CSS text-transform: uppercase, so innerText
@@ -244,12 +244,12 @@ async function testFinishDocumentLock(browser) {
   const badgeAfterCancel = await page.locator('.builderHeaderBadges .badge').innerText();
   a.check(badgeAfterCancel.toLowerCase() === 'draft', `badge still reads "Draft" after Cancel (got: "${badgeAfterCancel}")`);
 
-  console.log('  [4/7] Clicking Finish Document again and confirming...');
+  console.log('  [4/7] Clicking Mark Complete again and confirming...');
   await finishBtn.click();
-  await page.locator('.dialogPanel', { hasText: 'Finish this document?' }).getByRole('button', { name: 'Finish Document', exact: true }).click();
+  await page.locator('.dialogPanel', { hasText: 'Mark this document complete?' }).getByRole('button', { name: 'Mark Complete', exact: true }).click();
   await page.waitForTimeout(300);
   const badgeAfterFinish = await page.locator('.builderHeaderBadges .badge').innerText();
-  a.check(badgeAfterFinish.toLowerCase() === 'finished', `badge shows "Finished" after confirming (got: "${badgeAfterFinish}")`);
+  a.check(badgeAfterFinish.toLowerCase() === 'completed', `badge shows "Completed" after confirming (got: "${badgeAfterFinish}")`);
 
   console.log('  [5/7] Verifying a printed field is now genuinely disabled, not just reverted to Draft on edit...');
   await page.getByRole('tab', { name: /^Incident Details/ }).click();
@@ -261,15 +261,15 @@ async function testFinishDocumentLock(browser) {
   const valueAfter = await firstField.inputValue();
   a.check(valueAfter === valueBefore, 'Disabled field value cannot be changed via keyboard input');
 
-  console.log('  [6/7] Verifying the badge stayed "Finished" (no silent revert to Draft)...');
+  console.log('  [6/7] Verifying the badge stayed "Completed" (no silent revert to Draft)...');
   const badgeStillFinished = await page.locator('.builderHeaderBadges .badge').innerText();
-  a.check(badgeStillFinished.toLowerCase() === 'finished', `badge still reads "Finished", never silently reverted to Draft (got: "${badgeStillFinished}")`);
+  a.check(badgeStillFinished.toLowerCase() === 'completed', `badge still reads "Completed", never silently reverted to Draft (got: "${badgeStillFinished}")`);
 
-  console.log('  [7/7] Verifying Review & Export shows the locked message, not another Finish Document prompt...');
+  console.log('  [7/7] Verifying Review & Export shows the locked message, not another Mark Complete prompt...');
   await page.getByRole('tab', { name: /^Review & Export/ }).click();
-  const finishBtnGone = await page.getByRole('button', { name: 'Finish Document', exact: true }).count();
-  a.check(finishBtnGone === 0, 'Finish Document button is no longer offered once the report is finished');
-  const lockedMessage = await page.locator('p', { hasText: 'finished and locked from editing' }).count();
+  const finishBtnGone = await page.getByRole('button', { name: 'Mark Complete', exact: true }).count();
+  a.check(finishBtnGone === 0, 'Mark Complete button is no longer offered once the report is finished');
+  const lockedMessage = await page.locator('p', { hasText: 'marked complete and locked from editing' }).count();
   a.check(lockedMessage > 0, 'Review & Export shows the finished/locked message');
 
   console.log('  [cleanup] Clearing the test draft from localStorage...');
