@@ -26,6 +26,15 @@
   gap: 6px;
   font-family: Arial, Helvetica, sans-serif;
   font-size: 10pt;
+  /* Explicit 1.5 freezes what these pages ALREADY inherited from the app
+     shell's `body { line-height: 1.5 }` — zero visual change today, but it
+     makes page layout independent of the app's own typography, which
+     matters because capturePagesToPdf() now temporarily neutralizes the
+     body line-height during capture (see pdfExportCore.js — html2canvas's
+     FontMetrics probe inherits body line-height and mis-measures the text
+     baseline by the inherited half-leading, ~7px at these font sizes,
+     painting ALL glyph text visibly low in the real PDF raster). */
+  line-height: 1.5;
   color: #000;
   background: #fff;
 }
@@ -111,24 +120,40 @@
 .docPdfInfoTable tr + tr th, .docPdfInfoTable tr + tr td { border-top: 0; }
 /* Plain block, NOT flex -- flex align-items:center measured correctly
    centered in the live DOM but did not hold up in the real html2canvas
-   raster (confirmed 2026-08-11 against both a local test PDF and a
-   user-generated one -- see CLAUDE.md Gotchas). The JS-measured-padding
-   technique that fixed this same class of bug for Incident's .incCellContent
-   was tried here too and made no measurable difference -- debug
-   instrumentation showed only ~1-2px of slack in the live DOM for EVERY row,
-   including rows that render correctly, so there's no real per-row slack to
-   redistribute; whatever height html2canvas actually paints these rows at
-   does not match the live DOM measurement closely enough for that technique
-   to apply. What DOES work, confirmed via the real raster: a small constant
-   upward shift applied to every cell's content. -4px was chosen by direct
-   trial against real generated PDFs (not the preview) as the best balance
-   -- it clearly fixes the rows that were visibly top-biased, at the cost of
-   the already-fine first row shifting very slightly high instead of
-   dead-center. Needs re-calibrating if font-size/line-height/padding/height
-   on .docPdfInfoTable change. */
+   raster (see CLAUDE.md Gotchas). HISTORY: this used to carry a
+   translateY(-4px) export-only shift, calibrated by trial against real
+   PDFs. The 2026-08-11 forensic pass found the actual root cause — the
+   html2canvas FontMetrics probe inheriting the app body's line-height and
+   painting ALL text ~8px below its true baseline (see pdfExportCore.js) —
+   so the capture now fixes the baseline at the source and the -4px
+   half-compensation is gone. Any small residual constant below is
+   calibrated against the real extracted raster via
+   tools/testing/analyze-pdf-centering.mjs. */
 .docPdfCellContent { display: block; }
 .docPdfCellContent.center { text-align: center; }
-.pdfExportRoot .docPdfCellContent, .docPdfExportRoot .docPdfCellContent { transform: translateY(-4px); }
+/* Export-only residual raster calibration (html2canvas's FontMetrics
+   carries a small constant "+2" fudge plus Arial probe rounding even with
+   the body line-height neutralized — measured ~+5px at these sizes on the
+   real extracted raster, 2026-08-11 sweep: -4/-5/-6/-7 tried, -5 balances
+   both descender text (+2.4px ink delta) and no-descender text (-2.4px)
+   across th labels, td values, and single/multi-line TextBlocks). Applies
+   to the off-screen export DOM only — nothing user-visible. Re-run
+   tools/testing/calibrate-doc-centering.mjs if any docPdf font-size,
+   line-height, or cell geometry changes. */
+.docPdfExportRoot .docPdfCellContent { transform: translateY(-5px); }
+.docPdfExportRoot .docPdfTextBlockText { display: inline-block; transform: translateY(-5px); }
+/* Same residual, other glyph families — bar titles vs their gray fill,
+   checkbox labels and ✓ marks vs their (correctly-painted) squares, the
+   refused-to-sign note vs its line, block titles/help vs the box below
+   them. Calibrated -4px (these are 9.5pt/8.5pt caps contexts where -5
+   overshoots slightly). */
+.docPdfExportRoot .docPdfBarText,
+.docPdfExportRoot .docPdfCheckboxLabel,
+.docPdfExportRoot .docPdfCheckMark,
+.docPdfExportRoot .docPdfSigNoteText,
+.docPdfExportRoot .docPdfTextBlockTitle,
+.docPdfExportRoot .docPdfTextBlockHelp,
+.docPdfExportRoot .docPdfSigDateText { display: inline-block; transform: translateY(-4px); }
 
 .docPdfTextBlockWrap { display: flex; flex-direction: column; gap: 5px; }
 .docPdfTextBlockTitle { font-weight: 700; font-size: 9.5pt; text-transform: uppercase; }

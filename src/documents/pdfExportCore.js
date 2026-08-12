@@ -40,6 +40,24 @@ export async function capturePagesToPdf(pageRefsRef, onProgress) {
   const LETTER_WIDTH_PT = 8.5 * PT_PER_IN;
   const LETTER_HEIGHT_PT = 11 * PT_PER_IN;
 
+  /* html2canvas 1.4.1's FontMetrics probe appends its measuring container
+     directly to document.body WITHOUT resetting line-height, so it inherits
+     the app shell's `body { line-height: 1.5 }` and reports a baseline
+     inflated by the extra half-leading (~7px at this document family's
+     10pt/9.5pt sizes). Every glyph then paints that far BELOW its true
+     baseline in the raster — confirmed 2026-08-11 by extracting the real
+     embedded PDF raster and comparing against a same-page DOM screenshot
+     (tools/testing/compare-dom-vs-raster.mjs): all text ~8px low; borders,
+     checkbox squares and signature images unaffected. Neutralizing body
+     line-height for the duration of the capture fixes the probe at the
+     source. Page layout is unaffected because .docPdfPage now pins its own
+     line-height explicitly (docPdf.css). JSA/Incident keep their own
+     capture code and their own approved, separately-calibrated
+     compensations — do NOT apply this to their pipelines without
+     re-calibrating those. */
+  const bodyInlineLineHeight = document.body.style.lineHeight;
+  document.body.style.lineHeight = 'normal';
+  try {
   for (let i = 0; i < pages.length; i += 1) {
     const { type, el } = pages[i];
     onProgress?.(i + 1, pages.length);
@@ -68,6 +86,9 @@ export async function capturePagesToPdf(pageRefsRef, onProgress) {
     canvas.width = 0;
     canvas.height = 0;
     canvas = null;
+  }
+  } finally {
+    document.body.style.lineHeight = bodyInlineLineHeight;
   }
 
   const pdfBytes = await pdfDoc.save();

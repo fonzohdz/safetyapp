@@ -46,7 +46,9 @@ export function DocPdfPageShell({ pageRef, pageNumber, totalPages, draft, waterm
 }
 
 export function GrayBar({ children }) {
-  return <div className="docPdfGrayBar">{children}</div>;
+  // Inner span so the export-only raster calibration (docPdf.css) can lift
+  // the TITLE TEXT without moving the bar's own fill/borders.
+  return <div className="docPdfGrayBar"><span className="docPdfBarText">{children}</span></div>;
 }
 
 /* Thin outlined numbered section header -- lighter-weight alternative to
@@ -57,8 +59,8 @@ export function GrayBar({ children }) {
 export function NumberedBar({ number, children }) {
   return (
     <div className="docPdfNumberedBar">
-      {number != null && <span className="docPdfNumberedBarBadge">{number}</span>}
-      <span>{children}</span>
+      {number != null && <span className="docPdfNumberedBarBadge"><span className="docPdfBarText">{number}</span></span>}
+      <span className="docPdfBarText">{children}</span>
     </div>
   );
 }
@@ -104,7 +106,10 @@ export function TextBlock({ title, help, text, minHeightPx }) {
       {title && <div className="docPdfTextBlockTitle">{title}</div>}
       {help && <div className="docPdfTextBlockHelp">{help}</div>}
       <div className="docPdfTextBlock" style={minHeightPx ? { minHeight: `${minHeightPx}px` } : undefined}>
-        {text || ''}
+        {/* Inner span exists so the export-only raster calibration in
+            docPdf.css can shift the TEXT without moving the block's own
+            borders (same pattern as .docPdfCellContent). */}
+        <span className="docPdfTextBlockText">{text || ''}</span>
       </div>
     </div>
   );
@@ -121,8 +126,8 @@ export function CheckboxGrid({ options, checked, oneColumn, oneRow }) {
         const isChecked = checkedList.includes(opt);
         return (
           <div className={`docPdfCheckboxRow${isChecked ? ' checked' : ''}`} key={opt}>
-            <span className={`docPdfCheckbox${isChecked ? ' checked' : ''}`}>{isChecked ? '✓' : ''}</span>
-            <span>{opt}</span>
+            <span className={`docPdfCheckbox${isChecked ? ' checked' : ''}`}>{isChecked ? <span className="docPdfCheckMark">✓</span> : ''}</span>
+            <span className="docPdfCheckboxLabel">{opt}</span>
           </div>
         );
       })}
@@ -139,7 +144,7 @@ export function SignatureRow({ label: sigLabel, dateLabel = 'Date', signatureDat
       </div>
       <div className="docPdfSignatureBlock">
         <div className="docPdfSignatureLine" style={{ display: 'flex', alignItems: 'flex-end', fontSize: '10pt', paddingBottom: 2 }}>
-          {fmtDate(dateValue)}
+          <span className="docPdfSigDateText">{fmtDate(dateValue)}</span>
         </div>
         <span className="docPdfSignatureCaption">{dateLabel}</span>
       </div>
@@ -159,7 +164,7 @@ export function MultiSignatureRow({ items }) {
       {items.map((it, i) => (
         <div className="docPdfSignatureBlock" key={i}>
           {it.note ? (
-            <div className="docPdfSignatureLine docPdfSignatureNote">{it.note}</div>
+            <div className="docPdfSignatureLine docPdfSignatureNote"><span className="docPdfSigNoteText">{it.note}</span></div>
           ) : it.signatureData ? (
             <img src={it.signatureData} alt="Signature" className="docPdfSignatureImg" />
           ) : (
