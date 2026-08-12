@@ -67,7 +67,11 @@ function EvaluationBlock({ model }) {
       <GrayBar>Medical Evaluation / Work Status</GrayBar>
       <InfoTable rows={[
         pairRow('Medical Evaluation', evalLabel, 'Clinic / Provider', model.clinicProvider),
-        [label('Work Status', '18%'), value(workStatusLabel)],
+        /* colSpan 3: the row above is a pairRow (label,value,label,value), so
+           without it this row stops at the halfway point and the right half
+           of the table has no cells to draw a border — the printed document
+           ends up with one row whose right edge is simply missing. */
+        [label('Work Status', '18%'), value(workStatusLabel, 3)],
       ]}
       />
     </>

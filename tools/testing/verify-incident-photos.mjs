@@ -30,6 +30,7 @@
 
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
+import { killTree } from './lib/killTree.mjs';
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -349,7 +350,7 @@ async function main() {
       console.log('All Incident Photos regression checks passed.');
     }
   } finally {
-    server.kill();
+    killTree(server);
   }
 }
 

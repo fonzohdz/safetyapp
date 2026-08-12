@@ -37,6 +37,7 @@
 
 import { chromium, webkit } from 'playwright';
 import { spawn } from 'node:child_process';
+import { killTree } from './lib/killTree.mjs';
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -512,7 +513,7 @@ async function main() {
       console.log('\nAll runs passed all assertions with zero console/page errors.' + (webkitSkippedReason ? ' (WebKit skipped -- see above.)' : ''));
     }
   } finally {
-    server.kill();
+    killTree(server);
   }
 }
 

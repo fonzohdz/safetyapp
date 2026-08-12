@@ -29,6 +29,7 @@
 
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
+import { killTree } from './lib/killTree.mjs';
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -165,7 +166,7 @@ async function main() {
       process.exitCode = 1;
     }
   } finally {
-    server.kill();
+    killTree(server);
   }
 }
 

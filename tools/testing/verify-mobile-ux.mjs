@@ -24,6 +24,7 @@
 
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
+import { killTree } from './lib/killTree.mjs';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -200,7 +201,7 @@ async function main() {
 
     await browser.close();
   } finally {
-    server.kill();
+    killTree(server);
   }
 
   console.log(`\n[4/4] Done. ${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);

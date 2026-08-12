@@ -9,6 +9,7 @@
 
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
+import { killTree } from './lib/killTree.mjs';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -91,7 +92,7 @@ async function main() {
     writeFileSync(path.join(outDir, 'dom-report.json'), JSON.stringify(domReport, null, 2));
     writeFileSync(path.join(outDir, 'pdf-report.json'), JSON.stringify(pdfReport, null, 2));
   } finally {
-    server.kill();
+    killTree(server);
   }
 }
 

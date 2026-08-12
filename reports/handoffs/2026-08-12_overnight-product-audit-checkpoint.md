@@ -239,10 +239,23 @@ Things a future session must not forget or re-learn the hard way.
    in `src/incident/SignaturePad.jsx` is a standing regression target. Do not refactor its
    touch handling casually.
 
-7. **On Windows, test suites previously left Vite child processes alive**, making passing
-   runs look like hangs. The `process.exit(0)` teardown in every `verify-*.mjs` is
-   load-bearing — do not remove it when editing those scripts. Any *new* script that
-   spawns `vite preview` needs the same guard.
+7. **On Windows, test suites leaked Vite child processes — in two separate ways.**
+   `spawn('npx', …, { shell: true })` produces the chain
+   `cmd.exe -> npx-cli.js -> vite.js`, and the real server is the *grandchild*.
+   - Symptom A (fixed first): those live handles kept Node's event loop alive, so a
+     **passing** run printed `ALL CHECKS PASSED` and then hung until the caller's
+     timeout. Fixed by an explicit `process.exit(0)` in every `verify-*.mjs`.
+   - Symptom B (found later, on 2026-08-12): `child.kill()` only signals the head of
+     the chain, so **`process.exit(0)` stopped the hang without ever reaping the
+     server**. A full suite run left ~19 orphaned preview servers holding ports and
+     memory. Fixed by `tools/testing/lib/killTree.mjs` (`taskkill /T /F` on Windows,
+     process-group kill on POSIX), wired into all 25 preview-spawning scripts.
+
+   Both guards are load-bearing — do not remove either when editing those scripts, and
+   any *new* script that spawns `vite preview` needs both. **Lesson beyond the bug:**
+   "the suites are fixed" was true of the symptom being looked at and false of the
+   underlying resource leak. Verify the actual end state (here: list the processes),
+   not just that the visible complaint went away.
 
 8. **Realistic fixture data matters.** 1×1 black signature PNGs hid all real signature
    rendering behavior for the entire life of the suite. Prefer messy, real-shaped input —
@@ -328,7 +341,7 @@ Nothing in this section should be described as done.
 | **Laptop/desktop space utilization** | Not started. Significant dead space at 1440×900. |
 | **Full visual / palette / typography pass** | ~25%. Button system and readiness checklist done. Outstanding: palette and typography audit, ALL-CAPS field labels, the repeated *"Speak clearly for the best results."* helper noise, empty and success states. |
 | **Broader workflow transformation** | ~35%. Review & Export done; the rest of the wizard untouched. |
-| **Remaining state-transition forensics** | Partial — closed out today for the five locking document types (see final-results section). Broader transitions (draft transfer, template load, blank-start over an existing draft) not covered. |
+| **Remaining state-transition forensics** | Partial. The completion lifecycle is closed out for all five locking document types (see final-results). **Not** covered: draft transfer in/out, template load, blank-start over an existing draft, and multi-tab/localStorage contention. |
 | **Adversarial QA** | Not started. |
 | **Complete device walk** | Partial. Phone walk breaks after Home in `walk-app-screens.mjs`; JSA Review unreachable by the walker. |
 | **Final all-document PDF re-pass** | The four Superintendent docs are done (today). JSA and Incident not re-passed this mission. |
@@ -378,6 +391,92 @@ Do **not** build these. Recorded only so they are not lost:
 
 # FINAL RESULTS — 2026-08-12 CLOSEOUT
 
-_This section is filled in at the end of the corrective/stability closeout._
+The corrective/stability batch is closed. No heavy product work (Home hierarchy, tablet
+landscape, palette) was started — that is deliberately left for tonight.
 
-<!-- CLOSEOUT-RESULTS -->
+## Completion-state lifecycle — now covered by a real suite
+
+New `tools/testing/verify-completion-lifecycle.mjs` walks the entire state machine
+through the real UI for **all five locking document types** and asserts at every hop:
+
+```
+Draft -> Create Document (filename carries _DRAFT) -> STILL EDITABLE
+      -> Mark Complete (badge Completed, fields actually disabled)
+      -> prior DRAFT document goes STALE
+      -> Update Document (filename drops _DRAFT)
+      -> Mark Incomplete (badge Draft, fields editable again)
+      -> prior FINAL document goes STALE
+```
+
+"Editable" is asserted against a real form control on a real content step, not merely
+against which buttons the review panel offers. **Result: 77/77 assertions across
+Disciplinary, Separation, Medical Event, Uncontrolled Event and Incident.** Incident held
+its protected 6 pages through every transition.
+
+The script seeds each fixture with `status: 'draft'` at load time rather than editing the
+shared fixtures — `incident-full-fixture.json` ships `status: "ready"` because other
+suites need a completed report.
+
+## The one genuine visible defect found, fixed, and covered
+
+**Medical Event — the Work Status row had no right edge.** In `EvaluationBlock`, the first
+row is a `pairRow` (4 cells: label,value,label,value) and the second was a bare 2-cell row.
+With `border-collapse`, the right half of that row had no cells and therefore drew no
+border: the printed document showed one row stopping halfway across the page while every
+other row closed. Fixed by giving the value cell `colSpan: 3` in
+`src/documents/medicalEvent/MedicalEventPdf.jsx`. `InfoTable` already supported `colSpan`,
+so the change is one cell.
+
+An audit of the other three documents found **no other mixed-width table** — every other
+InfoTable is internally consistent.
+
+**Regression coverage added, and proven non-vacuous.** The lifecycle suite now asserts a
+structural invariant over the off-screen export DOM: every row of every `.docPdfInfoTable`
+must span the same number of columns, attributed to the owning `data-doc-id`. Reverting the
+`colSpan` and re-running made it fail (`medicalEvent table#8 rows span 4/2`); restoring it
+made it pass. It sweeps all six documents' export roots on every run.
+
+## Process-leak defect found and fixed
+
+Step 6 of the closeout ("confirm no stale processes remain") **failed on first check** —
+19 orphaned `vite preview` servers were alive. See lesson 7 above for the mechanism and
+the fix (`tools/testing/lib/killTree.mjs`, wired into all 25 preview-spawning scripts).
+Strays reaped; three subsequent suite runs verified as leaving **zero** leaked processes.
+
+## PDF status — fresh generation and real raster inspection
+
+Fresh PDFs generated through the real UI for all four Superintendent documents (DRAFT and
+FINAL each) plus Incident. Full-page rasters extracted from the actual embedded PDF image
+streams and inspected visually, plus 3× zoomed crops of every cell family named in the
+review request:
+
+| Document | Families inspected | Result |
+|---|---|---|
+| Disciplinary | employee/supervisor info, position/date, warning level, signatures | centered, no defect |
+| Separation | employee info, Discipline/Rehire, Documentation Attached, rehire status, Company Closeout, 3-column signatures + "Refused / Unavailable to Sign" | centered, no defect |
+| Medical Event | employee info, Medical Evaluation, Work Status, Attachments, Initial Classification, signatures | **one defect found and fixed** (Work Status right edge); centering itself was correct |
+| Uncontrolled Event | Event Classification / Outcome, Immediate Actions / Notifications, Reported By / Supervisor Review, shared short bordered cells | centered, no defect |
+
+Measured centering across all InfoTable cells stays within **±3.2px**, below descender
+height. The two largest analyzer deltas are known false positives (all-caps gray-bar bands
+and real signature ink) — see lesson 3.
+
+## Full regression
+
+**All 19 suites green** (18 existing + the new lifecycle suite), zero failures, zero
+unexpected console/page errors.
+
+- JSA protected counts: `MAIN 1 / CONTINUATION 0 / SIGN-IN 2 / TOTAL 3` — unchanged
+- Incident protected counts: `6 / 6 / 11 / 6` — unchanged
+- SignaturePad: green (WebKit skipped — not installed in this environment)
+
+## Still open after today
+
+- The screenshot walker cannot reach JSA's Review step (JSA uses `jsaStep` navigation, not
+  the shared Next / Go-to-Review pattern), and the phone walk still breaks after Home.
+- **Design question for the product owner, deliberately not acted on:** on a blank form
+  with 7 items outstanding, "Create Document" is still the loudest element on Review &
+  Export. That may well be correct — a watermarked draft is legitimately generatable at any
+  time — but it is a decision, not an oversight.
+- No physical iPad / AirPrint verification and no Safari/WebKit run is possible in this
+  environment.
