@@ -153,13 +153,16 @@ export async function createFormPdf({ formTitle, logoBytes, draft, watermarkText
       const cw = widthOf('CONTINUATION', 8.5, bold);
       drawTextAt('CONTINUATION', PAGE_W / 2 - cw / 2, MARGIN + 32, 8.5, bold, RED);
     }
-    const pageLabel = `Page ${pages.length}`;
-    drawTextAt(pageLabel, PAGE_W - MARGIN - widthOf(pageLabel, 8.5), MARGIN + 16, 8.5, font, MUTED);
+    /* No page label here — the total isn't knowable while drawing, so
+       finish() stamps "Page N of M" onto every page at the end. */
     rect(MARGIN, MARGIN + HEADER_H - 4, CONTENT_W, 2.2, { fill: RED });
     y = MARGIN + HEADER_H + 6;
   }
 
   const bottomLimit = () => PAGE_H - MARGIN;
+  /* Drawable height of a fresh page — how tall a block can be and still be
+     keepable whole. */
+  const pageCapacity = () => bottomLimit() - (MARGIN + HEADER_H + 6);
   function ensure(h) {
     if (!page) { newPage(false); return; }
     if (y + h > bottomLimit()) newPage(true);
@@ -255,23 +258,53 @@ export async function createFormPdf({ formTitle, logoBytes, draft, watermarkText
     },
 
     /* A writing box. Text is TOP-set, like every paper form. Grows to fit
-       its content, never below minH. */
+       its content, never below minH, and CONTINUES ONTO THE NEXT PAGE when
+       the content is taller than a page.
+
+       That continuation is not a nicety. Sizing the box to all of its text
+       and drawing it in one go paints anything past the foot of the page off
+       the sheet, where it simply never appears — an incident narrative or a
+       timeline losing its ending, with nothing on the page to suggest words
+       are missing. Same principle as wrapping instead of truncating: on a
+       document somebody signs, silently dropping the user's words is data
+       loss. */
     textBox({ title, text, minH = 38 }) {
       const size = 9.7;
       const lead = size * 1.32;
       const padX = 7;
       const padY = 6;
       if (title) this.fieldLabel(title);
+
       const lines = wrap(text, colW - padX * 2, size);
-      const needed = Math.max(minH, padY * 2 + lines.length * lead);
-      ensure(needed);
-      rect(colX, y, colW, needed, { border: RULE });
-      let by = y + topBaseline(padY, size);
-      for (const ln of lines) {
-        drawTextAt(ln, colX + padX, by, size, font);
-        by += lead;
-      }
-      y += needed;
+      const total = Math.max(minH, padY * 2 + lines.length * lead);
+      /* Keep the box whole where that's possible: asking for all of it means
+         a box that merely doesn't fit the space left moves to the next page
+         intact. A box taller than any page can't be kept whole, so it asks
+         only for enough room to be worth starting here. */
+      ensure(total <= pageCapacity() ? total : padY * 2 + lead * 3);
+
+      let remaining = lines;
+      let first = true;
+      do {
+        const room = bottomLimit() - y;
+        const fits = Math.max(1, Math.floor((room - padY * 2) / lead));
+        const chunk = remaining.slice(0, fits);
+        remaining = remaining.slice(fits);
+        /* A box that continues runs to the foot of the page; the last one
+           shrinks back to its content. */
+        const h = remaining.length
+          ? room
+          : Math.max(first ? minH : padY * 2 + lead, padY * 2 + chunk.length * lead);
+        rect(colX, y, colW, h, { border: RULE });
+        let by = y + topBaseline(padY, size);
+        for (const ln of chunk) {
+          drawTextAt(ln, colX + padX, by, size, font);
+          by += lead;
+        }
+        y += h;
+        first = false;
+        if (remaining.length) newPage(true);
+      } while (remaining.length);
     },
 
     /* Check-all-that-apply grid. `columns` defaults to 2. */
@@ -347,18 +380,34 @@ export async function createFormPdf({ formTitle, logoBytes, draft, watermarkText
       // Don't start a paired row that can't fit a reasonable amount of it.
       ensure(140);
       const top = y;
+      const startPage = page;
 
       colX = outerX; colW = half;
       left();
       const leftBottom = y;
+      const leftEnd = pages.indexOf(page);
 
+      /* Rewind to the page the pair started on, not just to the starting y.
+         If the left column ran onto another page, the right column still
+         belongs BESIDE the left column's opening — restoring y alone would
+         drop it at that same height on whatever page the left column
+         happened to finish on, leaving a hole in the middle of the sheet and
+         a block of fields floating under content it is supposed to sit
+         next to. */
+      page = startPage;
       y = top;
       colX = outerX + half + gap; colW = half;
       right();
       const rightBottom = y;
+      const rightEnd = pages.indexOf(page);
 
       colX = outerX; colW = outerW;
-      y = Math.max(leftBottom, rightBottom);
+      /* Carry on from whichever column finished last — furthest page first,
+         then furthest down that page. */
+      const lastPage = Math.max(leftEnd, rightEnd);
+      page = pages[lastPage];
+      if (leftEnd === rightEnd) y = Math.max(leftBottom, rightBottom);
+      else y = lastPage === leftEnd ? leftBottom : rightBottom;
     },
 
     /* N signature blocks across — Separation's Employee / Supervisor / HR row.
@@ -403,19 +452,16 @@ export async function createFormPdf({ formTitle, logoBytes, draft, watermarkText
       } catch { return null; }
     },
 
-    /* Stamps the real total onto every page's "Page N" once the document is
-       complete — the count isn't knowable while drawing. */
+    /* Stamps "Page N of M" onto every page once the document is complete —
+       the total isn't knowable while the pages are being drawn, which is why
+       newPage() deliberately leaves this corner empty. */
     async finish() {
       const total = pages.length;
       pages.forEach((p, i) => {
         const label = `Page ${i + 1} of ${total}`;
-        const w = widthOf(label, 8.5);
-        // Cover the provisional label, then write the full one.
-        p.drawRectangle({
-          x: PAGE_W - colX - 80, y: PAGE_H - (colX + 20), width: 80, height: 14, color: rgb(1, 1, 1),
-        });
         p.drawText(label, {
-          x: PAGE_W - colX - w, y: PAGE_H - (colX + 16), size: 8.5, font, color: MUTED,
+          x: PAGE_W - MARGIN - widthOf(label, 8.5),
+          y: PAGE_H - (MARGIN + 16), size: 8.5, font, color: MUTED,
         });
       });
       const bytes = await pdf.save();

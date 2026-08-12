@@ -16,6 +16,8 @@
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
 import { killTree } from './lib/killTree.mjs';
+import { downloadGeneratedPdf } from './lib/downloadPdf.mjs';
+import { checkPdfContract } from './lib/pdfContract.mjs';
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -240,7 +242,22 @@ async function main() {
     // ── 4. New-shape PDF fixtures (page count + no clipping) ──
     console.log('\n=== 4. New-shape PDF fixtures (page count + no clipping) ===');
     const fixtures = [
-      { name: 'separation-new-involuntary.json', label: 'involuntary', title: 'Marcus Doyle', expectMaxPages: 1 },
+      {
+        name: 'separation-new-involuntary.json',
+        label: 'involuntary',
+        title: 'Marcus Doyle',
+        expectMaxPages: 1,
+        // "Effective Separation Date" is the label that the pre-wrap drawing
+        // code chopped to "Effective Separation". It wraps across two lines
+        // in its cell, so only the column-wise reading finds it whole —
+        // which is exactly the regression this fixture exists to hold down.
+        mustContain: [
+          'Marcus Doyle', 'EMP-4471', 'Ray Ferris', 'Ridgeland MS - Entergy TAPS Yard',
+          'Effective Separation Date',
+          'Job Abandonment / No Call-No Show',
+          'Repeated safety-critical violations after progressive discipline.',
+        ],
+      },
       { name: 'separation-new-voluntary.json', label: 'voluntary', title: 'Dale Hutto', expectMaxPages: 1 },
     ];
     const summary = [];
@@ -269,32 +286,33 @@ async function main() {
       console.log(`  PDF ready: ${headline}`);
       check(Number.isFinite(pageCount) && pageCount >= 1 && pageCount <= fx.expectMaxPages, `Page count within expected range (got ${pageCount}, expected 1-${fx.expectMaxPages})`);
 
-      const overflowReport = await page.evaluate(() => {
-        const pages = Array.from(document.querySelectorAll('.docPdfExportRoot[data-doc-id="separation"] .docPdfPage'));
-        return pages.map((p, i) => ({ index: i + 1, scrollHeight: p.scrollHeight, clientHeight: p.clientHeight }));
-      });
-      overflowReport.forEach(p => {
-        check(p.scrollHeight <= p.clientHeight + 2, `page ${p.index}: no clipped content (scrollHeight ${p.scrollHeight}px <= clientHeight ${p.clientHeight}px, +2px tolerance)`);
-      });
+      // This document is drawn straight into the PDF by separationPdfDraw.js,
+      // so every content check below reads the downloaded artifact rather
+      // than the hidden export DOM, which no longer builds it.
+      const { pdf, suggestedName } = await downloadGeneratedPdf(page, path.join(outDir, `${fx.label}.pdf`));
+      check(pdf.pages.length === pageCount, `App's reported page count matches the real PDF (UI said ${pageCount}, PDF has ${pdf.pages.length})`);
 
-      // The Employee Data Change half of the historical form must never
-      // appear — this is a separation-only document.
-      const pageText = await page.evaluate(() => document.querySelector('.docPdfExportRoot[data-doc-id="separation"] .docPdfPage')?.textContent || '');
-      check(!/pay rate|tax withholding|address change|phone change/i.test(pageText), 'No Employee Data Change content leaked into the printed form');
-      check(pageText.includes('Company Closeout'), 'Company Closeout section prints');
-      check(pageText.includes('Approvals'), 'Three-signature Approvals section prints');
+      const contract = await checkPdfContract(pdf, {
+        label: fx.label,
+        pages: [1, fx.expectMaxPages],
+        draft: true,
+        mustContain: [...(fx.mustContain || []), 'COMPANY CLOSEOUT', 'APPROVALS'],
+        // The Employee Data Change half of the historical form must never
+        // appear — this is a separation-only document.
+        mustNotContain: ['Pay Rate', 'Tax Withholding', 'Address Change', 'Phone Change'],
+      });
+      contract.forEach(r => check(r.ok, r.label));
+      check(/_DRAFT\.pdf$/.test(suggestedName), `Draft export filename carries the _DRAFT suffix (got "${suggestedName}")`);
 
       // Warning-notices row is only meaningful for the involuntary fixture.
-      const hasWarningRow = pageText.includes('Warning Notices Given?');
+      const printed = pdf.pages.flatMap(p => p.texts.map(t => t.text)).join(' ');
+      const hasWarningRow = printed.includes('Warning Notices Given?');
       check(hasWarningRow === (fx.label === 'involuntary'), `Warning Notices row only prints for the involuntary fixture (present: ${hasWarningRow})`);
 
       check(consoleErrors.length === 0, `No console errors (${consoleErrors.length} found)`);
       check(pageErrors.length === 0, `No page errors (${pageErrors.length} found)`);
 
-      await page.addStyleTag({ content: '.docPdfExportRoot[data-doc-id="separation"] { position: static !important; left: 0 !important; top: 0 !important; }' });
-      await page.locator('.docPdfExportRoot[data-doc-id="separation"] .docPdfPage').first().screenshot({ path: path.join(outDir, `${fx.label}-page1.png`) }).catch(() => {});
-
-      summary.push({ fixture: fx.label, pageCount, overflowReport, consoleErrors: consoleErrors.length, pageErrors: pageErrors.length });
+      summary.push({ fixture: fx.label, pageCount, pdfPages: pdf.pages.length, suggestedName, consoleErrors: consoleErrors.length, pageErrors: pageErrors.length });
       await context.close();
     }
 

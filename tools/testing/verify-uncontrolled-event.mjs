@@ -8,6 +8,8 @@
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
 import { killTree } from './lib/killTree.mjs';
+import { downloadGeneratedPdf } from './lib/downloadPdf.mjs';
+import { checkPdfContract } from './lib/pdfContract.mjs';
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -190,7 +192,21 @@ async function main() {
     console.log('\n=== 3. PDF fixtures (page count + no clipping) ===');
     const fixtures = [
       { name: 'uncontrolled-near-miss.json', label: 'near-miss', expectMaxPages: 1 },
-      { name: 'uncontrolled-spill.json', label: 'spill', expectMaxPages: 1 },
+      {
+        name: 'uncontrolled-spill.json',
+        label: 'spill',
+        expectMaxPages: 1,
+        // Long option and section labels that have to survive wrapping in
+        // the narrow two-column blocks, plus the user's own free text.
+        mustContain: [
+          'Brandon, MS — Rankin Co. Yard', 'Casey Renn', 'Ray Ferris',
+          'Equipment / Mechanical Failure (not misuse)',
+          'Medical Event / Illness (non-occupational)',
+          'WHAT HAPPENED / BRIEF SUMMARY / TIMELINE',
+          'REPORTED BY / SUPERVISOR REVIEW',
+          'A hydraulic hose on the excavator ruptured during operation',
+        ],
+      },
       // Deliberately pathological (no real report would have a timeline
       // this long) — the important thing is safe, uncapped-but-unclipped
       // pagination, not hitting a specific page count.
@@ -222,21 +238,26 @@ async function main() {
       console.log(`  PDF ready: ${headline}`);
       check(Number.isFinite(pageCount) && pageCount >= 1 && pageCount <= fx.expectMaxPages, `Page count within expected range (got ${pageCount}, expected 1-${fx.expectMaxPages})`);
 
-      const overflowReport = await page.evaluate(() => {
-        const pages = Array.from(document.querySelectorAll('.docPdfExportRoot[data-doc-id="uncontrolledEvent"] .docPdfPage'));
-        return pages.map((p, i) => ({ index: i + 1, scrollHeight: p.scrollHeight, clientHeight: p.clientHeight }));
+      // This document is drawn straight into the PDF by
+      // uncontrolledEventPdfDraw.js, so every content check below reads the
+      // downloaded artifact rather than the hidden export DOM, which no
+      // longer builds it.
+      const { pdf, suggestedName } = await downloadGeneratedPdf(page, path.join(outDir, `${fx.label}.pdf`));
+      check(pdf.pages.length === pageCount, `App's reported page count matches the real PDF (UI said ${pageCount}, PDF has ${pdf.pages.length})`);
+
+      const contract = await checkPdfContract(pdf, {
+        label: fx.label,
+        pages: [1, fx.expectMaxPages],
+        draft: true,
+        mustContain: fx.mustContain || [],
       });
-      overflowReport.forEach(p => {
-        check(p.scrollHeight <= p.clientHeight + 2, `page ${p.index}: no clipped content (scrollHeight ${p.scrollHeight}px <= clientHeight ${p.clientHeight}px, +2px tolerance)`);
-      });
+      contract.forEach(r => check(r.ok, r.label));
+      check(/_DRAFT\.pdf$/.test(suggestedName), `Draft export filename carries the _DRAFT suffix (got "${suggestedName}")`);
 
       check(consoleErrors.length === 0, `No console errors (${consoleErrors.length} found)`);
       check(pageErrors.length === 0, `No page errors (${pageErrors.length} found)`);
 
-      await page.addStyleTag({ content: '.docPdfExportRoot[data-doc-id="uncontrolledEvent"] { position: static !important; left: 0 !important; top: 0 !important; }' });
-      await page.locator('.docPdfExportRoot[data-doc-id="uncontrolledEvent"] .docPdfPage').first().screenshot({ path: path.join(outDir, `${fx.label}-page1.png`) }).catch(() => {});
-
-      summary.push({ fixture: fx.label, pageCount, overflowReport, consoleErrors: consoleErrors.length, pageErrors: pageErrors.length });
+      summary.push({ fixture: fx.label, pageCount, pdfPages: pdf.pages.length, suggestedName, consoleErrors: consoleErrors.length, pageErrors: pageErrors.length });
       await context.close();
     }
 

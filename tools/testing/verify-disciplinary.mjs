@@ -10,6 +10,8 @@
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
 import { killTree } from './lib/killTree.mjs';
+import { downloadGeneratedPdf } from './lib/downloadPdf.mjs';
+import { checkPdfContract } from './lib/pdfContract.mjs';
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -138,12 +140,27 @@ async function main() {
       console.log(`  PDF ready: ${headline}`);
       check(/^1 page$/.test(headline.trim()), `Normal-length content fits on 1 page (got "${headline.trim()}")`);
 
-      const downloadPromise = page.waitForEvent('download');
-      await page.locator('button', { hasText: 'Download Document' }).click();
-      const download = await downloadPromise;
-      const pdfPath = path.join(outDir, 'ui-workflow-generated.pdf');
-      await download.saveAs(pdfPath);
-      console.log('  Saved PDF ->', pdfPath);
+      const { pdf, suggestedName, savedTo } = await downloadGeneratedPdf(page, path.join(outDir, 'ui-workflow-generated.pdf'));
+      console.log('  Saved PDF ->', savedTo);
+
+      // A completed document: no DRAFT watermark, no _DRAFT suffix, and
+      // everything typed above present in full.
+      check(!/_DRAFT/.test(suggestedName), `Completed export filename drops the _DRAFT suffix (got "${suggestedName}")`);
+      const contract = await checkPdfContract(pdf, {
+        label: 'ui-workflow',
+        pages: 1,
+        draft: false,
+        mustContain: [
+          'Jordan Blake', 'Casey Renn', 'Laborer',
+          'Employee failed to wear required fall protection while working at height on the scaffold.',
+          'Employee must wear fall protection at all times above six feet, verified daily by the foreman.',
+          'The company will retrain the employee on fall protection requirements.',
+          'Further violations will result in suspension or termination.',
+        ],
+      });
+      contract.forEach(r => check(r.ok, r.label));
+      // The page carries the company logo plus both signatures the test drew.
+      check(pdf.pages[0].images.length === 3, `Logo + both drawn signatures embedded in the PDF (found ${pdf.pages[0].images.length} images)`);
 
       // Reload and confirm the draft (now completed) persisted.
       await page.reload({ waitUntil: 'networkidle' });
@@ -180,16 +197,34 @@ async function main() {
       await context.close();
     }
 
-    // ── 3. PDF content fixtures: normal / long section / long multi-section ──
-    console.log('\n=== 3. PDF fixtures (page count + no clipping) ===');
+    // ── 3. PDF content fixtures, checked against the REAL generated PDF ──
+    //
+    // This document is drawn straight into the PDF by disciplinaryPdfDraw.js,
+    // so the hidden .docPdfExportRoot DOM is no longer what gets printed and
+    // measuring it proves nothing about the artifact. Every check below reads
+    // the downloaded PDF itself.
+    console.log('\n=== 3. PDF fixtures (real generated PDF) ===');
     const fixtures = [
-      { name: 'disciplinary-normal.json', label: 'normal', expectMaxPages: 1 },
+      {
+        name: 'disciplinary-normal.json',
+        label: 'normal',
+        expectMaxPages: 1,
+        // Values the user typed, and the full section headings. A heading
+        // that comes back short is truncation, which on a signed record is
+        // data loss rather than a cosmetic defect.
+        mustContain: [
+          'Marcus Doyle', 'Ray Ferris', 'Equipment Operator',
+          'IF BEHAVIOR IS NOT CORRECTED / PERFORMANCE DOES NOT IMPROVE',
+          'CORRECTIVE ACTION REQUIRED OF EMPLOYEE',
+          'EARLIER WARNINGS / DISCUSSIONS',
+          'Employee operated the excavator without a spotter present',
+        ],
+      },
       { name: 'disciplinary-long-section1.json', label: 'long-section1', expectMaxPages: 2 },
       // All 7 numbered sections stuffed with long text simultaneously is a
       // deliberately pathological case (no real disciplinary notice would
       // ever have every section this long) — the important thing is safe,
-      // uncapped-but-uncupped pagination (verified below via per-page
-      // scrollHeight<=clientHeight), not hitting a specific page count.
+      // uncapped pagination, not hitting a specific page count.
       { name: 'disciplinary-long-multisection.json', label: 'long-multisection', expectMaxPages: 10 },
     ];
     const summary = [];
@@ -221,29 +256,24 @@ async function main() {
       console.log(`  PDF ready: ${headline}`);
       check(Number.isFinite(pageCount) && pageCount >= 1 && pageCount <= fx.expectMaxPages, `Page count within expected range (got ${pageCount}, expected 1-${fx.expectMaxPages})`);
 
-      // Check every generated page for clipped content (real DOM measurement
-      // against the .docPdfPage's own fixed geometry, same check the
-      // Incident/Superintendent regressions already use).
-      const overflowReport = await page.evaluate(() => {
-        const pages = Array.from(document.querySelectorAll('.docPdfExportRoot[data-doc-id="disciplinary"] .docPdfPage'));
-        return pages.map((p, i) => ({ index: i + 1, scrollHeight: p.scrollHeight, clientHeight: p.clientHeight }));
+      // Download the real artifact and check it, rather than the DOM that no
+      // longer builds it.
+      const { pdf, suggestedName } = await downloadGeneratedPdf(page, path.join(outDir, `${fx.label}.pdf`));
+      check(pdf.pages.length === pageCount, `App's reported page count matches the real PDF (UI said ${pageCount}, PDF has ${pdf.pages.length})`);
+
+      const contract = await checkPdfContract(pdf, {
+        label: fx.label,
+        pages: [1, fx.expectMaxPages],
+        draft: true, // these fixtures are unfinished drafts
+        mustContain: fx.mustContain || [],
       });
-      overflowReport.forEach(p => {
-        check(p.scrollHeight <= p.clientHeight + 2, `page ${p.index}: no clipped content (scrollHeight ${p.scrollHeight}px <= clientHeight ${p.clientHeight}px, +2px tolerance)`);
-      });
+      contract.forEach(r => check(r.ok, r.label));
+      check(/_DRAFT\.pdf$/.test(suggestedName), `Draft export filename carries the _DRAFT suffix (got "${suggestedName}")`);
 
       check(consoleErrors.length === 0, `No console errors (${consoleErrors.length} found)`);
       check(pageErrors.length === 0, `No page errors (${pageErrors.length} found)`);
 
-      // Reveal the off-screen export root before screenshotting it — same
-      // technique verify-jsa-pdf.mjs uses; a locator screenshot on a
-      // position:fixed;left:-20000px element captures the visible viewport
-      // instead of the element itself, not the intended off-screen page.
-      await page.addStyleTag({ content: '.docPdfExportRoot[data-doc-id="disciplinary"] { position: static !important; left: 0 !important; top: 0 !important; }' });
-      const pngPath = path.join(outDir, `${fx.label}-page1.png`);
-      await page.locator('.docPdfExportRoot[data-doc-id="disciplinary"] .docPdfPage').first().screenshot({ path: pngPath }).catch(() => {});
-
-      summary.push({ fixture: fx.label, pageCount, overflowReport, consoleErrors: consoleErrors.length, pageErrors: pageErrors.length });
+      summary.push({ fixture: fx.label, pageCount, pdfPages: pdf.pages.length, suggestedName, consoleErrors: consoleErrors.length, pageErrors: pageErrors.length });
       await context.close();
     }
 

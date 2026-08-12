@@ -8,6 +8,8 @@
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
 import { killTree } from './lib/killTree.mjs';
+import { downloadGeneratedPdf } from './lib/downloadPdf.mjs';
+import { checkPdfContract, checkedOptions } from './lib/pdfContract.mjs';
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -187,9 +189,25 @@ async function main() {
     // ── 3. PDF fixtures: non-occupational / work-event-reported / partial-unknown ──
     console.log('\n=== 3. PDF fixtures (page count + no clipping) ===');
     const fixtures = [
-      { name: 'medical-non-occupational.json', label: 'non-occupational', title: 'Dale Hutto', expectMaxPages: 1 },
-      { name: 'medical-work-event.json', label: 'work-event-reported', title: 'Regina Poe', expectMaxPages: 1 },
-      { name: 'medical-partial-unknown.json', label: 'partial-unknown', title: 'Marcus Doyle', expectMaxPages: 1 },
+      {
+        name: 'medical-non-occupational.json', label: 'non-occupational', title: 'Dale Hutto', expectMaxPages: 1,
+        expectClassification: 'Non-Occupational Medical Event',
+      },
+      {
+        name: 'medical-work-event.json', label: 'work-event-reported', title: 'Regina Poe', expectMaxPages: 1,
+        expectClassification: 'Pending Review',
+        // Long labels that have to survive wrapping, plus the free text.
+        mustContain: [
+          'Regina Poe',
+          'Symptoms / Concerns (as reported by the employee)',
+          'Specific Work Event/Exposure Reported?',
+          'Safety / Supervisor Observations and Actions',
+        ],
+      },
+      {
+        name: 'medical-partial-unknown.json', label: 'partial-unknown', title: 'Marcus Doyle', expectMaxPages: 1,
+        expectClassification: 'Pending Review',
+      },
     ];
     const summary = [];
     for (const fx of fixtures) {
@@ -217,39 +235,41 @@ async function main() {
       console.log(`  PDF ready: ${headline}`);
       check(Number.isFinite(pageCount) && pageCount >= 1 && pageCount <= fx.expectMaxPages, `Page count within expected range (got ${pageCount}, expected 1-${fx.expectMaxPages})`);
 
-      const overflowReport = await page.evaluate(() => {
-        const pages = Array.from(document.querySelectorAll('.docPdfExportRoot[data-doc-id="medicalEvent"] .docPdfPage'));
-        return pages.map((p, i) => ({ index: i + 1, scrollHeight: p.scrollHeight, clientHeight: p.clientHeight }));
-      });
-      overflowReport.forEach(p => {
-        check(p.scrollHeight <= p.clientHeight + 2, `page ${p.index}: no clipped content (scrollHeight ${p.scrollHeight}px <= clientHeight ${p.clientHeight}px, +2px tolerance)`);
-      });
+      // This document is drawn straight into the PDF by medicalEventPdfDraw.js,
+      // so every content check below reads the downloaded artifact rather
+      // than the hidden export DOM, which no longer builds it.
+      const { pdf, suggestedName } = await downloadGeneratedPdf(page, path.join(outDir, `${fx.label}.pdf`));
+      check(pdf.pages.length === pageCount, `App's reported page count matches the real PDF (UI said ${pageCount}, PDF has ${pdf.pages.length})`);
 
-      // Never-auto-classify assertion: the printed classification must
-      // exactly match what the fixture explicitly set, never anything
-      // derived/inferred by the app itself.
-      const printedClassification = await page.evaluate(() => {
-        const bars = Array.from(document.querySelectorAll('.docPdfExportRoot[data-doc-id="medicalEvent"] .docPdfGrayBar'));
-        const idx = bars.findIndex(b => b.textContent.includes('Initial Classification'));
-        if (idx < 0) return null;
-        const grid = bars[idx].nextElementSibling;
-        const checked = grid ? Array.from(grid.querySelectorAll('.docPdfCheckboxRow.checked > span:last-child')).map(s => s.textContent) : [];
-        return checked;
+      const contract = await checkPdfContract(pdf, {
+        label: fx.label,
+        pages: [1, fx.expectMaxPages],
+        draft: true,
+        mustContain: [
+          ...(fx.mustContain || []),
+          'ATTACHMENTS',
+          'Provider Note Attached', // lives under Attachments, not Medical Evaluation
+          'INITIAL CLASSIFICATION',
+        ],
       });
+      contract.forEach(r => check(r.ok, r.label));
+      check(/_DRAFT\.pdf$/.test(suggestedName), `Draft export filename carries the _DRAFT suffix (got "${suggestedName}")`);
+
+      // Never-auto-classify assertion, read from the tick marks actually
+      // printed on the page: the classification must be exactly what the
+      // fixture set, never anything the app inferred on the user's behalf.
+      const CLASSIFICATIONS = ['Non-Occupational Medical Event', 'Work-Related / Incident Report Required', 'Pending Review'];
+      const printedClassification = checkedOptions(pdf).filter(o => CLASSIFICATIONS.includes(o));
       console.log(`  Printed Initial Classification: ${JSON.stringify(printedClassification)}`);
-      check(Array.isArray(printedClassification) && printedClassification.length <= 1, 'Exactly the fixture-specified classification prints — never more than one auto-inferred option');
-
-      const pageText = await page.evaluate(() => document.querySelector('.docPdfExportRoot[data-doc-id="medicalEvent"] .docPdfPage')?.textContent || '');
-      check(pageText.includes('Attachments'), 'Attachments section prints');
-      check(pageText.includes('Provider Note Attached'), 'Provider Note Attached still prints (now inside Attachments, not Medical Evaluation)');
+      check(printedClassification.length <= 1, `Exactly the fixture-specified classification prints — never more than one auto-inferred option (got ${JSON.stringify(printedClassification)})`);
+      if (fx.expectClassification) {
+        check(printedClassification[0] === fx.expectClassification, `Printed classification is "${fx.expectClassification}" (got ${JSON.stringify(printedClassification)})`);
+      }
 
       check(consoleErrors.length === 0, `No console errors (${consoleErrors.length} found)`);
       check(pageErrors.length === 0, `No page errors (${pageErrors.length} found)`);
 
-      await page.addStyleTag({ content: '.docPdfExportRoot[data-doc-id="medicalEvent"] { position: static !important; left: 0 !important; top: 0 !important; }' });
-      await page.locator('.docPdfExportRoot[data-doc-id="medicalEvent"] .docPdfPage').first().screenshot({ path: path.join(outDir, `${fx.label}-page1.png`) }).catch(() => {});
-
-      summary.push({ fixture: fx.label, pageCount, printedClassification, overflowReport, consoleErrors: consoleErrors.length, pageErrors: pageErrors.length });
+      summary.push({ fixture: fx.label, pageCount, pdfPages: pdf.pages.length, printedClassification, suggestedName, consoleErrors: consoleErrors.length, pageErrors: pageErrors.length });
       await context.close();
     }
 
