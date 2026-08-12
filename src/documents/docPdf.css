@@ -37,6 +37,20 @@
   line-height: 1.5;
   color: #000;
   background: #fff;
+  /* iOS Safari text autosizing must not touch this page. Safari boosts the
+     font-size of text in wide blocks, scaled by how small the font is and
+     how wide its container — so on a real iPad the 9.7pt body text in a
+     full-width .docPdfTextBlock printed around 12pt while the 9.5/10pt text
+     in narrow table cells printed correctly, and the document came out with
+     inconsistent typography that no amount of desktop testing reproduces.
+     Chrome (headless or not) does not autosize, which is exactly why every
+     generated-PDF check here missed it — including the scale-2.0 "iPad path"
+     runs, which emulate the viewport but not this behaviour.
+     Confirmed 2026-08-12 from a real iPad-generated PDF.
+     Scoped to this page only: JSA and Incident have their own capture code
+     and their own user-approved output, and must not be changed here. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 .docPdfHeader { flex: none; }
