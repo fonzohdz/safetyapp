@@ -26,6 +26,7 @@ import {
 import DisciplinaryWorkflow from './documents/disciplinary/DisciplinaryWorkflow';
 import { DisciplinaryPdfExportRoot } from './documents/disciplinary/DisciplinaryPdf';
 import { drawDisciplinaryPdf } from './documents/disciplinary/disciplinaryPdfDraw';
+import { drawSeparationPdf } from './documents/separation/separationPdfDraw';
 import {
   emptyUncontrolledEvent, hasMeaningfulUncontrolledEventContent, isUncontrolledEventReady, isUncontrolledEventPrintFinal,
   buildUncontrolledEventExportName,
@@ -1279,6 +1280,7 @@ function App() {
     buildFilename: () => `${buildSeparationExportName(separation.model)}.pdf`,
     fingerprint: `${printedFingerprint(separation.model)}|${isSeparationPrintFinal(separation.model)}`,
     showToast: msg => showToast(msg),
+    renderPdf: onProgress => drawSeparationPdf(separation.model, onProgress),
   });
 
   const [templateId, setTemplateId] = useState('blank-jsa');

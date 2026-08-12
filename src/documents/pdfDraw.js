@@ -78,6 +78,9 @@ export async function createFormPdf({ formTitle, logoBytes, draft, watermarkText
   const pages = [];
   let page = null;
   let y = 0; // top-down cursor
+  /* Current drawing column. Full page width normally; narrowed by twoCol(). */
+  let colX = MARGIN;
+  let colW = CONTENT_W;
 
   const flip = topY => PAGE_H - topY;
   const widthOf = (text, size, f = font) => f.widthOfTextAtSize(String(text ?? ''), size);
@@ -171,8 +174,8 @@ export async function createFormPdf({ formTitle, logoBytes, draft, watermarkText
       const size = 9.5;
       const h = 17;
       ensure(h + 4);
-      rect(MARGIN, y, CONTENT_W, h, { fill: GRAY_FILL, border: RULE });
-      drawTextAt(String(text).toUpperCase(), MARGIN + 7, y + centeredBaseline(h, size), size, bold);
+      rect(colX, y, colW, h, { fill: GRAY_FILL, border: RULE });
+      drawTextAt(String(text).toUpperCase(), colX + 7, y + centeredBaseline(h, size), size, bold);
       y += h;
     },
 
@@ -183,8 +186,8 @@ export async function createFormPdf({ formTitle, logoBytes, draft, watermarkText
       const size = 9.5;
       const h = 17;
       ensure(h + 20);
-      rect(MARGIN, y, CONTENT_W, h, { fill: TINT_FILL, border: RULE });
-      let x = MARGIN + 7;
+      rect(colX, y, colW, h, { fill: TINT_FILL, border: RULE });
+      let x = colX + 7;
       if (number != null) {
         drawTextAt(`${number}.`, x, y + centeredBaseline(h, size), size, bold);
         x += 13;
@@ -198,7 +201,7 @@ export async function createFormPdf({ formTitle, logoBytes, draft, watermarkText
       const size = 9.5;
       const h = 13;
       ensure(h + 16);
-      drawTextAt(String(text).toUpperCase(), MARGIN, y + centeredBaseline(h, size), size, bold);
+      drawTextAt(String(text).toUpperCase(), colX, y + centeredBaseline(h, size), size, bold);
       y += h;
     },
 
@@ -207,29 +210,44 @@ export async function createFormPdf({ formTitle, logoBytes, draft, watermarkText
     infoTable(rows, labelW = 0.32) {
       const labelSize = 9.5;
       const valueSize = 10;
-      const rowH = 19;
+      const MIN_ROW_H = 19;
       for (const row of rows) {
-        ensure(rowH);
-        const cells = row.length === 4
+        const cellsRaw = row.length === 4
           ? [
-            { w: CONTENT_W * labelW, label: true, text: row[0] },
-            { w: CONTENT_W * (0.5 - labelW), label: false, text: row[1] },
-            { w: CONTENT_W * labelW, label: true, text: row[2] },
-            { w: CONTENT_W * (0.5 - labelW), label: false, text: row[3] },
+            { w: colW * labelW, label: true, text: row[0] },
+            { w: colW * (0.5 - labelW), label: false, text: row[1] },
+            { w: colW * labelW, label: true, text: row[2] },
+            { w: colW * (0.5 - labelW), label: false, text: row[3] },
           ]
           : [
-            { w: CONTENT_W * labelW, label: true, text: row[0] },
-            { w: CONTENT_W * (1 - labelW), label: false, text: row[1] },
+            { w: colW * labelW, label: true, text: row[0] },
+            { w: colW * (1 - labelW), label: false, text: row[1] },
           ];
-        let x = MARGIN;
-        for (const c of cells) {
-          rect(x, y, c.w, rowH, { fill: c.label ? LABEL_FILL : undefined, border: RULE });
+        /* Wrap rather than truncate. An earlier version chopped anything too
+           wide to fit, which silently printed "Effective Separation Date" as
+           "Effective Separation" — losing words off a signed record is not a
+           cosmetic bug. Rows grow to fit their tallest cell instead. */
+        const cells = cellsRaw.map(c => {
           const size = c.label ? labelSize : valueSize;
           const f = c.label ? bold : font;
-          const maxW = c.w - 12;
-          let text = String(c.text ?? '');
-          while (text && widthOf(text, size, f) > maxW) text = text.slice(0, -1);
-          drawTextAt(text, x + 6, y + centeredBaseline(rowH, size), size, f);
+          return { ...c, size, f, lines: wrap(c.text, c.w - 12, size, f) };
+        });
+        const lead = 11.5;
+        const tallest = Math.max(...cells.map(c => c.lines.length));
+        const rowH = Math.max(MIN_ROW_H, tallest * lead + 7);
+        ensure(rowH);
+
+        let x = colX;
+        for (const c of cells) {
+          rect(x, y, c.w, rowH, { fill: c.label ? LABEL_FILL : undefined, border: RULE });
+          if (c.lines.length === 1) {
+            drawTextAt(c.lines[0], x + 6, y + centeredBaseline(rowH, c.size), c.size, c.f);
+          } else {
+            const blockTop = (rowH - c.lines.length * lead) / 2;
+            c.lines.forEach((ln, i) => {
+              drawTextAt(ln, x + 6, y + blockTop + topBaseline(0, c.size) + i * lead, c.size, c.f);
+            });
+          }
           x += c.w;
         }
         y += rowH;
@@ -244,13 +262,13 @@ export async function createFormPdf({ formTitle, logoBytes, draft, watermarkText
       const padX = 7;
       const padY = 6;
       if (title) this.fieldLabel(title);
-      const lines = wrap(text, CONTENT_W - padX * 2, size);
+      const lines = wrap(text, colW - padX * 2, size);
       const needed = Math.max(minH, padY * 2 + lines.length * lead);
       ensure(needed);
-      rect(MARGIN, y, CONTENT_W, needed, { border: RULE });
+      rect(colX, y, colW, needed, { border: RULE });
       let by = y + topBaseline(padY, size);
       for (const ln of lines) {
-        drawTextAt(ln, MARGIN + padX, by, size, font);
+        drawTextAt(ln, colX + padX, by, size, font);
         by += lead;
       }
       y += needed;
@@ -262,14 +280,14 @@ export async function createFormPdf({ formTitle, logoBytes, draft, watermarkText
       const size = 9.5;
       const rowH = 14;
       const box = 8;
-      const colW = CONTENT_W / columns;
+      const cellW = colW / columns;
       const rows = Math.ceil(options.length / columns);
       ensure(rows * rowH + 4);
       y += 2;
       options.forEach((opt, i) => {
         const col = i % columns;
         const row = Math.floor(i / columns);
-        const x = MARGIN + col * colW;
+        const x = colX + col * cellW;
         const topY = y + row * rowH;
         const isOn = list.includes(opt);
         const boxTop = topY + (rowH - box) / 2;
@@ -293,28 +311,85 @@ export async function createFormPdf({ formTitle, logoBytes, draft, watermarkText
       ensure(slotH + capH + 8);
       y += 6;
       const gap = 12;
-      const sigW = CONTENT_W * 0.64;
-      const dateW = CONTENT_W - sigW - gap;
-      const dateX = MARGIN + sigW + gap;
+      const sigW = colW * 0.64;
+      const dateW = colW - sigW - gap;
+      const dateX = colX + sigW + gap;
 
       if (note) {
         const nw = widthOf(note, 7.8, italic);
-        drawTextAt(note, MARGIN + sigW / 2 - nw / 2, y + slotH - 6, 7.8, italic, rgb(0.47, 0.47, 0.47));
+        drawTextAt(note, colX + sigW / 2 - nw / 2, y + slotH - 6, 7.8, italic, rgb(0.47, 0.47, 0.47));
       } else if (image) {
         // Drawn at the image's own aspect ratio — never stretched to the line.
         const h = Math.min(slotH - 2, image.height);
         const scale = h / image.height;
         const w = Math.min(image.width * scale, sigW - 4);
         const hh = w / image.width * image.height;
-        page.drawImage(image, { x: MARGIN + 2, y: flip(y + slotH - 1), width: w, height: hh });
+        page.drawImage(image, { x: colX + 2, y: flip(y + slotH - 1), width: w, height: hh });
       }
-      line(MARGIN, y + slotH, MARGIN + sigW, y + slotH);
-      drawTextAt(String(sigLabel).toUpperCase(), MARGIN, y + slotH + topBaseline(3, capSize), capSize, font, MUTED);
+      line(colX, y + slotH, colX + sigW, y + slotH);
+      drawTextAt(String(sigLabel).toUpperCase(), colX, y + slotH + topBaseline(3, capSize), capSize, font, MUTED);
 
       if (dateValue) drawTextAt(dateValue, dateX + 2, y + slotH - 4, 10, font);
-      line(dateX, y + slotH, MARGIN + CONTENT_W, y + slotH);
+      line(dateX, y + slotH, colX + colW, y + slotH);
       drawTextAt(String(dateLabel).toUpperCase(), dateX, y + slotH + topBaseline(3, capSize), capSize, font, MUTED);
       y += slotH + capH + 4;
+    },
+
+    /* Two independent field groups side by side. Each callback draws with the
+       normal stencils — they just run inside a narrower column. Both columns
+       start at the same y and the cursor lands at the taller one's bottom, so
+       the pair reads as one section instead of two things that happen to be
+       near each other. */
+    twoCol(left, right, gap = 12) {
+      const outerX = colX;
+      const outerW = colW;
+      const half = (outerW - gap) / 2;
+      // Don't start a paired row that can't fit a reasonable amount of it.
+      ensure(140);
+      const top = y;
+
+      colX = outerX; colW = half;
+      left();
+      const leftBottom = y;
+
+      y = top;
+      colX = outerX + half + gap; colW = half;
+      right();
+      const rightBottom = y;
+
+      colX = outerX; colW = outerW;
+      y = Math.max(leftBottom, rightBottom);
+    },
+
+    /* N signature blocks across — Separation's Employee / Supervisor / HR row.
+       Every column's rule and caption sits on the same line, including a
+       column carrying a "refused to sign" note instead of a signature. */
+    multiSignatureRow(items) {
+      const slotH = 34;
+      const capSize = 7.6;
+      const gap = 10;
+      ensure(slotH + 26);
+      y += 6;
+      const each = (colW - gap * (items.length - 1)) / items.length;
+      items.forEach((it, i) => {
+        const x = colX + i * (each + gap);
+        if (it.note) {
+          const nw = widthOf(it.note, 7.6, italic);
+          drawTextAt(it.note, x + each / 2 - nw / 2, y + slotH - 5, 7.6, italic, rgb(0.47, 0.47, 0.47));
+        } else if (it.image) {
+          const h = Math.min(slotH - 2, it.image.height);
+          const s = h / it.image.height;
+          const w = Math.min(it.image.width * s, each - 4);
+          const hh = w / it.image.width * it.image.height;
+          page.drawImage(it.image, { x: x + 2, y: flip(y + slotH - 1), width: w, height: hh });
+        }
+        line(x, y + slotH, x + each, y + slotH);
+        drawTextAt(String(it.label).toUpperCase(), x, y + slotH + topBaseline(3, capSize), capSize, font, MUTED);
+        if (!it.note && it.dateValue) {
+          drawTextAt(it.dateValue, x, y + slotH + topBaseline(3, capSize) + 11, capSize, font, rgb(0.33, 0.33, 0.33));
+        }
+      });
+      y += slotH + 26;
     },
 
     async embedSignature(dataUrl) {
@@ -337,10 +412,10 @@ export async function createFormPdf({ formTitle, logoBytes, draft, watermarkText
         const w = widthOf(label, 8.5);
         // Cover the provisional label, then write the full one.
         p.drawRectangle({
-          x: PAGE_W - MARGIN - 80, y: PAGE_H - (MARGIN + 20), width: 80, height: 14, color: rgb(1, 1, 1),
+          x: PAGE_W - colX - 80, y: PAGE_H - (colX + 20), width: 80, height: 14, color: rgb(1, 1, 1),
         });
         p.drawText(label, {
-          x: PAGE_W - MARGIN - w, y: PAGE_H - (MARGIN + 16), size: 8.5, font, color: MUTED,
+          x: PAGE_W - colX - w, y: PAGE_H - (colX + 16), size: 8.5, font, color: MUTED,
         });
       });
       const bytes = await pdf.save();
