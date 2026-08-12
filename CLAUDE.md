@@ -30,46 +30,84 @@ When a change trades one of these off against another, favor the higher one, hig
 - Mobile usability
 - iPad compatibility
 
-## Required workflow (streamlined, local-first)
+## Required workflow (streamlined, local-first, testing-branch-gated)
 
 Treat a requested change as approval to implement it — do not wait for a second
-go-ahead to start routine local work. For each requested change:
+go-ahead to start routine local work. Nothing reaches `main` (and therefore the live
+site, which deploys automatically on push to `main`) without the user reviewing
+actual rendered evidence first. For each requested change:
 
 1. Briefly explain the implementation plan.
-2. Make the smallest necessary code changes; preserve existing behavior unless asked otherwise.
-3. Run `npm run build` and any other relevant local checks.
-4. Inspect `git status` and the exact diff.
-5. Summarize: exactly what changed, every file touched, whether build/checks passed,
+2. Create/reset a local `testing` branch from the current `main` tip (pre-authorized,
+   see below) and do all work there — never commit directly to `main`.
+3. Make the smallest necessary code changes; preserve existing behavior unless asked otherwise.
+4. Run `npm run build` and any other relevant local checks.
+5. Inspect `git status` and the exact diff.
+6. **If the change touches a document workflow, its fields, layout, or PDF output**:
+   actually drive it through the real UI on the local dev/preview server and send the
+   user screenshots of each affected workflow step, plus a generated draft PDF and a
+   generated final PDF — the same way a real user would experience it. This is the
+   primary review mechanism now; do not skip it or substitute a written description
+   for it. See "Generating review screenshots/PDFs" below for the tooling.
+7. Summarize: exactly what changed, every file touched, whether build/checks passed,
    and any risks or manual checks to perform.
-6. Stop and ask, verbatim: **"The change is tested and ready. Shall I commit and push it live?"**
+8. Stop and ask, verbatim: **"The change is tested and ready, and the screenshots/PDFs above show how it looks. Shall I merge this to main and push it live?"**
 
 No separate approval is needed for: reading/searching files, editing files required
 by the request, `npm run dev`/`npm run build`, inspecting `localhost`, restarting the
-Vite dev server (ask first if killing a stray process is required), or read-only
+Vite dev server (ask first if killing a stray process is required), read-only
 git/GitHub checks (`git status`, `git diff`, `git log`, `git fetch`, `git rev-list`,
-`git rev-parse`, GitHub Actions status, the live GitHub Pages site).
+`git rev-parse`, GitHub Actions status, the live GitHub Pages site), or
+creating/resetting/switching to the local `testing` branch as described above.
 
-**Commit and push are gated by conversational approval, not the permission system.**
-`git commit` and `git push origin main` are technically pre-authorized (no OS-level
-prompt) so that once approval is given, shipping the change completes in one step —
-but that authorization must never be exercised until the exact question above has
-been asked in this conversation and the user has given an explicit "yes" (or
-equivalent unambiguous approval) in that turn. Never commit or push proactively,
-speculatively, or as a bundled follow-on to unrelated approved work. If there is any
-doubt whether approval was actually given, ask again rather than proceeding.
+**Merging to `main` and pushing are gated by conversational approval, not the
+permission system.** `git merge`, `git commit`, and `git push origin main` are
+technically pre-authorized (no OS-level prompt) so that once approval is given,
+shipping the change completes in one step — but that authorization must never be
+exercised until the exact question above has been asked in this conversation and the
+user has given an explicit "yes" (or equivalent unambiguous approval) in that turn.
+Never merge, commit, or push proactively, speculatively, or as a bundled follow-on to
+unrelated approved work. If there is any doubt whether approval was actually given,
+ask again rather than proceeding.
 
 Approval is still always required — every time, regardless of how routine the
-underlying change felt — before: creating, switching, merging, or rebasing branches;
-installing or removing packages; deleting files; any other destructive git command;
-changing deployment configuration; or pushing to anything other than `origin main`.
-Force-pushing is blocked at the permission-system level in addition to never being
-requested. Never bypass the permission system.
+underlying change felt — before: creating, switching, merging, or rebasing any branch
+other than the local `testing` workflow described above; installing or removing
+packages; deleting files; any other destructive git command; changing deployment
+configuration; or pushing to anything other than `origin main`. Force-pushing is
+blocked at the permission-system level in addition to never being requested. Never
+bypass the permission system.
 
 If a change touches printing, templates, localStorage, or signatures, call that out
 explicitly before proceeding — this doesn't require a second approval unless the
 change grows beyond what was requested, but it must be flagged.
 
 If an important requirement is unclear, ask rather than guess.
+
+### Generating review screenshots/PDFs
+
+`tools/testing/` has reusable Playwright infrastructure for exactly this — don't
+rediscover it from scratch:
+
+- The per-document `verify-*.mjs` scripts (e.g. `verify-jsa-pdf.mjs`,
+  `verify-disciplinary.mjs`) show the working navigation pattern for each document
+  type: its localStorage draft key, step selectors, and the real Create Document /
+  Download flow. Copy the pattern rather than guessing selectors.
+- `tools/testing/output/extract-pdf-images.mjs <pdfPath> <outDir>` pulls the *exact*
+  embedded raster bytes html2canvas produced out of a generated PDF — this is what a
+  human actually sees, and is more trustworthy for visual review than a generic PDF
+  renderer or a screenshot of the live (pre-rasterization) DOM, which can look
+  correct even when the real export doesn't (see the Gotchas entry on this).
+- Fixtures under `tools/testing/fixtures/` seed a draft via
+  `context.addInitScript(() => localStorage.setItem(key, json))` before `page.goto()`
+  — far faster than typing through the UI for repeated PDF-focused iteration. Prefer
+  content that resembles messy real-world input (short fragments, punctuation, odd
+  aspect-ratio signature images) over clean short strings — clean test data has
+  previously passed review while missing real layout bugs.
+- On Windows, run these scripts with output redirected to a file
+  (`node script.mjs > out.log 2>&1`) rather than piped to `tail` — piping has
+  previously deadlocked stdout on this stack with zero output until the process is
+  killed.
 
 ## Command hygiene
 
@@ -188,4 +226,9 @@ Pagination is computed in JS, not left to the browser: `paginateTaskContent()` /
 - **Print CSS lives in one consolidated `@media print` block** near the end of `styles.css` (search for "single authoritative print system"). It used to be three separate blocks that redeclared `@page` margins and `.printPage` dimensions differently (0.22in/auto-height, 0.22in/10.56in, 0.5in/10in — the last always won by source order); they were merged 2026-07-18 (`refactor: consolidate legacy JSA styles`) keeping the winning 0.5in/10in geometry and folding in every still-live property from the other two. See `reports/audits/2026-07-18_full-application-audit.md` section C1/F for the full cascade analysis. Physical iPad/AirPrint behavior was **not** re-verified as part of that consolidation — treat print changes as high-risk regardless.
 - **No error boundaries anywhere.** An uncaught render exception (e.g. a wrong-shaped value pulled from `localStorage`) blanks the whole app. `CHANGELOG.md` documents a real prior white-screen regression tied to `QuickPanel` open/add behavior — that interaction (`QuickPanel` component) has since been treated as "don't change casually."
 - **Single draft slot, no confirmation on overwrite.** `startBlank()` and `loadTemplate()` silently replace the in-memory `jsa` with no unsaved-changes guard (unlike `clearDraft()`, which does `confirm()`). Keep this in mind if asked to add new entry points that discard the current draft.
+- **html2canvas (the PDF export engine) does not always render what the live DOM/CSS says it should, and the mismatch is not always measurable from the live DOM either.** Confirmed repeatedly (2026-08-11), escalating in subtlety:
+  - `vertical-align` on a table cell taller than its own content can render top/bottom-biased in the actual exported raster even though it measures centered in the live DOM (JSA's task table — fixed by using `vertical-align: middle`).
+  - `overflow: hidden` on a `border-collapse: collapse` table cell can silently clip the shared border between rows in the real export while looking fine in the live DOM (the four Superintendent documents' shared `.docPdfInfoTable` — fixed by removing `overflow: hidden` and giving cells an explicit `height`).
+  - The same `.docPdfInfoTable` cells were *still* visibly top-biased after that fix, in real PDFs from an actual iPad, not just this dev environment. Unlike the JSA case, this was NOT explained by measurable DOM slack — debug instrumentation showed ~1-2px of slack in the live DOM for every row alike, including rows that render fine, so there was no real per-row difference to redistribute via computed padding (the technique that fixed this exact class of bug for Incident's `.incCellContent`, see `centerCompactCellContent()` in `incidentPdfGenerate.jsx`, was tried here and made no measurable difference). What actually worked: a small **constant** upward shift (`transform: translateY(-4px)` on `.docPdfCellContent`) calibrated by direct trial against real generated PDFs. This means html2canvas's real rendered row height for this table can diverge from the live DOM's by more than the DOM itself shows — treat any DOM-measurement-based centering fix for this app's PDF pipeline as a hypothesis to verify against a real raster, not a guaranteed solution, and be ready to fall back to an empirically-calibrated constant shift (matching the precedent already set by `.pdfSingleLineText`'s `-5px` in `styles.css` and Incident's `COMPACT_CELL_SHIFT_PX`).
+  - Takeaway: never certify a print/PDF layout change from the live preview, a DOM screenshot, or DOM-measured slack alone — always extract and inspect the actual embedded raster from a real generated PDF (see "Generating review screenshots/PDFs" above), and confirm on a real generated PDF, not just this dev environment, before considering a centering fix done.
 - **`package-lock.json` is committed and git-tracked**, so `npm install` (including in CI) resolves deterministically from it. An earlier version of this doc claimed no lockfile was committed and `DEPLOY_NOTES.txt` still says to exclude it from manual zip uploads — both are stale; verify with `git ls-files | grep lock` before trusting either claim again.

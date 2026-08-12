@@ -136,7 +136,7 @@ function StepEvaluation({ model, upd, prev, next }) {
 /* ── Top-level workflow shell ── */
 export default function MedicalEventWorkflow({
   model, upd, step, setStep, goDocs, saveStatus, saveStatusState, onSaveNow,
-  pdfExportState, isPdfStale, onGeneratePdf, onDownload, onMarkReady, onStartNew,
+  pdfExportState, isPdfStale, onGeneratePdf, onDownload, onMarkReady, onMarkIncomplete, onStartNew,
 }) {
   const idx = MEDICAL_EVENT_STEPS.findIndex(s => s.id === step);
   function prev() { if (idx > 0) setStep(MEDICAL_EVENT_STEPS[idx - 1].id); }
@@ -175,9 +175,10 @@ export default function MedicalEventWorkflow({
                 checks={checks}
                 checklistComplete={checklistComplete}
                 status={model.status}
-                draftExplainText="Complete the checklist below, then finish this document."
-                markReadyHintText="Everything required is filled in. Finishing will lock the document from further editing."
+                draftExplainText="Complete the checklist below, then mark this document complete."
+                markReadyHintText="Everything required is filled in. Marking it complete locks the document from editing — you can unmark it any time from here."
                 onMarkReady={onMarkReady}
+                onMarkIncomplete={onMarkIncomplete}
                 pdfExportState={pdfExportState}
                 isPdfStale={isPdfStale}
                 onGeneratePdf={onGeneratePdf}

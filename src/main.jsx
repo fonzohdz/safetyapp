@@ -20,25 +20,25 @@ import { usePdfExport } from './documents/usePdfExport';
 import { printedFingerprint } from './documents/printedFingerprint';
 import { downloadDraftFile, buildDraftFilename, readFileAsText, parseDraftFileText } from './shared/draftTransfer';
 import {
-  emptyDisciplinary, hasMeaningfulDisciplinaryContent, isDisciplinaryReady,
+  emptyDisciplinary, hasMeaningfulDisciplinaryContent, isDisciplinaryReady, isDisciplinaryPrintFinal,
   buildDisciplinaryExportName, warningLevelLabel,
 } from './documents/disciplinary/disciplinaryModel';
 import DisciplinaryWorkflow from './documents/disciplinary/DisciplinaryWorkflow';
 import { DisciplinaryPdfExportRoot } from './documents/disciplinary/DisciplinaryPdf';
 import {
-  emptyUncontrolledEvent, hasMeaningfulUncontrolledEventContent, isUncontrolledEventReady,
+  emptyUncontrolledEvent, hasMeaningfulUncontrolledEventContent, isUncontrolledEventReady, isUncontrolledEventPrintFinal,
   buildUncontrolledEventExportName,
 } from './documents/uncontrolledEvent/uncontrolledEventModel';
 import UncontrolledEventWorkflow from './documents/uncontrolledEvent/UncontrolledEventWorkflow';
 import { UncontrolledEventPdfExportRoot } from './documents/uncontrolledEvent/UncontrolledEventPdf';
 import {
-  emptyMedicalEvent, hasMeaningfulMedicalEventContent, isMedicalEventReady,
+  emptyMedicalEvent, hasMeaningfulMedicalEventContent, isMedicalEventReady, isMedicalEventPrintFinal,
   buildMedicalEventExportName,
 } from './documents/medicalEvent/medicalEventModel';
 import MedicalEventWorkflow from './documents/medicalEvent/MedicalEventWorkflow';
 import { MedicalEventPdfExportRoot } from './documents/medicalEvent/MedicalEventPdf';
 import {
-  emptySeparation, hasMeaningfulSeparationContent, isSeparationReady,
+  emptySeparation, hasMeaningfulSeparationContent, isSeparationReady, isSeparationPrintFinal,
   buildSeparationExportName, migrateSeparationShape,
 } from './documents/separation/separationModel';
 import SeparationWorkflow from './documents/separation/SeparationWorkflow';
@@ -1229,8 +1229,7 @@ function App() {
   });
   const disciplinaryPdf = usePdfExport({
     buildFilename: () => `${buildDisciplinaryExportName(disciplinary.model)}.pdf`,
-    fingerprint: printedFingerprint(disciplinary.model),
-    onGenerated: () => disciplinary.markCompleted(),
+    fingerprint: `${printedFingerprint(disciplinary.model)}|${isDisciplinaryPrintFinal(disciplinary.model)}`,
     showToast: msg => showToast(msg),
   });
 
@@ -1244,8 +1243,7 @@ function App() {
   });
   const uncontrolledEventPdf = usePdfExport({
     buildFilename: () => `${buildUncontrolledEventExportName(uncontrolledEvent.model)}.pdf`,
-    fingerprint: printedFingerprint(uncontrolledEvent.model),
-    onGenerated: () => uncontrolledEvent.markCompleted(),
+    fingerprint: `${printedFingerprint(uncontrolledEvent.model)}|${isUncontrolledEventPrintFinal(uncontrolledEvent.model)}`,
     showToast: msg => showToast(msg),
   });
 
@@ -1259,8 +1257,7 @@ function App() {
   });
   const medicalEventPdf = usePdfExport({
     buildFilename: () => `${buildMedicalEventExportName(medicalEvent.model)}.pdf`,
-    fingerprint: printedFingerprint(medicalEvent.model),
-    onGenerated: () => medicalEvent.markCompleted(),
+    fingerprint: `${printedFingerprint(medicalEvent.model)}|${isMedicalEventPrintFinal(medicalEvent.model)}`,
     showToast: msg => showToast(msg),
   });
 
@@ -1275,8 +1272,7 @@ function App() {
   });
   const separationPdf = usePdfExport({
     buildFilename: () => `${buildSeparationExportName(separation.model)}.pdf`,
-    fingerprint: printedFingerprint(separation.model),
-    onGenerated: () => separation.markCompleted(),
+    fingerprint: `${printedFingerprint(separation.model)}|${isSeparationPrintFinal(separation.model)}`,
     showToast: msg => showToast(msg),
   });
 
@@ -1428,8 +1424,12 @@ function App() {
     'disciplinary notice'
   );
   function markDisciplinaryReady() {
-    if (disciplinary.markReady(isDisciplinaryReady)) showToast('Document finished and locked from editing.');
+    if (disciplinary.markReady(isDisciplinaryReady)) showToast('Marked complete and locked from editing.');
     else showToast(disciplinary.saveStatus === 'error' ? 'Save failed. Check available storage on this device.' : 'Complete all required fields before finishing.');
+  }
+  function markDisciplinaryIncomplete() {
+    if (disciplinary.markIncomplete()) showToast('Unlocked for editing.');
+    else showToast('Save failed. Check available storage on this device.');
   }
   function startNewDisciplinary() {
     if (disciplinary.hasExistingContent() && !confirm('Start a new disciplinary notice? The current one will be cleared from this device.')) return;
@@ -1443,8 +1443,12 @@ function App() {
     'uncontrolled event report'
   );
   function markUncontrolledEventReady() {
-    if (uncontrolledEvent.markReady(isUncontrolledEventReady)) showToast('Document finished and locked from editing.');
+    if (uncontrolledEvent.markReady(isUncontrolledEventReady)) showToast('Marked complete and locked from editing.');
     else showToast(uncontrolledEvent.saveStatus === 'error' ? 'Save failed. Check available storage on this device.' : 'Complete all required fields before finishing.');
+  }
+  function markUncontrolledEventIncomplete() {
+    if (uncontrolledEvent.markIncomplete()) showToast('Unlocked for editing.');
+    else showToast('Save failed. Check available storage on this device.');
   }
   function startNewUncontrolledEvent() {
     if (uncontrolledEvent.hasExistingContent() && !confirm('Start a new uncontrolled event report? The current one will be cleared from this device.')) return;
@@ -1458,8 +1462,12 @@ function App() {
     'medical event report'
   );
   function markMedicalEventReady() {
-    if (medicalEvent.markReady(isMedicalEventReady)) showToast('Document finished and locked from editing.');
+    if (medicalEvent.markReady(isMedicalEventReady)) showToast('Marked complete and locked from editing.');
     else showToast(medicalEvent.saveStatus === 'error' ? 'Save failed. Check available storage on this device.' : 'Complete all required fields before finishing.');
+  }
+  function markMedicalEventIncomplete() {
+    if (medicalEvent.markIncomplete()) showToast('Unlocked for editing.');
+    else showToast('Save failed. Check available storage on this device.');
   }
   function startNewMedicalEvent() {
     if (medicalEvent.hasExistingContent() && !confirm('Start a new medical event report? The current one will be cleared from this device.')) return;
@@ -1473,8 +1481,12 @@ function App() {
     'employee separation record'
   );
   function markSeparationReady() {
-    if (separation.markReady(isSeparationReady)) showToast('Document finished and locked from editing.');
+    if (separation.markReady(isSeparationReady)) showToast('Marked complete and locked from editing.');
     else showToast(separation.saveStatus === 'error' ? 'Save failed. Check available storage on this device.' : 'Complete all required fields before finishing.');
+  }
+  function markSeparationIncomplete() {
+    if (separation.markIncomplete()) showToast('Unlocked for editing.');
+    else showToast('Save failed. Check available storage on this device.');
   }
   function startNewSeparation() {
     if (separation.hasExistingContent() && !confirm('Start a new employee separation record? The current one will be cleared from this device.')) return;
@@ -1578,7 +1590,22 @@ function App() {
       setIncident(next);
       setSavedIncidentDraft(next);
       setIncidentSaveStatus('saved');
-      showToast('Document finished and locked from editing.');
+      showToast('Marked complete and locked from editing.');
+    } else {
+      setIncidentSaveStatus('error');
+      showToast('Save failed. Check available storage on this device.');
+    }
+  }
+
+  function markIncidentIncomplete() {
+    clearTimeout(incidentAutoSaveTimer.current);
+    const next = { ...incident, status: 'draft', completedAt: '', lastSavedAt: new Date().toISOString() };
+    if (saveIncidentDraft(next)) {
+      lastIncidentAutoSaveSnapshot.current = JSON.stringify({ ...next, lastSavedAt: '' });
+      setIncident(next);
+      setSavedIncidentDraft(next);
+      setIncidentSaveStatus('saved');
+      showToast('Unlocked for editing.');
     } else {
       setIncidentSaveStatus('error');
       showToast('Save failed. Check available storage on this device.');
@@ -2092,7 +2119,7 @@ function App() {
               goDocs={goDocs} saveStatus={incidentSaveStatusLabel} saveStatusState={incidentSaveStatus} onSaveNow={saveIncidentNow}
               pdfExportState={incidentPdfExportState} isPdfStale={isIncidentPdfStale}
               onGeneratePdf={exportIncidentPdf} onDownload={downloadIncidentPdfClick}
-              onMarkReady={markIncidentReady} onStartNew={startNewIncidentReport} showToast={showToast}
+              onMarkReady={markIncidentReady} onMarkIncomplete={markIncidentIncomplete} onStartNew={startNewIncidentReport} showToast={showToast}
             />
           )}
           {tab === 'documents' && activeDoc === 'disciplinary' && (
@@ -2102,7 +2129,7 @@ function App() {
               saveStatusState={disciplinary.saveStatus} onSaveNow={disciplinary.saveNow}
               pdfExportState={disciplinaryPdf.pdfExportState} isPdfStale={disciplinaryPdf.isPdfStale}
               onGeneratePdf={disciplinaryPdf.generate} onDownload={disciplinaryPdf.downloadClick}
-              onMarkReady={markDisciplinaryReady} onStartNew={startNewDisciplinary}
+              onMarkReady={markDisciplinaryReady} onMarkIncomplete={markDisciplinaryIncomplete} onStartNew={startNewDisciplinary}
             />
           )}
           {tab === 'documents' && activeDoc === 'uncontrolledEvent' && (
@@ -2112,7 +2139,7 @@ function App() {
               saveStatusState={uncontrolledEvent.saveStatus} onSaveNow={uncontrolledEvent.saveNow}
               pdfExportState={uncontrolledEventPdf.pdfExportState} isPdfStale={uncontrolledEventPdf.isPdfStale}
               onGeneratePdf={uncontrolledEventPdf.generate} onDownload={uncontrolledEventPdf.downloadClick}
-              onMarkReady={markUncontrolledEventReady} onStartNew={startNewUncontrolledEvent}
+              onMarkReady={markUncontrolledEventReady} onMarkIncomplete={markUncontrolledEventIncomplete} onStartNew={startNewUncontrolledEvent}
             />
           )}
           {tab === 'documents' && activeDoc === 'medicalEvent' && (
@@ -2122,7 +2149,7 @@ function App() {
               saveStatusState={medicalEvent.saveStatus} onSaveNow={medicalEvent.saveNow}
               pdfExportState={medicalEventPdf.pdfExportState} isPdfStale={medicalEventPdf.isPdfStale}
               onGeneratePdf={medicalEventPdf.generate} onDownload={medicalEventPdf.downloadClick}
-              onMarkReady={markMedicalEventReady} onStartNew={startNewMedicalEvent}
+              onMarkReady={markMedicalEventReady} onMarkIncomplete={markMedicalEventIncomplete} onStartNew={startNewMedicalEvent}
             />
           )}
           {tab === 'documents' && activeDoc === 'separation' && (
@@ -2132,7 +2159,7 @@ function App() {
               saveStatusState={separation.saveStatus} onSaveNow={separation.saveNow}
               pdfExportState={separationPdf.pdfExportState} isPdfStale={separationPdf.isPdfStale}
               onGeneratePdf={separationPdf.generate} onDownload={separationPdf.downloadClick}
-              onMarkReady={markSeparationReady} onStartNew={startNewSeparation}
+              onMarkReady={markSeparationReady} onMarkIncomplete={markSeparationIncomplete} onStartNew={startNewSeparation}
             />
           )}
           {tab === 'drafts' && <DraftsView entries={draftEntries} goDocs={goDocs} />}

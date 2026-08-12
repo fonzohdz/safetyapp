@@ -104,13 +104,23 @@ export function useDraftDocument({ storageKey, emptyModel, hasMeaningfulContent,
     return false;
   }
 
-  function markCompleted() {
-    const savedAt = new Date().toISOString();
-    const next = { ...model, status: 'completed', completedAt: savedAt, lastSavedAt: savedAt };
-    saveDraft(storageKey, next);
-    lastSnapshot.current = JSON.stringify({ ...next, lastSavedAt: '' });
-    setModelRaw(next);
-    setSavedDraft(next);
+  /* Reverses markReady() — unlocks the document for editing
+     again. Finishing a document was previously one-way ("This cannot be
+     undone"); real field use showed that was the wrong call, since a
+     generated PDF still correctly shows DRAFT for an unfinished document,
+     but the app locked the form anyway with no way back short of losing
+     work. This makes Finish/Unfinish a real toggle. */
+  function markIncomplete() {
+    const next = { ...model, status: 'draft', completedAt: '', lastSavedAt: new Date().toISOString() };
+    if (saveDraft(storageKey, next)) {
+      lastSnapshot.current = JSON.stringify({ ...next, lastSavedAt: '' });
+      setModelRaw(next);
+      setSavedDraft(next);
+      setSaveStatus('saved');
+      return true;
+    }
+    setSaveStatus('error');
+    return false;
   }
 
   function resetToBlank() {
@@ -160,7 +170,7 @@ export function useDraftDocument({ storageKey, emptyModel, hasMeaningfulContent,
     model, upd, setModel: setModelRaw,
     step, setStep,
     savedDraft, saveStatus,
-    saveNow, markReady, markCompleted, resetToBlank, loadSaved, hasExistingContent, discard, replaceWith,
+    saveNow, markReady, markIncomplete, resetToBlank, loadSaved, hasExistingContent, discard, replaceWith,
   };
 }
 

@@ -109,8 +109,26 @@
 .docPdfInfoTable th { background: #efefef; font-weight: 700; font-size: 9.5pt; line-height: 1.25; width: 32%; }
 .docPdfInfoTable td { font-weight: 400; font-size: 10pt; line-height: 1.3; }
 .docPdfInfoTable tr + tr th, .docPdfInfoTable tr + tr td { border-top: 0; }
-.docPdfCellContent { display: flex; align-items: center; min-height: 1.2em; }
-.docPdfCellContent.center { justify-content: center; text-align: center; }
+/* Plain block, NOT flex -- flex align-items:center measured correctly
+   centered in the live DOM but did not hold up in the real html2canvas
+   raster (confirmed 2026-08-11 against both a local test PDF and a
+   user-generated one -- see CLAUDE.md Gotchas). The JS-measured-padding
+   technique that fixed this same class of bug for Incident's .incCellContent
+   was tried here too and made no measurable difference -- debug
+   instrumentation showed only ~1-2px of slack in the live DOM for EVERY row,
+   including rows that render correctly, so there's no real per-row slack to
+   redistribute; whatever height html2canvas actually paints these rows at
+   does not match the live DOM measurement closely enough for that technique
+   to apply. What DOES work, confirmed via the real raster: a small constant
+   upward shift applied to every cell's content. -4px was chosen by direct
+   trial against real generated PDFs (not the preview) as the best balance
+   -- it clearly fixes the rows that were visibly top-biased, at the cost of
+   the already-fine first row shifting very slightly high instead of
+   dead-center. Needs re-calibrating if font-size/line-height/padding/height
+   on .docPdfInfoTable change. */
+.docPdfCellContent { display: block; }
+.docPdfCellContent.center { text-align: center; }
+.pdfExportRoot .docPdfCellContent, .docPdfExportRoot .docPdfCellContent { transform: translateY(-4px); }
 
 .docPdfTextBlockWrap { display: flex; flex-direction: column; gap: 5px; }
 .docPdfTextBlockTitle { font-weight: 700; font-size: 9.5pt; text-transform: uppercase; }

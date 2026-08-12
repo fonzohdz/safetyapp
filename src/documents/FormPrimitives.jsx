@@ -278,7 +278,7 @@ export function ReadinessChecklist({ checks, onJump }) {
    fire from a single accidental tap. */
 export function ReviewExportPanel({
   title, checks, checklistComplete, status,
-  draftExplainText, markReadyHintText, markReadyLabel = 'Finish Document', onMarkReady,
+  draftExplainText, markReadyHintText, markReadyLabel = 'Mark Complete', onMarkReady, onMarkIncomplete,
   pdfExportState, isPdfStale, onGeneratePdf, onDownload,
   generatingLabel = 'Creating…', generateLabel = 'Create Document', regenerateLabel = 'Update Document',
   downloadLabel = 'Download Document',
@@ -302,16 +302,22 @@ export function ReviewExportPanel({
             <button type="button" className="btn secondary" onClick={() => setConfirmingFinish(true)} disabled={!checklistComplete}>{markReadyLabel}</button>
           </div>
         )}
-        {status !== 'draft' && <p className="helperText">This document is finished and locked from editing.</p>}
+        {status !== 'draft' && (
+          <>
+            <p className="helperText">Marked complete. Editing is locked while it's marked this way — creating or updating the PDF does not change this.</p>
+            <div className="reviewPrimaryAction">
+              <button type="button" className="btn secondary" onClick={onMarkIncomplete}>Mark Incomplete</button>
+            </div>
+          </>
+        )}
         {confirmingFinish && (
           <ConfirmDialog
-            title="Finish this document?"
+            title="Mark this document complete?"
             message={[
-              'Finishing will close out the document and lock it from further editing.',
-              'You will still be able to download and print it.',
-              'This cannot be undone.',
+              'Marking it complete locks the fields from further editing and removes the DRAFT watermark from the PDF.',
+              'You can come back here and choose "Mark Incomplete" any time to unlock it and keep editing.',
             ]}
-            confirmLabel="Finish Document"
+            confirmLabel="Mark Complete"
             onCancel={() => setConfirmingFinish(false)}
             onConfirm={() => { setConfirmingFinish(false); onMarkReady(); }}
           />

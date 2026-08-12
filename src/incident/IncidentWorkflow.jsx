@@ -404,7 +404,7 @@ function StepNotes({ incident, upd, prev, next }) {
 }
 
 /* ── Step: Review & Export ── */
-function StepReview({ incident, prev, pdfExportState, isPdfStale, onGeneratePdf, onDownload, onMarkReady, onStartNew, setStep }) {
+function StepReview({ incident, prev, pdfExportState, isPdfStale, onGeneratePdf, onDownload, onMarkReady, onMarkIncomplete, onStartNew, setStep }) {
   const c = t.review;
   const [confirmingFinish, setConfirmingFinish] = useState(false);
   const checks = getIncidentReadinessChecks(incident);
@@ -440,16 +440,22 @@ function StepReview({ incident, prev, pdfExportState, isPdfStale, onGeneratePdf,
             <button className="btn secondary" onClick={() => setConfirmingFinish(true)} disabled={!checklistComplete}>{c.markReady}</button>
           </div>
         )}
-        {status !== 'draft' && <p className="helperText">This report is finished and locked from editing.</p>}
+        {status !== 'draft' && (
+          <>
+            <p className="helperText">Marked complete. Editing is locked while it's marked this way — creating or updating the PDF does not change this.</p>
+            <div className="reviewPrimaryAction">
+              <button className="btn secondary" onClick={onMarkIncomplete}>Mark Incomplete</button>
+            </div>
+          </>
+        )}
         {confirmingFinish && (
           <ConfirmDialog
-            title="Finish this document?"
+            title="Mark this document complete?"
             message={[
-              'Finishing will close out the report and lock it from further editing.',
-              'You will still be able to download and print it.',
-              'This cannot be undone.',
+              'Marking it complete locks the fields from further editing and removes the DRAFT watermark from the PDF.',
+              'You can come back here and choose "Mark Incomplete" any time to unlock it and keep editing.',
             ]}
-            confirmLabel="Finish Document"
+            confirmLabel="Mark Complete"
             onCancel={() => setConfirmingFinish(false)}
             onConfirm={() => { setConfirmingFinish(false); onMarkReady(); }}
           />
@@ -501,7 +507,7 @@ function StepReview({ incident, prev, pdfExportState, isPdfStale, onGeneratePdf,
 /* ── Top-level workflow shell ── */
 export default function IncidentWorkflow({
   incident, setIncident, step, setStep, goDocs, saveStatus, saveStatusState, onSaveNow,
-  pdfExportState, isPdfStale, onGeneratePdf, onDownload, onMarkReady, onStartNew, showToast,
+  pdfExportState, isPdfStale, onGeneratePdf, onDownload, onMarkReady, onMarkIncomplete, onStartNew, showToast,
 }) {
   const idx = INCIDENT_STEPS.findIndex(s => s.id === step);
   function upd(patch) {
@@ -563,6 +569,7 @@ export default function IncidentWorkflow({
                 onGeneratePdf={onGeneratePdf}
                 onDownload={onDownload}
                 onMarkReady={onMarkReady}
+                onMarkIncomplete={onMarkIncomplete}
                 onStartNew={onStartNew}
                 setStep={setStep}
               />

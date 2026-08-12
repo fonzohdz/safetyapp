@@ -1,0 +1,41 @@
+{
+  "id": "fixture-uncontrolled-stress-short1page",
+  "schemaVersion": 1,
+  "status": "draft",
+  "createdAt": "2026-08-11T12:00:00.000Z",
+  "lastSavedAt": "2026-08-11T12:05:00.000Z",
+  "completedAt": "",
+  "workplaceLocation": "DASDJK:LFJADS:LFKJ",
+  "eventDate": "2026-08-11",
+  "weatherConditions": ":dkalfiladskifa:kdsl",
+  "reportWrittenDateTime": "2026-08-11T13:00",
+  "reportedToSupervisorDateTime": "2026-08-11T12:20",
+  "eventClassifications": [
+    "Equipment / Mechanical Failure (not misuse)"
+  ],
+  "eventClassificationOther": "",
+  "eventOutcomes": [
+    "Near Miss"
+  ],
+  "eventOutcomeOther": "",
+  "estimatedCost": "",
+  "whatHappened": "adkfjads;kljfa;dkafj",
+  "immediateActionsTaken": "adslkfjadskfjadkf",
+  "notifications": [
+    "Supervisor",
+    "Safety"
+  ],
+  "attachments": [
+    "Photos"
+  ],
+  "attachmentOther": "",
+  "witnesses": "fadskfjaki;djfa;dsklfjad\nafdfkadfal;dskfad",
+  "reportedByName": "fadfljkadkfja;dslkfaj",
+  "reportedByTitle": "adfladjfkadsjfa;dfa",
+  "reportedBySignatureData": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAASwAAABkCAIAAACzY5qXAAACdUlEQVR4nO3ZO5LbQAxAQR1Cse9/TAesGnO1ssQPhsRgujMgfwnw+LPBE+jmsSVCNUI/+yIUJIQ7HqEUIcTj+Xye7FCNcMZjPYTUKEjY5fF7JUW40psI1wQJvX2JsFEjdLI1woUUIdy+CNfUCCGOR7gISVGQzOxshI0U4ZiwCNfUCNt1ibAJqVGQ1NY3woUU4YMrIlxTI7y4OsImpEZBUsBtES6kCDdHuKZG5pQowiakRkEyiowRLqTIJPJGuKZGChsjwkaN1DNYhIuQFNVIEkNGuCZIRjd8hI0aGVSdCBs1MpaCETZqZAiVI1xIkeTqR9iokZwmirCJqlGQhJgxwkaNZDB1hGtq5C4ifKVGLibC96TIZUT4hRrpTYRbRdUoSF6IcDc1EkuEp6iR80QYQ40cJsJIUuQAEXahRrYTYV9RNQqyMBFeRI38jwhvoEbWRHgnNSLCFKQ4OREmosY5iTAjNU5FhKmpcQYiHIYaqxLheNRYjAgHFlKjIG8nwgrUODQRlqLGEYmwJjUORISVSXEIIpyCGjMT4VzUmJAIJ6XGPESI7//NRMg/aryFCHlDjVcSIZ+o8QIiZJOQGgX5lgjZR43hRMhBaowiQs5S40kiJIYUDxMhwdS4lwjpRY0biZDu1PiZCLmUGn8TIfdQYyNCbqZGEZLFtDWKkHRmq1GE5BVSY/4gRcgAatcoQkZSskYRMqRKNYqQgdVIUYRUMHSNIqSUEWsUITUNVKMIqS95jSJkIjlrFCEzSlWjCJlahhpFCM97DzkihB+ur1GE8N5lNYoQvuhdowhhk34pihD2Ca9RhHBQVI0ihLNECImIELLYHuFfRaKKpac1PkIAAAAASUVORK5CYII=",
+  "reportedBySignatureDate": "2026-08-11",
+  "supervisorReviewName": "ad;kljfakdlfjads;lfa",
+  "supervisorSignatureData": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAASwAAABkCAIAAACzY5qXAAACdUlEQVR4nO3ZO5LbQAxAQR1Cse9/TAesGnO1ssQPhsRgujMgfwnw+LPBE+jmsSVCNUI/+yIUJIQ7HqEUIcTj+Xye7FCNcMZjPYTUKEjY5fF7JUW40psI1wQJvX2JsFEjdLI1woUUIdy+CNfUCCGOR7gISVGQzOxshI0U4ZiwCNfUCNt1ibAJqVGQ1NY3woUU4YMrIlxTI7y4OsImpEZBUsBtES6kCDdHuKZG5pQowiakRkEyiowRLqTIJPJGuKZGChsjwkaN1DNYhIuQFNVIEkNGuCZIRjd8hI0aGVSdCBs1MpaCETZqZAiVI1xIkeTqR9iokZwmirCJqlGQhJgxwkaNZDB1hGtq5C4ifKVGLibC96TIZUT4hRrpTYRbRdUoSF6IcDc1EkuEp6iR80QYQ40cJsJIUuQAEXahRrYTYV9RNQqyMBFeRI38jwhvoEbWRHgnNSLCFKQ4OREmosY5iTAjNU5FhKmpcQYiHIYaqxLheNRYjAgHFlKjIG8nwgrUODQRlqLGEYmwJjUORISVSXEIIpyCGjMT4VzUmJAIJ6XGPESI7//NRMg/aryFCHlDjVcSIZ+o8QIiZJOQGgX5lgjZR43hRMhBaowiQs5S40kiJIYUDxMhwdS4lwjpRY0biZDu1PiZCLmUGn8TIfdQYyNCbqZGEZLFtDWKkHRmq1GE5BVSY/4gRcgAatcoQkZSskYRMqRKNYqQgdVIUYRUMHSNIqSUEWsUITUNVKMIqS95jSJkIjlrFCEzSlWjCJlahhpFCM97DzkihB+ur1GE8N5lNYoQvuhdowhhk34pihD2Ca9RhHBQVI0ihLNECImIELLYHuFfRaKKpac1PkIAAAAASUVORK5CYII=",
+  "supervisorSignatureDate": "2026-08-11",
+  "notes": ""
+}
