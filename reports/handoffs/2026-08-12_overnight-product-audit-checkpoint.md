@@ -13,14 +13,17 @@ without reconstructing anything from chat history.
 
 # CURRENT STATE
 
-| | |
+> ⚠️ **This section was written mid-mission and is now historical. Jump to
+> "STATE AS OF END OF DAY 2026-08-12" at the bottom for the real current
+> state — three deploys happened after this was written.**
+
+| | (as written mid-mission) |
 |---|---|
 | Current branch | `testing` |
-| Current commit | `ccfb39f` (see final-results section for the closeout commit) |
+| Current commit | `ccfb39f` |
 | Working tree | clean |
-| `testing` pushed? | previously pushed at `233561a`; the five newer commits are pushed as part of today's closeout |
-| `main` | `b886e62`, identical to `origin/main` — **untouched by this mission** |
-| Deployed? | **NO.** Nothing merged, nothing pushed to `main`, GitHub Pages still serves `b886e62` |
+| `main` | `b886e62` — untouched *at that time* |
+| Deployed? | Not at that time. **This is no longer true — see end-of-day section.** |
 
 `testing` is 6 commits ahead of `main`:
 
@@ -480,3 +483,118 @@ unexpected console/page errors.
   time — but it is a decision, not an oversight.
 - No physical iPad / AirPrint verification and no Safari/WebKit run is possible in this
   environment.
+
+---
+
+# STATE AS OF END OF DAY 2026-08-12
+
+**Read this section first. Everything above it is historical.**
+
+## Where things actually are
+
+| | |
+|---|---|
+| `main` / live site | **`dd803e5` — DEPLOYED.** Three deploys happened today. |
+| `testing` | `0cbbfa3`, pushed, well ahead of `main` — **not deployed** |
+| Working tree | clean |
+
+## What is live right now
+
+The screenshot-based PDF pipeline, with every rendering fix applied:
+the html2canvas baseline root-cause fix, the two-tier section hierarchy and
+composition pass, iOS Safari text-autosizing pinned off, plain section
+numerals, and un-stretched signatures. Fonzo confirmed on a real iPad,
+iPhone and desktop that all six documents print correctly.
+
+**Do not deploy anything else without asking.** The agreement is: Fonzo field-
+tests the live build for about a week (roughly through 2026-08-19) or until
+every document type has been used for real. Work continues on `testing` and
+stays there. If the field test comes back clean and the new work holds up, it
+ships then.
+
+## The big change sitting on `testing`, undeployed
+
+**The four Superintendent documents are no longer screenshots.** They are drawn
+directly into the PDF with pdf-lib via a shared stencil kit:
+
+- `src/documents/pdfDraw.js` — the kit (gray bar, numbered bar, field label,
+  info table, writing box, checkbox grid, signature row, multi-signature row,
+  two-column). Read its header comment before touching it.
+- `src/documents/{disciplinary,separation,medicalEvent,uncontrolledEvent}/*PdfDraw.js`
+  — one file per form, each reading top-to-bottom like the printed page.
+- `usePdfExport` gained an optional `renderPdf` hook; a document either passes
+  it (drawn) or doesn't (screenshotted).
+
+Why it matters: text is real text, output cannot vary by device because no
+browser draws anything, and ~28KB per document instead of ~240KB.
+
+**JSA and Incident are untouched and still screenshot-based.** Leave them alone
+unless explicitly asked — their output is user-approved.
+
+## ⚠️ KNOWN GAP — the four documents' tests now check the wrong thing
+
+`verify-disciplinary`, `verify-separation`, `verify-medical-event` and
+`verify-uncontrolled-event` inspect the hidden DOM export root
+(`.docPdfExportRoot[data-doc-id="..."]`). That DOM is still mounted and still
+rendered, but **it no longer produces the PDF** for those four documents.
+
+So those suites can pass while the real PDF is wrong. They currently verify
+workflow and content correctness, not the printed artifact.
+
+Two things follow:
+1. Those four suites' PDF-layout assertions are no longer meaningful. Don't
+   trust a green run as evidence the document looks right.
+2. The old export roots (`DocPdfShell.jsx`, `docPdf.css`, the `*Pdf.jsx`
+   components) are now only kept alive for those tests. They are dead weight
+   in the app and a genuine confusion hazard — two systems that look like they
+   both build the same form, but only one of them does.
+
+Fixing this is the top technical priority before the drawn PDFs ship. The
+approach: point the tests at the generated PDF itself — `render-pdf.mjs`
+rasterizes a drawn PDF via pdf.js, so a golden-image comparison per document
+is now straightforward and would replace the DOM assertions entirely.
+
+## Tooling added today
+
+- `tools/testing/render-pdf.mjs` — rasterizes a **drawn** PDF for visual review.
+  (`extract-pdf-images.mjs` only works on screenshot-built PDFs, which have
+  embedded page rasters; drawn PDFs have none by design.)
+- `tools/testing/verify-completion-lifecycle.mjs` — 77 assertions across the
+  five locking document types.
+- `tools/testing/lib/killTree.mjs` — reaps leaked `vite preview` servers.
+
+## Lessons added today
+
+1. **A real device catches what this environment structurally cannot.** Two
+   bugs shipped past every automated check because Chrome does not behave like
+   Safari: iOS text autosizing inflating small text in wide blocks, and
+   html2canvas ignoring `object-fit` and stretching signatures. Neither was
+   visible in any extracted raster. A short iPad check before shipping is not
+   optional polish — it is the only coverage for that class of defect.
+2. **Truncation is data loss.** The drawn-PDF conversion exposed that the info
+   table silently chopped text too wide for its cell, printing "Effective
+   Separation Date" as "Effective Separation". Wrap, never truncate, on a
+   document somebody signs.
+3. **Fonzo's forms reportedly do not match the original paper forms exactly.**
+   This is unverified — the source documents are not on this machine
+   (`reference/` is gitignored and absent). It is content fidelity, not
+   rendering, and it outranks further visual work: a perfectly-rendered form
+   that asks the wrong questions is still wrong.
+
+## What to do next, in order
+
+1. **Fidelity audit against the original paper forms** — blocked on Fonzo
+   sending them. Highest value.
+2. **Point the four documents' tests at the real PDF** (golden images via
+   `render-pdf.mjs`), then delete the now-dead DOM export roots for those four.
+3. Contract checks on the drawn output (font sizes from the approved set, one
+   rule per signature block, standard fixture fits one page).
+4. Only then resume the wider roadmap: Home information hierarchy, tablet
+   landscape, the visual/palette pass, adversarial QA, the device walk.
+
+## Communication
+
+`CLAUDE.md` now carries Fonzo's communication preferences ("How to talk to
+Fonzo"). Read them. He is a construction safety professional, not an engineer —
+plain English first, no corporate filler, and never answer "the test says it's
+centered" when he says the output looks wrong.
