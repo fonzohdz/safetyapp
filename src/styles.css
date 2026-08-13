@@ -56,7 +56,7 @@
      light/dark toggle (the toggle only changes the workspace), so these are
      defined once, not per-theme. */
   --sidebar-w: 212px;
-  --sidebar-w-collapsed: 64px;
+  --sidebar-w-collapsed: 78px;
   --sidebar-bg: #071B33;
   --sidebar-bg-active: #12365D;
   --sidebar-bg-hover: #173F6D;
@@ -239,16 +239,31 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:focus-v
 .sidebar.builderActive .sidebarNavItem.active { background: color-mix(in srgb, var(--sidebar-bg-active) 55%, transparent); }
 .sidebarBottom { margin-top: auto; display: grid; gap: 2px; padding-top: 10px; border-top: 1px solid var(--sidebar-border); }
 
-/* Icon-only rail below a normal laptop width — flat collapse, no new
+/* Narrow rail below a normal laptop width — flat collapse, no new
    interactive state; the same destinations stay one tap away. Save status
    and the theme toggle move to the document header / Settings respectively
-   (see JsaWorkflow / SettingsView) so nothing becomes unreachable. */
+   (see JsaWorkflow / SettingsView) so nothing becomes unreachable.
+
+   The label stacks under the icon rather than disappearing. This band is
+   tablet portrait — an iPad held upright, the app's most important device —
+   and four unlabelled glyphs is a guessing game for someone wearing gloves
+   on a job site. It is exactly what the phone's bottom nav already does one
+   breakpoint down, so it is the same pattern, not a new one; the rail is
+   78px so "Documents" fits without truncating. */
 @media (max-width: 900px) {
   .sidebar { width: var(--sidebar-w-collapsed); padding: 22px 8px 16px; }
-  .sidebarBrandSub, .sidebarNavLabel { display: none; }
+  .sidebarBrandSub { display: none; }
   .sidebarBrand { padding: 0 4px 22px; text-align: center; }
   .sidebarBrandName { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
-  .sidebarNavItem { justify-content: center; padding: 11px 4px; border-left-width: 3px; }
+  .sidebarNavItem {
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    padding: 9px 4px;
+    border-left-width: 3px;
+    min-height: 56px;
+  }
+  .sidebarNavLabel { font-size: 10px; font-weight: 600; line-height: 1.1; letter-spacing: .1px; max-width: 100%; }
 }
 
 /* ── Mobile bottom navigation ──
