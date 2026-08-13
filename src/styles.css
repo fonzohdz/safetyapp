@@ -1,6 +1,28 @@
 /* ===== Safety App v4 ===== */
-/* No external font import — the interface uses the native/system font
-   stack defined in --font/--font-mono below (see typography system). */
+/* Barlow / Barlow Condensed are self-hosted under public/fonts (latin subset
+   only — no CDN, this app has to keep working with zero network access in
+   the field). font-display:swap so first paint never blocks on the font. */
+@font-face {
+  font-family: 'Barlow';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./fonts/barlow-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Barlow';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('./fonts/barlow-600.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Barlow Condensed';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('./fonts/barlow-condensed-600.woff2') format('woff2');
+}
 
 /* ── Tokens ── */
 /* App-UI palette only. Printed/exported JSA and Shackelford branding use their
@@ -38,11 +60,17 @@
   --focus-tint: #E8F0F8;
   --danger: #A92238;
   --danger-tint: #FBE8EB;
-  --good: #2E7656;
-  --good-tint: #E8F4ED;
+  /* C2 spec's sunlight-tested done/attention pair — was #2E7656/#A87521,
+     verified outdoors and slightly darker for the same 7:1+ contrast floor
+     as the rest of this pass. Border variants are new (spec calls for a
+     visible border, not just a fill, on both states). */
+  --good: #1F6B4A;
+  --good-tint: #E3F0E8;
+  --good-border: #9DC4AF;
   --success: var(--good);
-  --warn: #A87521;
-  --warn-tint: #FAF1DF;
+  --warn: #5E4510;
+  --warn-tint: #FBEFDC;
+  --warn-border: #D9BE86;
   --shadow: 0 8px 24px rgba(10, 35, 66, 0.07);
   --shadow-hover: 0 10px 28px rgba(10, 35, 66, 0.10);
   --shadow-lg: 0 16px 40px rgba(10, 35, 66, 0.14);
@@ -50,19 +78,44 @@
   --radius: 10px;
   --radius-sm: 7px;
   --radius-pill: 999px;
-  --font: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font: 'Barlow', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-condensed: 'Barlow Condensed', 'Arial Narrow', ui-sans-serif, sans-serif;
   --font-mono: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  /* C2 redesign tokens, phase 1 (Home + sidebar only) — layered alongside
+     --muted/--text-faint/--line/--line-strong rather than replacing them,
+     since those are still used by every out-of-scope screen. Later phases
+     should fold these together once the rest of the app adopts them. */
+  --text-2: #43525F;
+  --text-3: #5C6B7A;
+  --text-on-navy-2: #B4C4D3;
+  --border-obj: #B9C4D0;
+  --border-input: #A9B6C4;
+  --rule-2: #D7DEE5;
+  --space-1: 4px;
+  --space-2: 6px;
+  --space-3: 8px;
+  --space-4: 10px;
+  --space-5: 12px;
+  --space-6: 14px;
+  --space-7: 16px;
+  --space-8: 20px;
+  --space-9: 26px;
+  --space-10: 34px;
   /* Sidebar is a fixed brand surface — same navy identity regardless of the
      light/dark toggle (the toggle only changes the workspace), so these are
-     defined once, not per-theme. */
-  --sidebar-w: 212px;
-  --sidebar-w-collapsed: 78px;
-  --sidebar-bg: #071B33;
-  --sidebar-bg-active: #12365D;
-  --sidebar-bg-hover: #173F6D;
+     defined once, not per-theme. Compact icon rail (~100px) is now the
+     default at the primary tablet target; --sidebar-w (labeled, 216px) only
+     applies at desktop widths — see the sidebar rules below. */
+  --sidebar-w: 216px;
+  --sidebar-w-collapsed: 100px;
+  --sidebar-bg: #0B1D2E;
+  --sidebar-bg-active: #16324A;
+  --sidebar-bg-hover: #1C3C57;
   --sidebar-border: rgba(244,247,250,.10);
   --sidebar-text: #F4F7FA;
-  --sidebar-text-muted: color-mix(in srgb, #F4F7FA 58%, #071B33 42%);
+  /* Was an ad-hoc color-mix (~#929BA4, unverified contrast); now the C2
+     spec's own sunlight-tested secondary-on-navy color (5.9:1). */
+  --sidebar-text-muted: var(--text-on-navy-2);
   --action-dock-height: 64px;
   --bottom-nav-height: 58px;
   --input-bg: var(--surface);
@@ -103,9 +156,11 @@ html[data-theme='dark'] {
   --danger-tint: #173B63;
   --good: #4C9172;
   --good-tint: #123153;
+  --good-border: #4C9172;
   --success: var(--good);
   --warn: #C79A4B;
   --warn-tint: #123153;
+  --warn-border: #C79A4B;
   --shadow: 0 8px 24px rgba(0,0,0,.4);
   --shadow-hover: 0 10px 28px rgba(0,0,0,.48);
   --shadow-lg: 0 20px 48px rgba(0,0,0,.5);
@@ -113,6 +168,15 @@ html[data-theme='dark'] {
   /* Input surface distinct from card surface, per spec ("Dark Input"),
      read by the input rules further down this file. */
   --input-bg: #0D2846;
+  /* Dark equivalents of the C2 phase-1 tokens (--text-2/--text-3/border
+     tokens defined in the light :root above) — Home/sidebar render in both
+     themes, so these need real dark values rather than inheriting the
+     light-theme hex (which would be near-invisible on a dark surface). */
+  --text-2: #BBC8D7;
+  --text-3: #91A3B8;
+  --border-obj: #2A4A6D;
+  --border-input: color-mix(in srgb, #2A4A6D 65%, #F5F7FA 35%);
+  --rule-2: #2A4A6D;
 }
 
 /* ── Type scale (used for the "confident heading" treatment on Home, the
@@ -175,57 +239,64 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:focus-v
    scrolls" model already used elsewhere in this file. Deliberately plain
    geometry (small radius, one clear accent) rather than a soft rounded
    admin-template look. */
+/* C2 spec: the compact icon+label rail is the PRIMARY treatment (spec §2,
+   "≥1180 landscape tablet — rail 100"), not a narrow-width fallback — this
+   used to be inverted (labeled 212px rail as the unconditional default,
+   collapsing to icon-only only below 900px), which meant the app's own
+   stated primary target, 1180px iPad landscape, rendered the WRONG one.
+   The base rules below are now the compact rail; the full labeled rail is
+   promoted back in only at real desktop widths, see the >=1280px block. */
 .sidebar {
   position: sticky;
   top: 0;
   height: 100vh;
   height: 100dvh;
   flex-shrink: 0;
-  width: var(--sidebar-w);
+  width: var(--sidebar-w-collapsed);
   display: flex;
   flex-direction: column;
   background: var(--sidebar-bg);
-  padding: 26px 12px 18px;
+  padding: 20px 8px 16px;
   gap: 4px;
   overflow-y: auto;
 }
-.sidebarBrand { padding: 0 10px 26px; display: grid; gap: 4px; }
+.sidebarBrand { padding: 0 4px 20px; text-align: center; display: grid; gap: 4px; }
 .sidebarBrandName {
-  font-size: 17px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0;
   line-height: 1.2;
   color: var(--sidebar-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
 }
-.sidebarBrandSub {
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: .4px;
-  text-transform: uppercase;
-  color: var(--sidebar-text-muted);
-}
+.sidebarBrandSub { display: none; }
 .sidebarNav { display: grid; gap: 2px; }
 /* Sharper, more deliberate active treatment: a subtle navy surface shift
    (not a gray pill) plus a solid 3px red vertical indicator. Small,
-   near-square radius — not the rounded-pill look of a generic template.
-   Row height ~46px (10px vertical padding + 18px icon/line, comfortably
-   above the 44px minimum touch target). */
+   near-square radius — not the rounded-pill look of a generic template. */
 .sidebarNavItem {
   display: flex;
+  flex-direction: column;
+  justify-content: center;
   align-items: center;
-  gap: 11px;
-  padding: 12px 12px;
+  gap: 4px;
+  padding: 9px 4px;
   border-radius: 5px;
   border-left: 3px solid transparent;
   color: var(--sidebar-text-muted);
-  font-size: 13.5px;
+  font-size: 10px;
   font-weight: 600;
-  text-align: left;
-  white-space: nowrap;
+  line-height: 1.1;
+  letter-spacing: .1px;
+  text-align: center;
+  min-height: 56px;
   transition: color .15s, background .15s, border-color .15s;
 }
-.sidebarNavIcon { width: 18px; height: 18px; flex-shrink: 0; }
-.sidebarNavLabel { overflow: hidden; text-overflow: ellipsis; }
+.sidebarNavIcon { width: 22px; height: 22px; flex-shrink: 0; }
+.sidebarNavLabel { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .sidebarNavItem:hover { color: var(--sidebar-text); background: var(--sidebar-bg-hover); }
 .sidebarNavItem.active {
   color: var(--sidebar-text);
@@ -239,31 +310,29 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:focus-v
 .sidebar.builderActive .sidebarNavItem.active { background: color-mix(in srgb, var(--sidebar-bg-active) 55%, transparent); }
 .sidebarBottom { margin-top: auto; display: grid; gap: 2px; padding-top: 10px; border-top: 1px solid var(--sidebar-border); }
 
-/* Narrow rail below a normal laptop width — flat collapse, no new
-   interactive state; the same destinations stay one tap away. Save status
-   and the theme toggle move to the document header / Settings respectively
-   (see JsaWorkflow / SettingsView) so nothing becomes unreachable.
-
-   The label stacks under the icon rather than disappearing. This band is
-   tablet portrait — an iPad held upright, the app's most important device —
-   and four unlabelled glyphs is a guessing game for someone wearing gloves
-   on a job site. It is exactly what the phone's bottom nav already does one
-   breakpoint down, so it is the same pattern, not a new one; the rail is
-   78px so "Documents" fits without truncating. */
-@media (max-width: 900px) {
-  .sidebar { width: var(--sidebar-w-collapsed); padding: 22px 8px 16px; }
-  .sidebarBrandSub { display: none; }
-  .sidebarBrand { padding: 0 4px 22px; text-align: center; }
-  .sidebarBrandName { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+/* Desktop — the labeled rail earns its space back only here (spec §2,
+   "≥1280 desktop: rail expands to 216 with labels"). Save status and the
+   theme toggle stay on the document header / Settings respectively (see
+   JsaWorkflow / SettingsView) at every width, so nothing becomes
+   unreachable when the rail is compact below this breakpoint. */
+@media (min-width: 1280px) {
+  .sidebar { width: var(--sidebar-w); padding: 26px 12px 18px; }
+  .sidebarBrand { padding: 0 10px 26px; text-align: left; }
+  .sidebarBrandName { font-size: 17px; white-space: normal; }
+  .sidebarBrandSub { display: block; }
   .sidebarNavItem {
-    flex-direction: column;
-    justify-content: center;
-    gap: 4px;
-    padding: 9px 4px;
-    border-left-width: 3px;
-    min-height: 56px;
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 11px;
+    padding: 12px 12px;
+    font-size: 13.5px;
+    text-align: left;
+    white-space: nowrap;
+    min-height: 0;
   }
-  .sidebarNavLabel { font-size: 10px; font-weight: 600; line-height: 1.1; letter-spacing: .1px; max-width: 100%; }
+  .sidebarNavIcon { width: 18px; height: 18px; }
+  .sidebarNavLabel { text-align: left; }
 }
 
 /* ── Mobile bottom navigation ──
@@ -671,7 +740,7 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 .dialogActions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
 .dialogActions .btn { min-height: 44px; }
 
-/* ── Home ──
+/* ── Home ── (C2 redesign, phase 1)
    Two questions in the order a field user asks them — "finish what I
    started", then "start the right document" — each answered across all six
    document types on equal footing, then the Workspace shortcuts and the
@@ -680,75 +749,200 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
    Both grids are auto-fill/minmax rather than a fixed column count, so the
    same markup fills a 1180px tablet in landscape and stacks cleanly on a
    390px phone without a breakpoint per device. */
-.homeLayout { display: grid; gap: 32px; padding-top: 4px; }
+.homeLayout { display: grid; gap: var(--space-9); padding-top: 4px; }
 
-.homeHeader { display: grid; gap: 6px; }
-.homeHeader h1 { font-size: clamp(24px, 2.6vw, 30px); font-weight: 800; letter-spacing: -.3px; color: var(--text); }
-.homeHeader p { color: var(--muted); font-size: 15px; }
+.homeHeader { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-8); flex-wrap: wrap; }
+.homeHeaderText { display: grid; gap: 3px; min-width: 0; }
+.homeHeader h1 {
+  margin: 0;
+  font-family: var(--font-condensed);
+  font-size: clamp(26px, 3vw, 34px);
+  font-weight: 600;
+  letter-spacing: .01em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+.homeHeader p { color: var(--text-2); font-size: 15px; }
+/* Real (if narrow) filter over in-progress drafts by title — not a
+   decorative dead input; see HomeView's query state. */
+.homeSearch {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  background: var(--surface);
+  border: 1px solid var(--border-obj);
+  border-radius: 6px;
+  padding: 0 16px;
+  height: 56px;
+  width: min(320px, 100%);
+  flex-shrink: 0;
+  color: var(--text-3);
+}
+.homeSearch:focus-within { border-color: var(--sidebar-bg); box-shadow: 0 0 0 3px color-mix(in srgb, var(--sidebar-bg) 18%, transparent); outline: none; }
+.homeSearchIcon { width: 18px; height: 18px; flex-shrink: 0; }
+.homeSearchInput { flex: 1; min-width: 0; border: none; background: none; font-size: 15px; color: var(--text); }
+.homeSearchInput::placeholder { color: var(--text-3); }
+.homeSearchInput:focus { outline: none; }
 
-/* Continue where you left off — every in-progress draft, whatever document
-   type it belongs to. Shares the start grid's column width so the two
-   sections line up rather than reading as two unrelated layouts. */
-.continueGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+.homeSection { display: grid; gap: var(--space-5); }
+.homeSectionEyebrow { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .14em; color: var(--text-2); }
+.homeSectionSub { color: var(--text-2); font-size: 13.5px; margin-top: -6px; }
+
+/* Not finished — every in-progress draft, whatever document type it belongs
+   to. Shares the start grid's column width so the two sections line up
+   rather than reading as two unrelated layouts. */
+/* auto-fit at a 380px floor rather than a fixed 2-up or a 3rd-column
+   auto-fill: below ~774px of content width (portrait tablet, spec's "drafts
+   1-up") this naturally collapses to a single column; the primary 1180px
+   landscape target and desktop have room for 2, matching spec's "drafts
+   2-up" without a hardcoded viewport breakpoint that would drift out of
+   sync with the sidebar's own width changes. A fixed 2-column grid at this
+   card width squeezed the flex row below to unreadable single-character
+   line wraps once the sidebar took its portrait-width share of a narrower
+   viewport. */
+.continueGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: var(--space-6); }
 .continueCard {
-  display: grid;
-  gap: 6px;
-  align-content: start;
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
   text-align: left;
   background: var(--surface);
-  border: 1px solid var(--line);
-  border-left: 3px solid var(--accent);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 16px 18px;
+  border: 1px solid var(--border-obj);
+  border-left: 5px solid var(--accent);
+  border-radius: 6px;
+  padding: var(--space-6) var(--space-7);
+  min-height: 104px;
   min-width: 0;
 }
+.continueCardBody { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
 .continueCardType {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 1.1px;
-  color: var(--accent);
-  font-family: var(--font-mono);
+  letter-spacing: .14em;
+  color: var(--text-2);
 }
 .continueCardIcon { width: 14px; height: 14px; flex-shrink: 0; }
-.continueCardTitle { font-size: 17px; font-weight: 800; letter-spacing: -.2px; color: var(--text); line-height: 1.25; }
-.continueCardMeta { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
-.continueWorkProgress { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
+.continueCardTitle {
+  font-family: var(--font-condensed);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.08;
+  text-transform: uppercase;
+  color: var(--text);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.continueCardMeta { font-size: 15px; color: var(--text-2); line-height: 1.4; }
+.continueWorkProgress { display: flex; align-items: center; gap: 10px; margin-top: 2px; }
 .continueWorkProgressTrack { flex: 1 1 auto; max-width: 200px; height: 5px; border-radius: 99px; background: var(--surface-3); overflow: hidden; }
 .continueWorkProgressFill { display: block; height: 100%; background: var(--accent); border-radius: 99px; transition: width .2s ease; }
-.continueWorkProgress span { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
-.continueCardBtn { justify-self: start; min-height: 44px; padding-left: 18px; padding-right: 18px; margin-top: 8px; }
+.continueWorkProgress span { font-size: 13px; color: var(--text-2); white-space: nowrap; }
+.continueCardBtn {
+  flex-shrink: 0;
+  min-height: 68px;
+  padding-left: 26px;
+  padding-right: 26px;
+  font-family: var(--font-condensed);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+/* Empty / no-match state — the section keeps its slot (with its "· N"
+   count) instead of disappearing; a dashed row explains why it's quiet. */
+.homeEmptyRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border: 1px dashed var(--border-obj);
+  border-radius: 6px;
+  padding: 18px 20px;
+  min-height: 76px;
+}
+.homeEmptyCheck {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--good-tint);
+  color: var(--good);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+}
+.homeEmptyText { display: grid; gap: 2px; }
+.homeEmptyText strong { font-size: 15.5px; color: var(--text); }
+.homeEmptyText span { font-size: 13.5px; color: var(--text-2); }
+.homeSeeAll {
+  justify-self: start;
+  min-height: 44px;
+  padding: 0 4px;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--sidebar-bg);
+}
+.homeSeeAll:hover { text-decoration: underline; }
 
 /* Start a document — one tile per available type, all the same size. Which
    document a superintendent needs is their call, not the app's, so nothing
    here is weighted heavier than anything else. */
-.startDocGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; align-items: stretch; }
+.startDocGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--space-6); align-items: stretch; }
 .startDocTile {
   background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 20px;
+  border: 1px solid var(--border-obj);
+  border-top: 4px solid var(--sidebar-bg);
+  border-radius: 6px;
+  padding: 18px 20px 14px;
   display: grid;
-  gap: 8px;
-  /* Actions pinned to the bottom so every Start button in the row lines up,
-     however long the description above it runs. */
-  grid-template-rows: auto auto 1fr auto;
+  gap: 7px;
+  /* Actions pinned to the bottom so every Start row lines up, however long
+     the description above it runs. */
+  grid-template-rows: auto auto 1fr auto auto;
+  min-height: 176px;
   min-width: 0;
 }
-.startDocTileIcon { width: 24px; height: 24px; color: var(--accent); }
-.startDocTile h2 { font-size: 17px; font-weight: 800; letter-spacing: -.2px; color: var(--text); line-height: 1.25; }
-.startDocTile p { color: var(--muted); font-size: 13px; line-height: 1.5; }
-.startDocTileActions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
-.startDocTileActions .btn { min-height: 44px; padding-left: 18px; padding-right: 18px; }
-
-.homeSection { display: grid; gap: 12px; }
-.homeSectionEyebrow { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.1px; color: var(--muted); font-family: var(--font-mono); }
-.homeSectionSub { color: var(--muted); font-size: 13.5px; margin-top: -6px; }
+.startDocTileHead { display: flex; align-items: center; justify-content: space-between; }
+.startDocTileIcon { width: 30px; height: 30px; color: var(--sidebar-bg); }
+.startDocTileNum { font-family: var(--font-condensed); font-size: 21px; font-weight: 600; color: var(--text-3); }
+.startDocTile h2 {
+  margin: 0;
+  font-family: var(--font-condensed);
+  font-size: 27px;
+  line-height: 1.02;
+  font-weight: 600;
+  letter-spacing: .01em;
+  text-transform: uppercase;
+  color: var(--text);
+  text-wrap: balance;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.startDocTile p { color: var(--text-2); font-size: 15px; line-height: 1.35; text-wrap: pretty; }
+.startDocTileTemplates { justify-self: start; min-height: 40px; padding-left: 12px; padding-right: 12px; }
+.startDocTileStart {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 10px;
+  border-top: 1px solid var(--rule-2);
+  font-family: var(--font);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--sidebar-bg);
+  min-height: 44px;
+  text-align: left;
+}
+.startDocTileStart span { color: var(--text-3); font-size: 21px; line-height: 1; }
+.startDocTile:hover .startDocTileStart { color: var(--accent); }
 
 /* Workspace access rows: ~76px tall, compact and clearly actionable
    (hover feedback), not oversized dashboard cards. */
@@ -815,17 +1009,17 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
    so every button stays a comfortable one-hand tap target. */
 @media (max-width: 680px) {
   .homeLayout { gap: 22px; padding-top: 2px; }
-  .homeHeader { gap: 4px; }
-  .homeHeader h1 { font-size: 22px; }
+  .homeHeader { flex-direction: column; align-items: stretch; gap: 12px; }
+  .homeHeader h1 { font-size: 24px; }
   .homeHeader p { font-size: 13.5px; }
+  .homeSearch { width: 100%; height: 52px; }
 
-  /* One column at phone width, and Start/Templates stack to full-width taps
-     rather than being squeezed side by side. */
+  /* One column at phone width, and the Continue button stretches full
+     width under the card content instead of sitting beside it. */
   .continueGrid, .startDocGrid { grid-template-columns: 1fr; gap: 12px; }
-  .startDocTile { padding: 16px 18px; grid-template-rows: none; }
-  .startDocTileActions { flex-direction: column; align-items: stretch; }
-  .startDocTileActions .btn { width: 100%; }
-  .continueCardBtn { justify-self: stretch; width: 100%; }
+  .continueCard { flex-direction: column; align-items: stretch; }
+  .continueCardBtn { width: 100%; margin-top: 6px; }
+  .startDocTile { padding: 16px 18px; grid-template-rows: none; min-height: 0; }
 
   .homeSection { gap: 10px; }
   .workspaceAccessGrid { grid-template-columns: 1fr; gap: 10px; }

@@ -878,6 +878,7 @@ function IconDrafts(props) { return <svg viewBox="0 0 24 24" fill="none" stroke=
 function IconTemplates(props) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}><rect x="4" y="4" width="7" height="7" rx="1" /><rect x="13" y="4" width="7" height="7" rx="1" /><rect x="4" y="13" width="7" height="7" rx="1" /><rect x="13" y="13" width="7" height="7" rx="1" /></svg>; }
 function IconSettings(props) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="12" cy="12" r="3" /><path d="M12 3v2.4M12 18.6V21M21 12h-2.4M5.4 12H3M18 6l-1.7 1.7M7.7 16.3 6 18M18 18l-1.7-1.7M7.7 7.7 6 6" /></svg>; }
 function IconChevronRight(props) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M9 5l7 7-7 7" /></svg>; }
+function IconSearch(props) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" {...props}><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>; }
 /* One mark per document type, for Home's start grid — see DOC_ICONS. */
 function IconIncident(props) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M12 4.5 21 19.5H3z" /><path d="M12 10v4.2" /><path d="M12 17.2h.01" /></svg>; }
 function IconWeather(props) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M7 15.5a3.5 3.5 0 0 1 .4-7A5 5 0 0 1 17 9.3a3.1 3.1 0 0 1 .3 6.2" /><path d="M13 12.5 10 17h3l-1.5 4" /></svg>; }
@@ -2081,6 +2082,7 @@ function App() {
           nextStep: hintOf(model),
           progress: progressOf(model),
           savedLabel: model.lastSavedAt ? nowNice(new Date(model.lastSavedAt)) : 'on this device',
+          savedAt: model.lastSavedAt ? new Date(model.lastSavedAt).getTime() : 0,
           onOpen: entry.onOpen,
         } : null,
       };
@@ -2310,6 +2312,14 @@ const DOC_ICONS = {
   separation: IconSeparation,
 };
 
+/* "01"-"06" — part of the document's name per the C2 spec (tile, header
+   eyebrow, and draft card all show it), derived from DOCUMENT_REGISTRY's
+   own order rather than stored anywhere, so it can't drift out of sync. */
+function docNumber(id) {
+  const idx = DOCUMENT_REGISTRY.findIndex(d => d.id === id);
+  return idx === -1 ? '' : String(idx + 1).padStart(2, '0');
+}
+
 /* ── Home view ──
    Two questions, in the order a field user actually asks them: "let me finish
    what I started" and "let me start the right document". Both are answered
@@ -2317,39 +2327,83 @@ const DOC_ICONS = {
    App() for why that ordering changed — followed by the Workspace shortcuts
    and the always-visible (not disclosure-hidden) roadmap. */
 function HomeView({ customTemplates, setTab, docEntries }) {
+  const [query, setQuery] = useState('');
   const inProgress = docEntries.filter(e => e.draft);
+  const q = query.trim().toLowerCase();
+  const matching = q ? inProgress.filter(e => e.draft.title.toLowerCase().includes(q)) : inProgress;
+  const sorted = [...matching].sort((a, b) => b.draft.savedAt - a.draft.savedAt);
+  const MAX_VISIBLE = 4;
+  const visible = q ? sorted : sorted.slice(0, MAX_VISIBLE);
+  const overflowCount = q ? 0 : Math.max(0, sorted.length - MAX_VISIBLE);
 
   return (
     <div className="homeLayout">
       <header className="homeHeader">
-        <h1>Safety Documentation Center</h1>
-        <p>Create, manage, review, and export field safety documents.</p>
+        <div className="homeHeaderText">
+          <h1>Safety Documentation Center</h1>
+          <p>Create, manage, review, and export field safety documents.</p>
+        </div>
+        <label className="homeSearch">
+          <IconSearch className="homeSearchIcon" />
+          <input
+            type="search"
+            className="homeSearchInput"
+            placeholder="Search job site or person"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            aria-label="Search in-progress documents by job site or person"
+          />
+        </label>
       </header>
 
-      {inProgress.length > 0 && (
-        <section className="homeSection">
-          <span className="homeSectionEyebrow">Continue Where You Left Off</span>
-          <div className="continueGrid">
-            {inProgress.map(e => {
-              const { progress } = e.draft;
-              const pct = progress.total ? Math.round((progress.done / progress.total) * 100) : 0;
-              const Icon = DOC_ICONS[e.id] || IconDocuments;
-              return (
-                <section className="continueCard" key={e.id}>
-                  <span className="continueCardType"><Icon className="continueCardIcon" />{e.shortTitle}</span>
-                  <strong className="continueCardTitle">{e.draft.title}</strong>
-                  <span className="continueCardMeta">Next: {e.draft.nextStep} &middot; Saved {e.draft.savedLabel}</span>
-                  <span className="continueWorkProgress">
-                    <span className="continueWorkProgressTrack"><span className="continueWorkProgressFill" style={{ width: `${pct}%` }} /></span>
-                    <span>{progress.done} of {progress.total}</span>
-                  </span>
-                  <button className="btn primary continueCardBtn" onClick={e.draft.onOpen}>{e.continueLabel}</button>
-                </section>
-              );
-            })}
+      <section className="homeSection">
+        <span className="homeSectionEyebrow">Not finished &middot; {inProgress.length}</span>
+        {inProgress.length === 0 ? (
+          <div className="homeEmptyRow">
+            <span className="homeEmptyCheck" aria-hidden="true">&#10003;</span>
+            <div className="homeEmptyText">
+              <strong>Nothing unfinished</strong>
+              <span>Everything you started is signed and downloaded.</span>
+            </div>
           </div>
-        </section>
-      )}
+        ) : matching.length === 0 ? (
+          <div className="homeEmptyRow">
+            <div className="homeEmptyText">
+              <strong>No matches</strong>
+              <span>Nothing unfinished matches &ldquo;{query}&rdquo;.</span>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="continueGrid">
+              {visible.map(e => {
+                const { progress } = e.draft;
+                const pct = progress.total ? Math.round((progress.done / progress.total) * 100) : 0;
+                const Icon = DOC_ICONS[e.id] || IconDocuments;
+                return (
+                  <section className="continueCard" key={e.id}>
+                    <div className="continueCardBody">
+                      <span className="continueCardType"><Icon className="continueCardIcon" />{docNumber(e.id)} &middot; {e.shortTitle}</span>
+                      <strong className="continueCardTitle">{e.draft.title}</strong>
+                      <span className="continueCardMeta">{e.draft.nextStep} &middot; saved {e.draft.savedLabel}</span>
+                      <span className="continueWorkProgress">
+                        <span className="continueWorkProgressTrack"><span className="continueWorkProgressFill" style={{ width: `${pct}%` }} /></span>
+                        <span>{progress.done} of {progress.total}</span>
+                      </span>
+                    </div>
+                    <button className="btn primary continueCardBtn" onClick={e.draft.onOpen}>{e.continueLabel}</button>
+                  </section>
+                );
+              })}
+            </div>
+            {overflowCount > 0 && (
+              <button type="button" className="homeSeeAll" onClick={() => setTab('drafts')}>
+                See all {sorted.length} &rsaquo;
+              </button>
+            )}
+          </>
+        )}
+      </section>
 
       <section className="homeSection">
         <span className="homeSectionEyebrow">Start a Document</span>
@@ -2358,17 +2412,20 @@ function HomeView({ customTemplates, setTab, docEntries }) {
             const Icon = DOC_ICONS[e.id] || IconDocuments;
             return (
               <section className="startDocTile" key={e.id}>
-                <Icon className="startDocTileIcon" />
+                <div className="startDocTileHead">
+                  <Icon className="startDocTileIcon" />
+                  <span className="startDocTileNum">{docNumber(e.id)}</span>
+                </div>
                 <h2>{e.shortTitle}</h2>
                 <p>{e.description}</p>
-                <div className="startDocTileActions">
-                  <button className="btn primary" onClick={e.onStart}>{e.startLabel}</button>
-                  {e.onBrowseTemplates && (
-                    <button className="btn ghost" onClick={e.onBrowseTemplates}>
-                      Templates{customTemplates.length > 0 ? ` (${customTemplates.length})` : ''}
-                    </button>
-                  )}
-                </div>
+                {e.onBrowseTemplates && (
+                  <button type="button" className="btn ghost sm startDocTileTemplates" onClick={e.onBrowseTemplates}>
+                    Templates{customTemplates.length > 0 ? ` (${customTemplates.length})` : ''}
+                  </button>
+                )}
+                <button type="button" className="startDocTileStart" onClick={e.onStart}>
+                  {e.startLabel}<span aria-hidden="true">&rsaquo;</span>
+                </button>
               </section>
             );
           })}
