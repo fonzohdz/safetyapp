@@ -1,16 +1,97 @@
-import { useId, useRef, useLayoutEffect, useState } from 'react';
+import { useId, useRef, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import {
   INCIDENT_STEPS, INJURY_NATURE_OPTIONS, CAUSE_CATEGORIES, causeKey,
-  emptyWitness, emptyTeamMember, getIncidentReadinessChecks, isIncidentReady, printedIncidentFingerprint,
+  emptyWitness, emptyTeamMember, getIncidentReadinessChecks, isIncidentReady, isIncidentPrintFinal, printedIncidentFingerprint,
 } from './incidentModel';
 import { incidentCopy as t } from './incidentCopy';
 import SignaturePad from './SignaturePad';
 import BodyDiagram from './BodyDiagram';
 import IncidentPhotos from './IncidentPhotos';
+import { IncidentPageShell, Page1Content } from './IncidentPdf';
+import { buildIncidentPagePlan } from './incidentPdfGenerate';
 import { LockedContext, useLocked } from '../documents/lockedContext';
 import { ConfirmDialog, StepNav } from '../documents/FormPrimitives';
 import SpeakButton from '../voice/SpeakButton';
 import { downloadDraftFile, buildDraftFilename } from '../shared/draftTransfer';
+
+/* Touch/width layout detection, duplicated from main.jsx's private
+   useIsTouchPrimary/useElementWidth rather than imported -- this module is
+   deliberately self-contained (see the header comment on Field/TextAreaField
+   below), and these are generic device-capability hooks, not JSA logic. */
+function useIsTouchPrimary() {
+  const readMatch = () => (typeof window !== 'undefined' && window.matchMedia)
+    ? window.matchMedia('(any-pointer: coarse)').matches
+    : false;
+  const [touch, setTouch] = useState(readMatch);
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return undefined;
+    const mq = window.matchMedia('(any-pointer: coarse)');
+    const handler = () => setTouch(mq.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  return touch;
+}
+function useElementWidth(ref) {
+  const [width, setWidth] = useState(0);
+  useLayoutEffect(() => {
+    const node = ref.current;
+    if (!node) return undefined;
+    const update = () => setWidth(node.clientWidth);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [ref]);
+  return width;
+}
+
+/* Review-step "What will print" facsimile -- mirrors JSA's JsaPreview
+   (src/main.jsx): the real page-1 DOM component, scaled down via CSS
+   transform, so preview and PDF export share one markup path. Only page 1 is
+   shown (plus a total-page count) -- a full flip-through of every
+   continuation/witness/signature page is a larger separate feature, not
+   this pass. */
+function IncidentPreview({ incident }) {
+  const { pages } = useMemo(() => buildIncidentPagePlan(incident), [incident]);
+  const totalPages = pages.length;
+  const page1 = pages[0];
+  const draft = !isIncidentPrintFinal(incident);
+  const viewportRef = useRef(null);
+  const [scale, setScale] = useState(0.55);
+
+  useLayoutEffect(() => {
+    const node = viewportRef.current;
+    if (!node) return undefined;
+    const update = () => {
+      const width = Math.max(280, node.clientWidth - 28);
+      setScale(Math.min(1, width / 816));
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <>
+      <div className="previewPageManager">
+        <span><strong>Page 1</strong> shown</span>
+        <span className="previewTotal"><strong>Total</strong> {totalPages}</span>
+      </div>
+      <div className="previewTruthBar">
+        <p>Exact Letter-page preview with standard default-margin space.</p>
+      </div>
+      <div className="previewSheetViewport" ref={viewportRef} style={{ height: `${1056 * scale + 28}px` }}>
+        <div className="previewSheetCanvas" style={{ transform: `scale(${scale})` }}>
+          <IncidentPageShell pageNumber={1} totalPages={totalPages} draft={draft} watermarkVariant="page1">
+            <Page1Content incident={incident} {...page1.props} />
+          </IncidentPageShell>
+        </div>
+      </div>
+    </>
+  );
+}
 
 /* ── Small local presentational primitives ──
    Deliberately not imported from main.jsx (which exports nothing) -- kept
@@ -484,6 +565,22 @@ export default function IncidentWorkflow({
   pdfExportState, isPdfStale, onGeneratePdf, onDownload, onMarkReady, onMarkIncomplete, onStartNew, showToast,
 }) {
   const idx = INCIDENT_STEPS.findIndex(s => s.id === step);
+  const isReviewStep = step === 'review';
+  const shellRef = useRef(null);
+  const shellWidth = useElementWidth(shellRef);
+  const isTouchPrimary = useIsTouchPrimary();
+  const showSideBySide = !isTouchPrimary && shellWidth >= 1000 && isReviewStep;
+  const previewPanel = (
+    <div className="card previewPanel">
+      <div className="previewPanelHeader">
+        <div>
+          <strong>What Will Print</strong>
+          <span>The real printed page, scaled to fit</span>
+        </div>
+      </div>
+      <IncidentPreview incident={incident} />
+    </div>
+  );
   function upd(patch) {
     setIncident(prev => {
       const next = { ...prev, ...patch };
@@ -524,7 +621,7 @@ export default function IncidentWorkflow({
       </div>
 
       <LockedContext.Provider value={incident.status !== 'draft'}>
-        <div className="workflowShell withStepNav">
+        <div className={`workflowShell withStepNav${showSideBySide ? ' withPreview' : ''}`} ref={shellRef}>
           <StepNav steps={INCIDENT_STEPS} activeStepId={step} checks={getIncidentReadinessChecks(incident)} onJump={setStep} />
           <div className="workflowLeft">
             {step === 'details' && <StepDetails incident={incident} upd={upd} next={next} />}
@@ -548,7 +645,13 @@ export default function IncidentWorkflow({
                 setStep={setStep}
               />
             )}
+            {!showSideBySide && isReviewStep && previewPanel}
           </div>
+          {showSideBySide && (
+            <div className="workflowRight">
+              {previewPanel}
+            </div>
+          )}
         </div>
       </LockedContext.Provider>
     </>

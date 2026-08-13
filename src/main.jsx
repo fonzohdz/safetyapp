@@ -2611,7 +2611,11 @@ function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTem
   const [showPreview, setShowPreview] = useState(false);
   const debugLayout = useDebugLayoutFlag();
   const layoutMode = canSideBySide ? 'desktop-side-by-side' : (isTouchPrimary ? 'touch-stacked' : 'desktop-stacked-narrow');
-  const previewOpen = jsaStep !== 'review' && showPreview;
+  const isReviewStep = jsaStep === 'review';
+  // Review always shows the real printed page(s) — "What will print" is not
+  // optional there the way the mid-workflow Preview toggle is; only earlier
+  // steps respect the user's showPreview toggle.
+  const previewOpen = isReviewStep ? true : showPreview;
   // Whether the side-by-side preview column is actually rendering right now —
   // both canSideBySide (width/touch capability) and previewOpen (the existing
   // toggle) are pre-existing derived values; this only combines them so the
@@ -2627,8 +2631,8 @@ function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTem
     <div className="card previewPanel">
       <div className="previewPanelHeader">
         <div>
-          <strong>Live Preview</strong>
-          <span>Scaled preview of the printed layout</span>
+          <strong>{isReviewStep ? 'What Will Print' : 'Live Preview'}</strong>
+          <span>{isReviewStep ? 'The real printed page, scaled to fit' : 'Scaled preview of the printed layout'}</span>
         </div>
         <button
           className="btn sm outline"
@@ -2675,23 +2679,6 @@ function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTem
           {jsaStep === 'work' && <StepWork jsa={jsa} upd={upd} addRow={addRow} updRow={updRow} removeRow={removeRow} addSummaryAsRow={addSummaryAsRow} addRowTemplate={addRowTemplate} customQuick={settings.customQuick || { task: [], hazard: [], control: [] }} prev={prev} next={next} />}
           {jsaStep === 'signatures' && <StepSignatures jsa={jsa} upd={upd} sigCount={sigCount} prev={prev} next={next} />}
           {jsaStep === 'review' && <StepReview jsa={jsa} upd={upd} fit={fit} saveName={saveName} setSaveName={setSaveName} saveTemplate={saveTemplate} updateTemplate={updateTemplate} saveDraft={saveDraft} markReady={markReady} exportPdf={exportPdf} legacyBrowserPrint={legacyBrowserPrint} pdfExportState={pdfExportState} isPdfStale={isPdfStale} shareGeneratedPdfClick={shareGeneratedPdfClick} downloadGeneratedPdfClick={downloadGeneratedPdfClick} clearDraft={clearDraft} prev={prev} next={next} setJsaStep={setJsaStep} />}
-
-          {!canSideBySide && jsaStep === 'review' && (
-            <details className="detailedRowsDisclosure">
-              <summary>
-                <div className="detailedRowsSummaryText">
-                  <div className="detailedRowsSummaryTitle">
-                    <strong>Preview Layout</strong>
-                  </div>
-                  <p>Scaled preview of the printed JSA layout.</p>
-                </div>
-                <span className="detailedRowsSummaryAction">Show</span>
-              </summary>
-              <div className="detailedRowsBody">
-                <JsaPreview jsa={jsa} />
-              </div>
-            </details>
-          )}
 
           {!canSideBySide && previewOpen && previewPanel}
         </div>
