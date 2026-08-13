@@ -1,10 +1,10 @@
 import {
-  DISCIPLINARY_STEPS, disciplinaryStepStatus, WARNING_LEVELS,
+  DISCIPLINARY_STEPS, WARNING_LEVELS,
   getDisciplinaryReadinessChecks, isDisciplinaryReady, isDisciplinaryPrintFinal,
 } from './disciplinaryModel';
 import {
   Field, TextAreaField, SegmentedToggle, StepPanel, NumberedSection, StepFooter,
-  BuilderHeader, ReviewExportPanel, SignaturePad,
+  BuilderHeader, StepNav, ReviewExportPanel, SignaturePad,
 } from '../FormPrimitives';
 import { LockedContext, useLocked } from '../lockedContext';
 import { downloadDraftFile, buildDraftFilename } from '../../shared/draftTransfer';
@@ -134,14 +134,11 @@ export default function DisciplinaryWorkflow({
         onSaveNow={onSaveNow}
         onBack={goDocs}
         backLabel="Documents"
-        steps={DISCIPLINARY_STEPS}
-        activeStepId={step}
-        getStepStatus={id => disciplinaryStepStatus(model, id)}
-        onJumpStep={setStep}
       />
 
       <LockedContext.Provider value={locked}>
-        <div className="workflowShell stacked">
+        <div className="workflowShell withStepNav">
+          <StepNav steps={DISCIPLINARY_STEPS} activeStepId={step} checks={checks} onJump={setStep} />
           <div className="workflowLeft">
             {step === 'notice' && <StepNotice model={model} upd={upd} next={next} />}
             {step === 'response' && <StepResponse model={model} upd={upd} prev={prev} next={next} />}

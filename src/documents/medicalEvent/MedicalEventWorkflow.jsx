@@ -1,12 +1,12 @@
 import {
-  MEDICAL_EVENT_STEPS, medicalEventStepStatus,
+  MEDICAL_EVENT_STEPS,
   SYMPTOM_ONSET_OPTIONS, RESPONSE_ACTIONS, MEDICAL_EVALUATION_TYPES, WORK_STATUS_OPTIONS, INITIAL_CLASSIFICATIONS,
   MEDICAL_ATTACHMENT_OPTIONS,
   getMedicalEventReadinessChecks, isMedicalEventReady, isMedicalEventPrintFinal,
 } from './medicalEventModel';
 import {
   Field, TextAreaField, SegmentedToggle, ChipGroup, StepPanel, StepFooter,
-  BuilderHeader, ReviewExportPanel, SignaturePad,
+  BuilderHeader, StepNav, ReviewExportPanel, SignaturePad,
 } from '../FormPrimitives';
 import { LockedContext, useLocked } from '../lockedContext';
 import { downloadDraftFile, buildDraftFilename } from '../../shared/draftTransfer';
@@ -164,14 +164,11 @@ export default function MedicalEventWorkflow({
         onSaveNow={onSaveNow}
         onBack={goDocs}
         backLabel="Documents"
-        steps={MEDICAL_EVENT_STEPS}
-        activeStepId={step}
-        getStepStatus={id => medicalEventStepStatus(model, id)}
-        onJumpStep={setStep}
       />
 
       <LockedContext.Provider value={locked}>
-        <div className="workflowShell stacked">
+        <div className="workflowShell withStepNav">
+          <StepNav steps={MEDICAL_EVENT_STEPS} activeStepId={step} checks={checks} onJump={setStep} />
           <div className="workflowLeft">
             {step === 'condition' && <StepCondition model={model} upd={upd} next={next} />}
             {step === 'evaluation' && <StepEvaluation model={model} upd={upd} prev={prev} next={next} />}

@@ -13,6 +13,7 @@ import { incidentCopy } from './incident/incidentCopy';
 import IncidentWorkflow from './incident/IncidentWorkflow';
 import { IncidentPdfExportRoot, generateIncidentPdf, incidentPdfFingerprint, buildIncidentExportName, getIncidentPdfOverflowFields } from './incident/incidentPdfGenerate';
 import { DOCUMENT_REGISTRY, DOCUMENT_CATEGORIES } from './documents/registry';
+import { StepNav } from './documents/FormPrimitives';
 import { DOCUMENT_STORAGE_KEYS } from './documents/storage';
 import { useDraftDocument, saveStatusLabel } from './documents/useDraftDocument';
 import { usePdfExport } from './documents/usePdfExport';
@@ -825,11 +826,6 @@ function stepStatus(jsa, id) {
     default: return 'draft';
   }
 }
-function stepStatusLabel(s) {
-  if (s === 'complete') return 'Complete';
-  if (s === 'ready') return 'Ready';
-  return 'Needs Info';
-}
 // Derives a "resume here" hint for a returning user from saved draft data alone —
 // jsaStep itself is ephemeral React state and is never persisted with the draft.
 function nextStepHint(jsa) {
@@ -926,50 +922,6 @@ function useDebugLayoutFlag() {
   }, []);
 }
 
-/* ── Compact stepper (touch devices): every segment always shows its own
-   number, title, and a non-color status glyph. Layout is an explicit
-   3+2 grid that switches to a single row of 5 via container query at
-   wider actual widths — never an accidental auto-wrap. ── */
-/* ── Workflow stepper ── one component for every viewport (touch and mouse
-   alike); CSS alone adapts label density to the available width. Each
-   segment carries exactly one status signal — a glyph (number, or a check
-   once complete) that is never color-only — plus the "active" emphasis for
-   the current step, so status and position never fight for attention. */
-function WorkflowStepper({ steps, jsa, jsaStep, setJsaStep }) {
-  const idx = Math.max(0, steps.findIndex(s => s.id === jsaStep));
-  return (
-    <div className="stepperWrap">
-      {/* Step count only — the current step's name is already the active
-          segment's own label in the rail below; showing it twice was
-          redundant. Count alone still orients the user ("Step 2 of 5"). */}
-      <div className="stepperHead">
-        <span className="stepperCount">Step {idx + 1} of {steps.length}</span>
-      </div>
-      <div className="stepperRail" role="tablist" aria-label="JSA workflow steps">
-        {steps.map((s, i) => {
-          const st = stepStatus(jsa, s.id);
-          const isActive = s.id === jsaStep;
-          const isDone = st === 'complete' || st === 'ready';
-          return (
-            <button
-              key={s.id}
-              type="button"
-              role="tab"
-              aria-selected={isActive}
-              aria-current={isActive ? 'step' : undefined}
-              aria-label={`${s.label}: ${stepStatusLabel(st)}`}
-              className={`stepperSeg${isActive ? ' active' : ''}${isDone ? ' done' : ''}`}
-              onClick={() => setJsaStep(s.id)}
-            >
-              <span className="stepperSegDot" aria-hidden="true">{isDone ? '✓' : i + 1}</span>
-              <span className="stepperSegLabel">{s.label}</span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 /* ── Layout diagnostics overlay, only mounted behind ?debug=layout ── */
 function LayoutDebugPanel({ containerRef, layoutMode, stepperMode, jobPairMode, quickPanelMode, previewMode }) {
@@ -2648,6 +2600,8 @@ function StickyActionBar({ idx, steps, prev, next, exportPdf, pdfExportState, is
 function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTemplates, templateId, setTemplateId, selectedTemplate, loadTemplate, saveName, setSaveName, saveTemplate, updateTemplate, addRow, updRow, removeRow, addSummaryAsRow, addRowTemplate, clearDraft, saveDraft, markReady, exportPdf, legacyBrowserPrint, pdfExportState, isPdfStale, shareGeneratedPdfClick, downloadGeneratedPdfClick, savedDraft, settings, saveStatus }) {
   const plan = useJsaPagePlan(jsa);
   const fit = calcFitFromPlan(plan);
+  const measurements = usePageMeasurements();
+  const checks = useMemo(() => getReviewChecks(jsa, measurements), [jsa, measurements]);
   const sigCount = Math.max(1, Math.min(100, Number(jsa.signatureLineCount) || 1));
   const idx = STEPS.findIndex(s => s.id === jsaStep);
   const shellRef = useRef(null);
@@ -2711,10 +2665,10 @@ function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTem
             </button>
           )}
         </div>
-        <WorkflowStepper steps={STEPS} jsa={jsa} jsaStep={jsaStep} setJsaStep={setJsaStep} />
       </div>
 
-      <div className={`workflowShell${showSideBySide ? '' : ' stacked'}`} ref={shellRef}>
+      <div className={`workflowShell withStepNav${showSideBySide ? ' withPreview' : ''}`} ref={shellRef}>
+        <StepNav steps={STEPS} activeStepId={jsaStep} checks={checks} onJump={setJsaStep} />
         <div className="workflowLeft">
           {jsaStep === 'job' && <StepJob jsa={jsa} upd={upd} prev={prev} next={next} />}
           {jsaStep === 'meeting' && <StepMeeting jsa={jsa} upd={upd} prev={prev} next={next} />}

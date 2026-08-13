@@ -1,11 +1,11 @@
 import {
-  UNCONTROLLED_EVENT_STEPS, uncontrolledEventStepStatus,
+  UNCONTROLLED_EVENT_STEPS,
   EVENT_CLASSIFICATIONS, EVENT_OUTCOMES, NOTIFICATION_OPTIONS, ATTACHMENT_OPTIONS, OUTCOME_INJURY,
   getUncontrolledEventReadinessChecks, isUncontrolledEventReady, isUncontrolledEventPrintFinal,
 } from './uncontrolledEventModel';
 import {
   Field, TextAreaField, ChipGroup, StepPanel, StepFooter,
-  BuilderHeader, ReviewExportPanel, SignaturePad,
+  BuilderHeader, StepNav, ReviewExportPanel, SignaturePad,
 } from '../FormPrimitives';
 import { LockedContext } from '../lockedContext';
 import { downloadDraftFile, buildDraftFilename } from '../../shared/draftTransfer';
@@ -120,14 +120,11 @@ export default function UncontrolledEventWorkflow({
         onSaveNow={onSaveNow}
         onBack={goDocs}
         backLabel="Documents"
-        steps={UNCONTROLLED_EVENT_STEPS}
-        activeStepId={step}
-        getStepStatus={id => uncontrolledEventStepStatus(model, id)}
-        onJumpStep={setStep}
       />
 
       <LockedContext.Provider value={locked}>
-        <div className="workflowShell stacked">
+        <div className="workflowShell withStepNav">
+          <StepNav steps={UNCONTROLLED_EVENT_STEPS} activeStepId={step} checks={checks} onJump={setStep} />
           <div className="workflowLeft">
             {step === 'event' && <StepEvent model={model} upd={upd} next={next} />}
             {step === 'narrative' && <StepNarrative model={model} upd={upd} prev={prev} next={next} />}

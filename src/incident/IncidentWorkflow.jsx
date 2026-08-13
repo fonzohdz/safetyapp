@@ -1,6 +1,6 @@
 import { useId, useRef, useLayoutEffect, useState } from 'react';
 import {
-  INCIDENT_STEPS, incidentStepStatus, INJURY_NATURE_OPTIONS, CAUSE_CATEGORIES, causeKey,
+  INCIDENT_STEPS, INJURY_NATURE_OPTIONS, CAUSE_CATEGORIES, causeKey,
   emptyWitness, emptyTeamMember, getIncidentReadinessChecks, isIncidentReady, printedIncidentFingerprint,
 } from './incidentModel';
 import { incidentCopy as t } from './incidentCopy';
@@ -8,7 +8,7 @@ import SignaturePad from './SignaturePad';
 import BodyDiagram from './BodyDiagram';
 import IncidentPhotos from './IncidentPhotos';
 import { LockedContext, useLocked } from '../documents/lockedContext';
-import { ConfirmDialog } from '../documents/FormPrimitives';
+import { ConfirmDialog, StepNav } from '../documents/FormPrimitives';
 import SpeakButton from '../voice/SpeakButton';
 import { downloadDraftFile, buildDraftFilename } from '../shared/draftTransfer';
 
@@ -88,38 +88,6 @@ function StepFooter({ onBack, onNext, hasBack, hasNext, nextLabel }) {
   );
 }
 
-function Stepper({ incident, step, onJump }) {
-  const idx = Math.max(0, INCIDENT_STEPS.findIndex(s => s.id === step));
-  return (
-    <div className="stepperWrap">
-      <div className="stepperHead">
-        <span className="stepperCount">Step {idx + 1} of {INCIDENT_STEPS.length}</span>
-      </div>
-      <div className="stepperRail" role="tablist" aria-label="Incident report steps">
-        {INCIDENT_STEPS.map((s, i) => {
-          const status = incidentStepStatus(incident, s.id);
-          const isActive = s.id === step;
-          const isDone = status === 'complete';
-          return (
-            <button
-              key={s.id}
-              type="button"
-              role="tab"
-              aria-selected={isActive}
-              aria-current={isActive ? 'step' : undefined}
-              aria-label={`${s.label}: ${isDone ? 'Complete' : 'Needs Info'}`}
-              className={`stepperSeg${isActive ? ' active' : ''}${isDone ? ' done' : ''}`}
-              onClick={() => onJump(s.id)}
-            >
-              <span className="stepperSegDot" aria-hidden="true">{isDone ? '\u2713' : i + 1}</span>
-              <span className="stepperSegLabel">{s.label}</span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 /* ── Step: Incident Details ── */
 function StepDetails({ incident, upd, next }) {
@@ -553,11 +521,11 @@ export default function IncidentWorkflow({
             <button type="button" className="btn ghost sm" onClick={onSaveNow} disabled={saveStatusState === 'saving'}>{t.saveNow}</button>
           </div>
         </div>
-        <Stepper incident={incident} step={step} onJump={setStep} />
       </div>
 
       <LockedContext.Provider value={incident.status !== 'draft'}>
-        <div className="workflowShell stacked">
+        <div className="workflowShell withStepNav">
+          <StepNav steps={INCIDENT_STEPS} activeStepId={step} checks={getIncidentReadinessChecks(incident)} onJump={setStep} />
           <div className="workflowLeft">
             {step === 'details' && <StepDetails incident={incident} upd={upd} next={next} />}
             {step === 'injury' && <StepInjury incident={incident} upd={upd} prev={prev} next={next} />}

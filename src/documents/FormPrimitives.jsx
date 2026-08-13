@@ -178,46 +178,70 @@ export function StepFooter({ onBack, onNext, hasBack, hasNext, nextLabel, backLa
   );
 }
 
-/* Generic step rail — same markup/classes as IncidentWorkflow's own
-   Stepper, generalized to any `steps` array + status function instead of
-   INCIDENT_STEPS/incidentStepStatus. */
-export function Stepper({ steps, activeStepId, getStatus, onJump }) {
-  const idx = Math.max(0, steps.findIndex(s => s.id === activeStepId));
+/* ── Vertical step list (C2 redesign) ──
+   Replaces the old horizontal stepperRail everywhere. `checks` is each
+   document's own readiness-check array (already computed by every workflow
+   for its Review step — see getXReadinessChecks in each model file), each
+   entry shaped { key, label, ok, step }. Per-row state is derived from that
+   real data rather than a fabricated copy string:
+     - the active step always reads "You are here"
+     - a step whose tagged checks are all ok reads "Done"
+     - a step with SOME but not all of its checks ok reads the first failing
+       check's own label (e.g. "Manager signature") — something was started
+       and a specific thing is still missing
+     - a step with NONE of its checks started yet reads "Not started"
+     - a step with no checks of its own (e.g. a terminal Review step) reads
+       "Done" once every check in the whole document passes, else "Not
+       started" — there's nothing on that screen itself to be half-done. */
+function stepRowState(step, activeStepId, checks) {
+  if (step.id === activeStepId) return { kind: 'current', text: 'You are here' };
+  const stepChecks = checks.filter(c => c.step === step.id);
+  const okCount = stepChecks.filter(c => c.ok).length;
+  const allOk = stepChecks.length ? okCount === stepChecks.length : checks.every(c => c.ok);
+  if (allOk) return { kind: 'done', text: 'Done' };
+  if (okCount > 0) {
+    const firstMissing = stepChecks.find(c => !c.ok);
+    return { kind: 'attention', text: firstMissing ? firstMissing.label : 'Needs info' };
+  }
+  return { kind: 'pending', text: 'Not started' };
+}
+
+export function StepNav({ steps, activeStepId, checks, onJump, ariaLabel = 'Document steps' }) {
+  const rows = steps.map(s => ({ step: s, ...stepRowState(s, activeStepId, checks) }));
+  const doneCount = rows.filter(r => r.kind === 'done').length;
   return (
-    <div className="stepperWrap">
-      <div className="stepperHead">
-        <span className="stepperCount">Step {idx + 1} of {steps.length}</span>
+    <nav className="stepNav" aria-label={ariaLabel}>
+      <span className="stepNavHead">Steps &mdash; {doneCount} of {steps.length} done</span>
+      <div className="stepNavList" role="tablist" aria-label={ariaLabel} aria-orientation="vertical">
+        {rows.map((r, i) => (
+          <button
+            key={r.step.id}
+            type="button"
+            role="tab"
+            aria-selected={r.kind === 'current'}
+            aria-current={r.kind === 'current' ? 'step' : undefined}
+            aria-label={`${r.step.label}: ${r.text}`}
+            className={`stepNavRow ${r.kind}`}
+            onClick={() => onJump(r.step.id)}
+          >
+            <span className="stepNavDot" aria-hidden="true">{r.kind === 'done' ? '✓' : r.kind === 'attention' ? '!' : i + 1}</span>
+            <span className="stepNavText">
+              <strong>{r.step.label}</strong>
+              <span className="stepNavState">{r.text}</span>
+            </span>
+          </button>
+        ))}
       </div>
-      <div className="stepperRail" role="tablist" aria-label="Document steps">
-        {steps.map((s, i) => {
-          const status = getStatus(s.id);
-          const isActive = s.id === activeStepId;
-          const isDone = status === 'complete';
-          return (
-            <button
-              key={s.id}
-              type="button"
-              role="tab"
-              aria-selected={isActive}
-              aria-current={isActive ? 'step' : undefined}
-              aria-label={`${s.label}: ${isDone ? 'Complete' : 'Needs Info'}`}
-              className={`stepperSeg${isActive ? ' active' : ''}${isDone ? ' done' : ''}`}
-              onClick={() => onJump(s.id)}
-            >
-              <span className="stepperSegDot" aria-hidden="true">{isDone ? '✓' : i + 1}</span>
-              <span className="stepperSegLabel">{s.label}</span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
+    </nav>
   );
 }
 
 /* Generic builder top bar — same markup IncidentWorkflow renders inline
    for itself, extracted so four new documents don't each hand-roll the
-   same header/badge/save-status/back-button/stepper block. */
-export function BuilderHeader({ kicker, title, statusBadgeLabel, statusBadgeClass, saveStatus, saveStatusState, onSaveNow, onBack, backLabel, steps, activeStepId, getStepStatus, onJumpStep }) {
+   same header/badge/save-status/back-button block. Steps live in their own
+   StepNav column now (see workflowShell.withStepNav), not inside the
+   header, so this no longer takes step-related props. */
+export function BuilderHeader({ kicker, title, statusBadgeLabel, statusBadgeClass, saveStatus, saveStatusState, onSaveNow, onBack, backLabel }) {
   return (
     <div className="builderHeader">
       <div className="builderHeaderTitleRow">
@@ -234,7 +258,6 @@ export function BuilderHeader({ kicker, title, statusBadgeLabel, statusBadgeClas
           <button type="button" className="btn ghost sm" onClick={onSaveNow} disabled={saveStatusState === 'saving'}>Save Now</button>
         </div>
       </div>
-      <Stepper steps={steps} activeStepId={activeStepId} getStatus={getStepStatus} onJump={onJumpStep} />
     </div>
   );
 }

@@ -1,11 +1,11 @@
 import {
-  SEPARATION_STEPS, separationStepStatus, SEPARATION_TYPES, SEPARATION_REASON_GROUPS,
+  SEPARATION_STEPS, SEPARATION_TYPES, SEPARATION_REASON_GROUPS,
   REHIRE_STATUSES, PROPERTY_RETURNED_OPTIONS, ACCESS_REMOVED_OPTIONS,
   getSeparationReadinessChecks, isSeparationReady, isSeparationPrintFinal,
 } from './separationModel';
 import {
   Field, TextAreaField, SegmentedToggle, ChipGroup, StepPanel, StepFooter,
-  BuilderHeader, ReviewExportPanel, SignaturePad,
+  BuilderHeader, StepNav, ReviewExportPanel, SignaturePad,
 } from '../FormPrimitives';
 import { LockedContext, useLocked } from '../lockedContext';
 import { downloadDraftFile, buildDraftFilename } from '../../shared/draftTransfer';
@@ -198,14 +198,11 @@ export default function SeparationWorkflow({
         onSaveNow={onSaveNow}
         onBack={goDocs}
         backLabel="Documents"
-        steps={SEPARATION_STEPS}
-        activeStepId={step}
-        getStepStatus={id => separationStepStatus(model, id)}
-        onJumpStep={setStep}
       />
 
       <LockedContext.Provider value={locked}>
-        <div className="workflowShell stacked">
+        <div className="workflowShell withStepNav">
+          <StepNav steps={SEPARATION_STEPS} activeStepId={step} checks={checks} onJump={setStep} />
           <div className="workflowLeft">
             {step === 'details' && <StepDetails model={model} upd={upd} next={next} />}
             {step === 'closeout' && <StepCloseout model={model} upd={upd} prev={prev} next={next} />}

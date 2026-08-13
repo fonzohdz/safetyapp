@@ -1179,19 +1179,19 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   align-items: start;
   min-width: 0;
 }
-.workflowShell.stacked { grid-template-columns: 1fr; }
-/* Preview open (side-by-side): comfortable two-column reading width. */
-.workflowShell:not(.stacked) .workflowLeft { max-width: 780px; }
-/* Preview closed/unavailable: expand to use the laptop screen instead of
-   stranding the form at a narrow fixed width — tiered by the same
-   breakpoints used for the rest of the shell (see section 23 in the
-   product brief this maps to: compact/normal/large laptop). */
-.workflowShell.stacked .workflowLeft { display: grid; gap: 18px; min-width: 0; max-width: 100%; }
-@media (min-width: 901px) {
-  .workflowShell.stacked .workflowLeft { max-width: 940px; }
-}
-@media (min-width: 1360px) {
-  .workflowShell.stacked .workflowLeft { max-width: 1000px; }
+/* Steps live in their own left column now (C2 redesign) — .withStepNav is
+   every document (steps | content); JSA additionally has a live preview
+   column (.withPreview adds a 3rd track). Below 900px both collapse to a
+   single column, step list stacked above content — full responsive parity
+   with the mockup's collapsed "position bar" is a later pass. */
+.workflowShell.withStepNav { grid-template-columns: 260px minmax(0, 1fr); }
+.workflowShell.withStepNav.withPreview { grid-template-columns: 260px minmax(0, 1fr) minmax(340px, 420px); }
+@media (max-width: 900px) {
+  .workflowShell.withStepNav,
+  .workflowShell.withStepNav.withPreview {
+    grid-template-columns: 1fr;
+  }
+  .stepNav { position: static; }
 }
 .workflowLeft { display: grid; gap: 18px; min-width: 0; }
 /* top matches .page's own responsive top padding (clamp 22-32px);
@@ -1205,123 +1205,123 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   overflow: auto;
 }
 
-/* ── Document header ──
-   One composed unit: title row (document type + name + Start Options),
-   status/meta row (status, page-fit, save state), then the stepper —
-   related information grouped together instead of scattered rows. */
-.builderHeader { margin: 0 0 20px; padding-bottom: 18px; border-bottom: 1px solid var(--line); display: grid; gap: 14px; }
+/* ── Document header (C2 redesign: navy chrome, matches the sidebar) ──
+   Title row (document type + name + Back) then a status/meta row (status,
+   page-fit, save state). The step list used to live here too; it's now
+   the .stepNav column below instead. */
+.builderHeader {
+  margin: 0 0 20px;
+  padding: 16px 22px;
+  border-radius: 6px;
+  background: var(--sidebar-bg);
+  display: grid;
+  gap: 10px;
+}
 .builderHeaderTitleRow { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .builderHeaderTitleBlock { display: grid; gap: 3px; min-width: 0; }
-.builderHeaderKicker { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.1px; color: var(--accent); font-family: var(--font-mono); }
-.builderHeaderTitle { font-size: clamp(20px, 2.2vw, 25px); font-weight: 800; letter-spacing: -.3px; color: var(--text); line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 46ch; }
-.builderHeaderTop { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.builderHeaderBadges { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.builderHeaderSaved { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
-
-/* ── Workflow stepper ──
-   Sized to its content on laptop widths (not stretched full-width with
-   large empty gaps between five short labels) via the min-width media
-   query below; unchanged full-width equal-segment behavior stays the
-   default for touch/narrow viewports, where evenly-sized tap targets
-   matter more than compactness. Current step gets restrained red
-   emphasis; completed steps keep the existing green — logic untouched,
-   only the paint. */
-.stepperWrap { display: grid; gap: 10px; min-width: 0; container-type: inline-size; }
-.stepperHead { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; min-width: 0; }
-.stepperCount {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .5px;
-  color: var(--muted);
-  font-family: var(--font-mono);
-  flex-shrink: 0;
-}
-.stepperTitle { font-size: 17px; font-weight: 800; letter-spacing: -.2px; min-width: 0; }
-.stepperRail {
-  display: flex;
-  gap: 2px;
-  min-width: 0;
-  background: var(--surface-2);
-  border-radius: var(--radius-sm);
-  padding: 3px;
-  /* At 900px+ (see the min-width:128px rule below) the rail's natural
-     content width can exceed its container's actual width once enough
-     steps are added (e.g. the Incident workflow's 8 steps) -- without
-     this, the overflow is not clipped or scrollable, it just visually
-     spills past the container edge, pushing later tabs fully off-screen
-     and unreachable by click/tap. -webkit-overflow-scrolling gives real
-     iPad/iPhone momentum scrolling instead of the default janky scroll. */
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
-}
-.stepperSeg {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  flex: 1 1 0;
-  min-height: 44px;
-  min-width: 0;
-  padding: 6px 12px;
-  border-radius: 6px;
-  border: 1px solid transparent;
-  color: var(--muted);
-  text-align: left;
-  transition: color .16s, background .16s, border-color .16s;
-}
-/* Placed after the base rule (not before) so equal-specificity cascade
-   order actually lets this win at laptop widths — sized to content
-   instead of stretching five short labels across the full rail width. */
-@media (min-width: 900px) {
-  .stepperRail { display: inline-flex; }
-  .stepperSeg { flex: 0 0 auto; min-width: 128px; }
-}
-.stepperSegDot {
-  flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font-size: 10.5px;
-  font-weight: 800;
-  font-family: var(--font-mono);
-  background: var(--surface-3);
-  color: var(--muted);
-}
-/* Completed: transparent segment background, solid green circle. */
-.stepperSeg.done .stepperSegDot { background: var(--good); color: #fff; }
-/* Current: clean red state (not a purple/pink mix) — solid red circle,
-   light red-tinted segment background with a matching red-tinted border,
-   navy label. Exact values from the accent-tint/accent-border-tint
-   tokens, which in dark mode are literal navy-family values rather than
-   red mixed across the light/dark boundary — that mix is what produced
-   the purple this replaces. */
-.stepperSeg.active {
-  background: var(--accent-tint);
-  border: 1px solid var(--accent-border-tint);
-  box-shadow: none;
-}
-.stepperSeg.active .stepperSegDot { background: var(--accent); color: var(--accent-ink); }
-.stepperSeg.active .stepperSegLabel { color: var(--text); font-weight: 700; }
-.stepperSegLabel {
-  font-size: 12.5px;
+.builderHeaderKicker { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .14em; color: var(--text-on-navy-2); }
+.builderHeaderTitle {
+  font-family: var(--font-condensed);
+  font-size: clamp(20px, 2.2vw, 26px);
   font-weight: 600;
-  line-height: 1.2;
+  letter-spacing: .01em;
+  text-transform: uppercase;
+  color: #fff;
+  line-height: 1.15;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 46ch;
+}
+.builderHeaderTop { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.builderHeaderBadges { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.builderHeaderSaved { font-size: 13px; color: var(--text-on-navy-2); white-space: nowrap; }
+/* Navy-safe variants of shared chrome that would otherwise render as a
+   pale-tinted-transparent chip on a pale-tinted-transparent background —
+   scoped to inside the header only, not a change to .backBtn/.btn/.badge
+   themselves (those stay as-is everywhere else they're used). */
+.builderHeader .backBtn { background: transparent; border-color: rgba(255,255,255,.34); color: #fff; }
+.builderHeader .backBtn:hover { background: rgba(255,255,255,.1); color: #fff; }
+.builderHeader .btn.ghost { background: transparent; border: 1px solid rgba(255,255,255,.34); color: #fff; }
+.builderHeader .btn.ghost:hover:not(:disabled) { background: rgba(255,255,255,.1); }
+.builderHeader .btn.outline { background: transparent; border-color: rgba(255,255,255,.5); color: #fff; }
+.builderHeader .badge, .builderHeader .fitBadge { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.3); color: #fff; }
+
+/* ── Vertical step list (C2 redesign) ──
+   Replaces the old horizontal stepperRail. Jumpable in any order (never
+   gated/sequential — see StepNav in FormPrimitives.jsx), each row shows
+   its state as a plain word/phrase, not just a colored dot: green check
+   "Done", red "You are here" for the active step, amber "!" plus the
+   actual missing item's own label for a step that's partially filled in,
+   plain grey "Not started" for a step with nothing entered yet. */
+.stepNav {
+  display: grid;
+  align-content: start;
+  gap: 8px;
   min-width: 0;
+  position: sticky;
+  top: 24px;
 }
-/* Below ~460px of actual rail width (phone portrait, 5-up), only the active
-   step's label is worth the space — others collapse to their status dot
-   only and hand the freed width to the active segment via flex-basis. */
-@container (max-width: 460px) {
-  .stepperSeg:not(.active) .stepperSegLabel { display: none; }
-  .stepperSeg:not(.active) { flex: 0 1 38px; justify-content: center; padding: 6px 4px; }
-  .stepperSeg.active { flex: 1 1 auto; justify-content: flex-start; }
+.stepNavHead {
+  padding: 0 10px 4px;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .14em;
+  color: var(--text-2);
 }
+.stepNavList { display: grid; gap: 6px; min-width: 0; }
+.stepNavRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 66px;
+  padding: 0 12px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  text-align: left;
+  transition: background .15s, border-color .15s;
+}
+.stepNavRow:hover { background: var(--surface-2); }
+.stepNavDot {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  font-weight: 700;
+  background: var(--surface-3);
+  color: var(--text-2);
+}
+.stepNavText { display: grid; gap: 1px; min-width: 0; }
+.stepNavText strong {
+  font-family: var(--font-condensed);
+  font-size: 19px;
+  line-height: 1.1;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stepNavState { font-size: 13.5px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.stepNavRow.done .stepNavDot { background: var(--good-tint); color: var(--good); border: 1px solid var(--good-border); }
+.stepNavRow.done .stepNavState { color: var(--good); font-weight: 600; }
+
+.stepNavRow.current { background: var(--accent-tint); border-color: var(--accent-border-tint); }
+.stepNavRow.current .stepNavDot { background: var(--accent); color: var(--accent-ink); }
+.stepNavRow.current .stepNavText strong { color: var(--accent-2); }
+.stepNavRow.current .stepNavState { color: var(--accent-2); font-weight: 600; }
+
+.stepNavRow.attention { background: var(--warn-tint); border-color: var(--warn-border); }
+.stepNavRow.attention .stepNavDot { background: var(--warn-border); color: #4E3A0C; font-size: 17px; }
+.stepNavRow.attention .stepNavState { color: var(--warn); font-weight: 600; }
+
+.stepNavRow.pending .stepNavState { color: var(--text-2); }
 
 /* ── Step content ── */
 .stepStack { display: grid; gap: 14px; }
