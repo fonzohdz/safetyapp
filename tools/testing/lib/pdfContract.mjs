@@ -13,8 +13,9 @@
  *
  *   - the page is Letter and the document is the expected length
  *   - every glyph uses a font and size the kit is allowed to use
- *   - nothing is drawn outside the printable area
+ *   - nothing is drawn outside the printable area — text, boxes, rules or images
  *   - no two text runs are stacked on top of each other
+ *   - every signing rule is labelled, and every caption has exactly one rule
  *   - a signature is drawn at its own aspect ratio, never squashed
  *   - the DRAFT watermark is present exactly when the document is a draft
  *   - every value the user typed is in the document, complete and untruncated
@@ -63,6 +64,19 @@ function runWidth(fonts, t) {
 
 const near = (a, b, tol) => Math.abs(a - b) <= tol;
 
+/* Does this horizontal rule belong to this caption? The kit writes the pair
+   two ways round. A signature or date slot puts the caption directly under
+   its rule, sharing a left edge. A NAME line reads as a sentence instead —
+   "NAME ______" — so the caption sits to the LEFT of a rule that starts just
+   past it and runs a few points lower. Both are one rule serving one caption;
+   anything else is a defect. */
+function servesCaption(rule, cap) {
+  const below = cap.y - rule.y;
+  if (below >= 4 && below <= 14 && near(rule.x, cap.x, 1.5)) return true;
+  const above = rule.y - cap.y;
+  return above >= 2 && above <= 10 && rule.x >= cap.x && rule.x <= cap.x + 45;
+}
+
 /* Collapse whitespace so a value that wrapped across two drawn lines still
    matches the string the user typed, and fold case — the kit prints section
    titles and bar captions in caps, and a content check should be asking
@@ -97,6 +111,9 @@ export async function checkPdfContract(doc, opts = {}) {
   const outside = [];
   const collisions = [];
   const squashed = [];
+  const unlabelledRules = [];
+  const unruledCaptions = [];
+  const doubledRules = [];
   let watermarks = 0;
 
   doc.pages.forEach((p, pi) => {
@@ -128,6 +145,22 @@ export async function checkPdfContract(doc, opts = {}) {
       body.push({ ...t, right });
     }
 
+    /* Boxes, rules and images have to respect the margin too. Only text was
+       ever checked, which left the more obviously wrong failure uncovered:
+       a table column computed too wide, or a signature slot drawn past the
+       edge, prints with its right-hand border sliced off by the printer's
+       unprintable strip — and no glyph is out of place to give it away. */
+    const spills = [
+      ...p.rects.map(r => ({ kind: 'box', x: r.x, y: r.y, w: r.w, h: r.h })),
+      ...p.lines.map(l => ({ kind: 'rule', x: l.x, y: l.y, w: l.w, h: l.h })),
+      ...p.images.map(im => ({ kind: `image ${im.name}`, x: im.x, y: im.y, w: im.w, h: im.h })),
+    ];
+    for (const s of spills) {
+      if (s.x >= MARGIN - marginTolerance && s.x + s.w <= PAGE_W - MARGIN + marginTolerance
+        && s.y >= MARGIN - marginTolerance && s.y + s.h <= PAGE_H - MARGIN + marginTolerance) continue;
+      outside.push(`p${pageNo} ${s.kind} x ${s.x.toFixed(1)}-${(s.x + s.w).toFixed(1)} y ${s.y.toFixed(1)}-${(s.y + s.h).toFixed(1)}`);
+    }
+
     /* Two runs sharing a baseline whose x-ranges overlap are printing on top
        of each other. Runs are grouped into lines FIRST and only then sorted
        left to right — a label and its value sit ~0.2pt apart vertically, so
@@ -147,6 +180,30 @@ export async function checkPdfContract(doc, opts = {}) {
         if (b.x < a.right - 0.5) {
           collisions.push(`p${pageNo} "${a.text.slice(0, 24)}" overlaps "${b.text.slice(0, 24)}"`);
         }
+      }
+    }
+
+    /* ── one rule per signature block ─────────────────────────────────── */
+    /* A signing rule and the caption naming it are a pair: the rule is the
+       line you sign on, the caption is what that line is for. Either half
+       alone is a defect on paper — an unlabelled rule is a blank line nobody
+       knows what to write on, a caption with no rule is a signature block
+       with nowhere to sign, and two rules for one caption is the doubled
+       line that a hand-drawn underline plus a slot rule used to produce.
+       None of that shows up in a text dump, which is why it is checked here.
+       Only the kit draws these: horizontal rules come from signatureRow and
+       multiSignatureRow, checkbox ticks are diagonal and far too short. */
+    const rules = p.lines.filter(l => l.h < 0.5 && l.w > 20);
+    const captions = p.texts.filter(t => !t.rotated && t.size <= 8.05
+      && t.font === 'Helvetica' && t.color.every(c => near(c, 0.2, 0.02)));
+    for (const cap of captions) {
+      const served = rules.filter(r => servesCaption(r, cap));
+      if (served.length === 0) unruledCaptions.push(`p${pageNo} "${cap.text.slice(0, 32)}" has no rule`);
+      else if (served.length > 1) doubledRules.push(`p${pageNo} "${cap.text.slice(0, 32)}" has ${served.length} rules`);
+    }
+    for (const r of rules) {
+      if (!captions.some(cap => servesCaption(r, cap))) {
+        unlabelledRules.push(`p${pageNo} rule at y=${r.y.toFixed(0)} x ${r.x.toFixed(0)}-${(r.x + r.w).toFixed(0)}`);
       }
     }
 
@@ -205,6 +262,9 @@ export async function checkPdfContract(doc, opts = {}) {
   add(outside.length === 0, 'nothing drawn outside the printable area', outside.slice(0, 4).join('; '));
   add(collisions.length === 0, 'no text printed on top of other text', collisions.slice(0, 4).join('; '));
   add(squashed.length === 0, 'images keep their own aspect ratio', squashed.slice(0, 4).join('; '));
+  add(unruledCaptions.length === 0, 'every signature caption has a rule to sign on', unruledCaptions.slice(0, 4).join('; '));
+  add(unlabelledRules.length === 0, 'every rule is labelled', unlabelledRules.slice(0, 4).join('; '));
+  add(doubledRules.length === 0, 'exactly one rule per signature block', doubledRules.slice(0, 4).join('; '));
 
   /* ── draft watermark ─────────────────────────────────────────────────── */
   if (draft !== null) {
