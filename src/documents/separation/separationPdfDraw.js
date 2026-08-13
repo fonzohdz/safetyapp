@@ -114,3 +114,86 @@ export async function drawSeparationPdf(model, onProgress) {
 
   return doc.finish();
 }
+
+/* Review-screen facsimile — mirrors drawSeparationPdf's call sequence
+   above block-for-block (see DocFacsimile in FormPrimitives.jsx). Keep
+   these two in sync: a field added to one belongs in the other. */
+export function separationFacsimileBlocks(model) {
+  const blocks = [];
+  blocks.push({ type: 'infoTable', rows: [
+    ['Employee Name', model.employeeName, 'Employee ID', model.employeeId],
+    ['Position', model.position, 'Project / Location', model.projectLocation],
+    ['Supervisor', model.supervisor, 'Last Day Worked', fmtDate(model.lastDayWorked)],
+    ['Effective Separation Date', fmtDate(model.effectiveSeparationDate), 'Date Submitted', fmtDate(model.dateSubmitted)],
+  ] });
+
+  blocks.push({ type: 'grayBar', text: 'Separation Type / Reason' });
+  blocks.push({
+    type: 'checkboxGrid',
+    options: SEPARATION_TYPES.map(t => t.label),
+    checked: optionLabel(SEPARATION_TYPES, model.separationType),
+    columns: 2,
+  });
+  blocks.push({ type: 'checkboxGrid', options: SEPARATION_REASONS, checked: model.separationReason, columns: 2 });
+  const reasonLabel = model.separationReason === 'Other' && model.separationReasonOther
+    ? `Other — ${model.separationReasonOther}`
+    : model.separationReason;
+  blocks.push({ type: 'infoTable', rows: [['Reason', reasonLabel]] });
+
+  blocks.push({ type: 'grayBar', text: 'Explanation / Supporting Details' });
+  blocks.push({ type: 'textBox', text: model.detailedExplanation });
+
+  blocks.push({ type: 'grayBar', text: 'Discipline / Rehire Status' });
+  const disciplineRows = [];
+  if (model.separationType === 'involuntary') {
+    const warningText = model.warningNoticesGiven === 'yes'
+      ? `Yes — ${model.warningNoticesCount || 'count not specified'}`
+      : model.warningNoticesGiven === 'no' ? 'No' : model.warningNoticesGiven === 'na' ? 'N/A' : '';
+    disciplineRows.push(['Warning Notices Given?', warningText]);
+  }
+  disciplineRows.push(['Documentation Attached?',
+    model.documentationAttached === 'yes' ? 'Yes' : model.documentationAttached === 'no' ? 'No' : '']);
+  disciplineRows.push(['Eligible for Rehire?', optionLabel(REHIRE_STATUSES, model.eligibleForRehire)]);
+  if (model.eligibleForRehire === 'no') disciplineRows.push(['Reason Not Eligible', model.rehireReasonIfNo]);
+  blocks.push({ type: 'infoTable', rows: disciplineRows });
+
+  blocks.push({ type: 'grayBar', text: 'Company Closeout' });
+  blocks.push({ type: 'infoTable', rows: [[
+    'Final Timesheet Submitted?', model.finalTimesheetSubmitted ? 'Yes' : 'No',
+    'Expenses / Receipts Resolved?', model.expensesResolved ? 'Yes' : 'No',
+  ]] });
+
+  const withOther = (opts, otherText) => (otherText ? opts.map(o => (o === 'Other' ? `Other — ${otherText}` : o)) : opts);
+  const mapChecked = (checked, otherText) => (checked || []).map(o => (o === 'Other' && otherText ? `Other — ${otherText}` : o));
+  blocks.push({
+    type: 'checkboxGrid',
+    options: withOther(PROPERTY_RETURNED_OPTIONS, model.propertyReturnedOther),
+    checked: mapChecked(model.propertyReturned, model.propertyReturnedOther),
+  });
+  blocks.push({
+    type: 'checkboxGrid',
+    options: withOther(ACCESS_REMOVED_OPTIONS, model.accessRemovedOther),
+    checked: mapChecked(model.accessRemoved, model.accessRemovedOther),
+  });
+  blocks.push({ type: 'textBox', title: 'Outstanding Property / Notes', text: model.outstandingPropertyNotes });
+
+  blocks.push({ type: 'grayBar', text: 'Acknowledgement / Approvals' });
+  blocks.push({ type: 'note', text: 'Employee signature acknowledges receipt and does not necessarily indicate agreement.' });
+  const employeeItem = model.employeeRefusedToSign
+    ? { label: 'Employee Signature', note: 'Refused / Unavailable to Sign' }
+    : {
+      label: 'Employee Signature',
+      dataUrl: model.employeeSignatureData,
+      dateValue: fmtDate(model.employeeSignatureDate),
+    };
+  blocks.push({
+    type: 'multiSignatureRow',
+    items: [
+      employeeItem,
+      { label: 'Supervisor Signature', dataUrl: model.supervisorSignatureData, dateValue: fmtDate(model.supervisorSignatureDate) },
+      { label: `HR / Management${model.hrName ? ` — ${model.hrName}` : ''}`, dataUrl: model.hrSignatureData, dateValue: fmtDate(model.hrSignatureDate) },
+    ],
+  });
+
+  return blocks;
+}

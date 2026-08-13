@@ -95,3 +95,62 @@ export async function drawUncontrolledEventPdf(model, onProgress) {
 
   return doc.finish();
 }
+
+/* Review-screen facsimile — mirrors drawUncontrolledEventPdf's call
+   sequence above block-for-block (see DocFacsimile in FormPrimitives.jsx).
+   Keep these two in sync: a field added to one belongs in the other. */
+export function uncontrolledEventFacsimileBlocks(model) {
+  const blocks = [];
+  blocks.push({ type: 'infoTable', rows: [
+    ['Workplace Location / Project', model.workplaceLocation],
+    ['Date of Event', fmtDate(model.eventDate)],
+    ['Weather / Conditions', model.weatherConditions],
+    ['Report Written', fmtDateTime(model.reportWrittenDateTime)],
+    ['Reported to Supervisor', fmtDateTime(model.reportedToSupervisorDateTime)],
+  ] });
+
+  const colA = [
+    { type: 'grayBar', text: 'Event Classification' },
+    { type: 'checkboxGrid', options: EVENT_CLASSIFICATIONS, checked: model.eventClassifications, columns: 1 },
+  ];
+  if ((model.eventClassifications || []).includes('Other') && model.eventClassificationOther) {
+    colA.push({ type: 'textBox', title: 'Other Classification', text: model.eventClassificationOther });
+  }
+  const colB = [
+    { type: 'grayBar', text: 'Outcome / Impact' },
+    { type: 'checkboxGrid', options: EVENT_OUTCOMES, checked: model.eventOutcomes, columns: 1 },
+  ];
+  if ((model.eventOutcomes || []).includes('Other') && model.eventOutcomeOther) {
+    colB.push({ type: 'textBox', title: 'Other Outcome', text: model.eventOutcomeOther });
+  }
+  if (model.estimatedCost) colB.push({ type: 'textBox', title: 'Estimated Cost', text: model.estimatedCost });
+  blocks.push({ type: 'twoCol', colA, colB });
+
+  blocks.push({ type: 'textBox', title: 'What Happened / Brief Summary / Timeline', text: model.whatHappened });
+
+  const colA2 = [
+    { type: 'textBox', title: 'Immediate Actions Taken', text: model.immediateActionsTaken },
+    { type: 'textBox', title: 'Witnesses', text: model.witnesses },
+  ];
+  const colB2 = [
+    { type: 'grayBar', text: 'Notifications / Attachments' },
+    { type: 'checkboxGrid', options: NOTIFICATION_OPTIONS, checked: model.notifications, columns: 2 },
+    { type: 'checkboxGrid', options: ATTACHMENT_OPTIONS, checked: model.attachments, columns: 2 },
+  ];
+  if ((model.attachments || []).includes('Other') && model.attachmentOther) {
+    colB2.push({ type: 'textBox', title: 'Other Attachment', text: model.attachmentOther });
+  }
+  blocks.push({ type: 'twoCol', colA: colA2, colB: colB2 });
+
+  blocks.push({ type: 'grayBar', text: 'Reported By / Supervisor Review' });
+  blocks.push({ type: 'infoTable', rows: [
+    ['Reported By — Name', model.reportedByName],
+    ['Reported By — Title', model.reportedByTitle],
+    ['Supervisor Reviewing', model.supervisorReviewName],
+  ] });
+
+  blocks.push({ type: 'signatureRow', label: 'Reported By Signature', dataUrl: model.reportedBySignatureData, dateValue: fmtDate(model.reportedBySignatureDate) });
+  blocks.push({ type: 'signatureRow', label: 'Supervisor Signature', dataUrl: model.supervisorSignatureData, dateValue: fmtDate(model.supervisorSignatureDate) });
+
+  return blocks;
+}

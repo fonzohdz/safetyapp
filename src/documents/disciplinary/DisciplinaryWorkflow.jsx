@@ -1,10 +1,13 @@
+import { useRef } from 'react';
 import {
   DISCIPLINARY_STEPS, WARNING_LEVELS,
   getDisciplinaryReadinessChecks, isDisciplinaryReady, isDisciplinaryPrintFinal,
 } from './disciplinaryModel';
+import { disciplinaryFacsimileBlocks } from './disciplinaryPdfDraw';
 import {
   Field, TextAreaField, SegmentedToggle, StepPanel, NumberedSection, StepFooter,
-  BuilderHeader, StepNav, ReviewExportPanel, SignaturePad,
+  BuilderHeader, StepNav, ReviewExportPanel, SignaturePad, DocFacsimile,
+  useIsTouchPrimary, useElementWidth,
 } from '../FormPrimitives';
 import { LockedContext, useLocked } from '../lockedContext';
 import { downloadDraftFile, buildDraftFilename } from '../../shared/draftTransfer';
@@ -122,6 +125,23 @@ export default function DisciplinaryWorkflow({
   const checklistComplete = isDisciplinaryReady(model);
   const locked = isDisciplinaryPrintFinal(model);
 
+  const isReviewStep = step === 'review';
+  const shellRef = useRef(null);
+  const shellWidth = useElementWidth(shellRef);
+  const isTouchPrimary = useIsTouchPrimary();
+  const showSideBySide = !isTouchPrimary && shellWidth >= 1000 && isReviewStep;
+  const previewPanel = (
+    <div className="card previewPanel">
+      <div className="previewPanelHeader">
+        <div>
+          <strong>What Will Print</strong>
+          <span>A facsimile of the printed notice — not the exact page layout</span>
+        </div>
+      </div>
+      <DocFacsimile formTitle="Employee Disciplinary Notice Form" draft={!locked} blocks={disciplinaryFacsimileBlocks(model)} />
+    </div>
+  );
+
   return (
     <>
       <BuilderHeader
@@ -137,7 +157,7 @@ export default function DisciplinaryWorkflow({
       />
 
       <LockedContext.Provider value={locked}>
-        <div className="workflowShell withStepNav">
+        <div className={`workflowShell withStepNav${showSideBySide ? ' withPreview' : ''}`} ref={shellRef}>
           <StepNav steps={DISCIPLINARY_STEPS} activeStepId={step} checks={checks} onJump={setStep} />
           <div className="workflowLeft">
             {step === 'notice' && <StepNotice model={model} upd={upd} next={next} />}
@@ -163,7 +183,13 @@ export default function DisciplinaryWorkflow({
                 onJumpCheck={chk => setStep(chk.step)}
               />
             )}
+            {!showSideBySide && isReviewStep && previewPanel}
           </div>
+          {showSideBySide && (
+            <div className="workflowRight">
+              {previewPanel}
+            </div>
+          )}
         </div>
       </LockedContext.Provider>
     </>

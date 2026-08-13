@@ -2185,6 +2185,130 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   height: 960px;
 }
 
+/* ── Doc facsimile (C2 redesign phase 3b) ── see FormPrimitives.jsx's
+   DocFacsimile comment: hand-built markup for the 4 pdf-lib-drawn documents
+   that have no live print DOM to reuse the way JSA/Incident's preview does.
+   Rendered directly (not scaled inside .previewSheetCanvas) since it isn't
+   a fixed Letter-size sheet -- it's a continuous facsimile of content, not
+   a page. */
+.docFacsimile {
+  background: #fff;
+  border: 1px solid var(--border-obj, #B9C4D0);
+  border-radius: 4px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+  overflow: hidden;
+  color: #191C1F;
+}
+.docFacsimileHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 2px solid #C51F3A;
+  padding-bottom: 10px;
+}
+.docFacsimileLogo { height: 24px; width: auto; }
+.docFacsimileHeader h2 {
+  margin: 0;
+  font: 600 15px/1.2 var(--font-condensed, 'Barlow Condensed'), sans-serif;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.docFacsimileWatermark {
+  position: absolute;
+  top: 45%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-24deg);
+  font: 700 60px var(--font-condensed, 'Barlow Condensed'), sans-serif;
+  color: rgba(197, 31, 58, 0.15);
+  letter-spacing: .06em;
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+}
+.facsimileGrayBar {
+  background: #e8e8e8;
+  border: 1px solid #cfcfcf;
+  padding: 5px 8px;
+  font: 600 12px 'Barlow', sans-serif;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+.facsimileNumberedBar {
+  background: #f1f1f1;
+  border: 1px solid #d8d8d8;
+  padding: 5px 8px;
+  font: 600 12px 'Barlow', sans-serif;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+.facsimileFieldLabel {
+  font: 600 12px 'Barlow', sans-serif;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: #5C6B7A;
+}
+.facsimileFieldLabel.noCaps { text-transform: none; letter-spacing: normal; }
+.facsimileNote {
+  font: italic 400 11.5px 'Barlow', sans-serif;
+  color: #5C6B7A;
+}
+.facsimileInfoTable { display: flex; flex-direction: column; border: 1px solid #d8d8d8; }
+.facsimileInfoRow { display: flex; }
+.facsimileInfoRow + .facsimileInfoRow { border-top: 1px solid #d8d8d8; }
+.facsimileInfoCellLabel, .facsimileInfoCellValue {
+  padding: 5px 8px;
+  font-size: 12.5px;
+  flex: 1 1 0;
+  min-width: 0;
+  word-break: break-word;
+}
+.facsimileInfoCellLabel {
+  background: #f2f2f2;
+  font-weight: 600;
+  flex: 0 0 34%;
+  color: #43525F;
+}
+/* A [label,value,label,value] row halves the label share so the two value
+   columns don't get squeezed to a sliver -- matches how pdfDraw.js's own
+   infoTable() computes column widths for a 4-cell row. */
+.facsimileInfoRow.quad .facsimileInfoCellLabel { flex-basis: 19%; }
+.facsimileTextBoxWrap { display: flex; flex-direction: column; gap: 4px; }
+.facsimileTextBox {
+  border: 1px solid #d8d8d8;
+  padding: 8px;
+  min-height: 34px;
+  font-size: 13.5px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.facsimileCheckboxGrid { display: grid; gap: 4px 12px; font-size: 12.5px; }
+.facsimileCheckboxItem { display: flex; align-items: center; gap: 6px; }
+.facsimileCheckboxBox {
+  width: 11px; height: 11px; flex-shrink: 0;
+  border: 1.2px solid #333;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 9px; line-height: 1;
+}
+.facsimileCheckboxBox.checked::after { content: '\2713'; }
+.facsimileTwoCol { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.facsimileTwoColCol { display: flex; flex-direction: column; gap: 10px; }
+.facsimileSignatureRow { display: flex; gap: 14px; align-items: stretch; }
+.facsimileSignatureSlot { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.facsimileSignatureSlot.sig { flex: 1.8; }
+.facsimileSignatureSlot.date { flex: 1; }
+.facsimileSignatureName { font-size: 12px; }
+.facsimileSignatureArt { height: 26px; display: flex; align-items: flex-end; font-size: 12px; }
+.facsimileSignatureImg { max-height: 26px; max-width: 100%; object-fit: contain; object-position: left bottom; }
+.facsimileSignatureLine { border-top: 1px solid #333; padding-top: 2px; font-size: 9.5px; text-transform: uppercase; letter-spacing: .04em; color: #5C6B7A; }
+.facsimileSignatureNote { font-size: 10.5px; font-style: italic; color: #A6142E; }
+.facsimileMultiSignatureRow { display: flex; gap: 10px; }
+.facsimileMultiSignatureRow .facsimileSignatureRow { flex: 1; }
+
 /* Shared page component: one markup path for preview and PDF */
 .documentPage {
   position: relative;

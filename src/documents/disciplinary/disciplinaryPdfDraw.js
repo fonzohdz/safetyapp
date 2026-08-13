@@ -72,3 +72,44 @@ export async function drawDisciplinaryPdf(model, onProgress) {
 
   return doc.finish();
 }
+
+/* Review-screen facsimile — mirrors drawDisciplinaryPdf's call sequence
+   above block-for-block (see DocFacsimile in FormPrimitives.jsx). Keep
+   these two in sync: a field added to one belongs in the other. */
+export function disciplinaryFacsimileBlocks(model) {
+  const blocks = [];
+  blocks.push({ type: 'infoTable', rows: [
+    ['Employee Name', model.employeeName, 'Supervisor', model.supervisor],
+    ['Position', model.position, 'Date', fmtDate(model.noticeDate)],
+  ] });
+
+  blocks.push({ type: 'fieldLabel', text: 'This notice serves as:', caps: false });
+  blocks.push({
+    type: 'checkboxGrid',
+    options: WARNING_LEVELS.map(w => w.label),
+    checked: warningLevelLabel(model.warningLevel),
+    columns: 4,
+  });
+
+  for (const [number, title, field] of SECTIONS) {
+    blocks.push({ type: 'numberedBar', number, text: title });
+    blocks.push({ type: 'textBox', text: model[field] });
+  }
+
+  blocks.push({ type: 'grayBar', text: 'Signatures' });
+  blocks.push({
+    type: 'signatureRow',
+    label: 'Employee Signature',
+    ...(model.employeeRefusedToSign
+      ? { note: 'Refused / Unavailable to Sign' }
+      : { dataUrl: model.employeeSignatureData, dateValue: fmtDate(model.employeeSignatureDate) }),
+  });
+  blocks.push({
+    type: 'signatureRow',
+    label: 'Manager Signature',
+    dataUrl: model.managerSignatureData,
+    dateValue: fmtDate(model.managerSignatureDate),
+  });
+
+  return blocks;
+}

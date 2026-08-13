@@ -1,11 +1,14 @@
+import { useRef } from 'react';
 import {
   SEPARATION_STEPS, SEPARATION_TYPES, SEPARATION_REASON_GROUPS,
   REHIRE_STATUSES, PROPERTY_RETURNED_OPTIONS, ACCESS_REMOVED_OPTIONS,
   getSeparationReadinessChecks, isSeparationReady, isSeparationPrintFinal,
 } from './separationModel';
+import { separationFacsimileBlocks } from './separationPdfDraw';
 import {
   Field, TextAreaField, SegmentedToggle, ChipGroup, StepPanel, StepFooter,
-  BuilderHeader, StepNav, ReviewExportPanel, SignaturePad,
+  BuilderHeader, StepNav, ReviewExportPanel, SignaturePad, DocFacsimile,
+  useIsTouchPrimary, useElementWidth,
 } from '../FormPrimitives';
 import { LockedContext, useLocked } from '../lockedContext';
 import { downloadDraftFile, buildDraftFilename } from '../../shared/draftTransfer';
@@ -186,6 +189,23 @@ export default function SeparationWorkflow({
   const checklistComplete = isSeparationReady(model);
   const locked = isSeparationPrintFinal(model);
 
+  const isReviewStep = step === 'review';
+  const shellRef = useRef(null);
+  const shellWidth = useElementWidth(shellRef);
+  const isTouchPrimary = useIsTouchPrimary();
+  const showSideBySide = !isTouchPrimary && shellWidth >= 1000 && isReviewStep;
+  const previewPanel = (
+    <div className="card previewPanel">
+      <div className="previewPanelHeader">
+        <div>
+          <strong>What Will Print</strong>
+          <span>A facsimile of the printed form — not the exact page layout</span>
+        </div>
+      </div>
+      <DocFacsimile formTitle="Employee Separation Form" draft={!locked} blocks={separationFacsimileBlocks(model)} />
+    </div>
+  );
+
   return (
     <>
       <BuilderHeader
@@ -201,7 +221,7 @@ export default function SeparationWorkflow({
       />
 
       <LockedContext.Provider value={locked}>
-        <div className="workflowShell withStepNav">
+        <div className={`workflowShell withStepNav${showSideBySide ? ' withPreview' : ''}`} ref={shellRef}>
           <StepNav steps={SEPARATION_STEPS} activeStepId={step} checks={checks} onJump={setStep} />
           <div className="workflowLeft">
             {step === 'details' && <StepDetails model={model} upd={upd} next={next} />}
@@ -227,7 +247,13 @@ export default function SeparationWorkflow({
                 onJumpCheck={chk => setStep(chk.step)}
               />
             )}
+            {!showSideBySide && isReviewStep && previewPanel}
           </div>
+          {showSideBySide && (
+            <div className="workflowRight">
+              {previewPanel}
+            </div>
+          )}
         </div>
       </LockedContext.Provider>
     </>

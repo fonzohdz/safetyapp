@@ -1,11 +1,14 @@
+import { useRef } from 'react';
 import {
   UNCONTROLLED_EVENT_STEPS,
   EVENT_CLASSIFICATIONS, EVENT_OUTCOMES, NOTIFICATION_OPTIONS, ATTACHMENT_OPTIONS, OUTCOME_INJURY,
   getUncontrolledEventReadinessChecks, isUncontrolledEventReady, isUncontrolledEventPrintFinal,
 } from './uncontrolledEventModel';
+import { uncontrolledEventFacsimileBlocks } from './uncontrolledEventPdfDraw';
 import {
   Field, TextAreaField, ChipGroup, StepPanel, StepFooter,
-  BuilderHeader, StepNav, ReviewExportPanel, SignaturePad,
+  BuilderHeader, StepNav, ReviewExportPanel, SignaturePad, DocFacsimile,
+  useIsTouchPrimary, useElementWidth,
 } from '../FormPrimitives';
 import { LockedContext } from '../lockedContext';
 import { downloadDraftFile, buildDraftFilename } from '../../shared/draftTransfer';
@@ -108,6 +111,23 @@ export default function UncontrolledEventWorkflow({
   const checklistComplete = isUncontrolledEventReady(model);
   const locked = isUncontrolledEventPrintFinal(model);
 
+  const isReviewStep = step === 'review';
+  const shellRef = useRef(null);
+  const shellWidth = useElementWidth(shellRef);
+  const isTouchPrimary = useIsTouchPrimary();
+  const showSideBySide = !isTouchPrimary && shellWidth >= 1000 && isReviewStep;
+  const previewPanel = (
+    <div className="card previewPanel">
+      <div className="previewPanelHeader">
+        <div>
+          <strong>What Will Print</strong>
+          <span>A facsimile of the printed report — not the exact page layout</span>
+        </div>
+      </div>
+      <DocFacsimile formTitle="Uncontrolled Event Report" draft={!locked} blocks={uncontrolledEventFacsimileBlocks(model)} />
+    </div>
+  );
+
   return (
     <>
       <BuilderHeader
@@ -123,7 +143,7 @@ export default function UncontrolledEventWorkflow({
       />
 
       <LockedContext.Provider value={locked}>
-        <div className="workflowShell withStepNav">
+        <div className={`workflowShell withStepNav${showSideBySide ? ' withPreview' : ''}`} ref={shellRef}>
           <StepNav steps={UNCONTROLLED_EVENT_STEPS} activeStepId={step} checks={checks} onJump={setStep} />
           <div className="workflowLeft">
             {step === 'event' && <StepEvent model={model} upd={upd} next={next} />}
@@ -149,7 +169,13 @@ export default function UncontrolledEventWorkflow({
                 onJumpCheck={chk => setStep(chk.step)}
               />
             )}
+            {!showSideBySide && isReviewStep && previewPanel}
           </div>
+          {showSideBySide && (
+            <div className="workflowRight">
+              {previewPanel}
+            </div>
+          )}
         </div>
       </LockedContext.Provider>
     </>

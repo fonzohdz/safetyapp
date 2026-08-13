@@ -123,3 +123,88 @@ export async function drawMedicalEventPdf(model, onProgress) {
 
   return doc.finish();
 }
+
+/* Review-screen facsimile — mirrors drawMedicalEventPdf's call sequence
+   above block-for-block (see DocFacsimile in FormPrimitives.jsx). Keep
+   these two in sync: a field added to one belongs in the other. */
+export function medicalEventFacsimileBlocks(model) {
+  const blocks = [];
+  blocks.push({ type: 'infoTable', rows: [
+    ['Employee Name', model.employeeName, 'Supervisor', model.supervisor],
+    ['Position', model.position, 'Project / Location', model.projectLocation],
+    ['Date', fmtDate(model.eventDate), 'Time Reported', model.timeReported],
+  ] });
+
+  blocks.push({ type: 'grayBar', text: 'Employee-Reported Condition' });
+  blocks.push({ type: 'textBox', title: 'Symptoms / Concerns (as reported by the employee)', text: model.reportedSymptoms });
+  blocks.push({ type: 'infoTable', rows: [
+    ['When Symptoms First Appeared', optionLabel(SYMPTOM_ONSET_OPTIONS, model.symptomsOnset)],
+    ['Specific Work Event/Exposure Reported?',
+      model.specificWorkEventReported === 'yes' ? 'Yes' : model.specificWorkEventReported === 'no' ? 'No' : ''],
+  ] });
+  blocks.push({ type: 'note', text: 'If yes, complete the Incident Reporting and Investigation Form.' });
+  if (model.specificWorkEventReported === 'yes') {
+    blocks.push({ type: 'textBox', title: 'Work Event / Exposure Reported', text: model.workEventDescription });
+  }
+
+  blocks.push({ type: 'grayBar', text: 'Response / Actions Taken' });
+  blocks.push({ type: 'checkboxGrid', options: RESPONSE_ACTIONS, checked: model.responseActions });
+  if ((model.responseActions || []).includes('Other') && model.responseActionsOther) {
+    blocks.push({ type: 'textBox', title: 'Other Action', text: model.responseActionsOther });
+  }
+  blocks.push({ type: 'textBox', title: 'Safety / Supervisor Observations and Actions', text: model.safetyObservations });
+
+  blocks.push({ type: 'grayBar', text: 'Medical Evaluation / Work Status' });
+  const evalLabel = optionLabel(MEDICAL_EVALUATION_TYPES, model.medicalEvaluationType)
+    || (model.medicalEvaluationType === 'other' ? model.medicalEvaluationOther : '');
+  const workStatusLabel = model.workStatus === 'offWork'
+    ? `Off Work Until ${fmtDate(model.offWorkUntilDate)}`
+    : model.workStatus === 'fullDuty' && model.fullDutyOnDate
+      ? `Full Duty on ${fmtDate(model.fullDutyOnDate)}`
+      : optionLabel(WORK_STATUS_OPTIONS, model.workStatus);
+  blocks.push({ type: 'infoTable', rows: [
+    ['Medical Evaluation', evalLabel, 'Clinic / Provider', model.clinicProvider],
+  ] });
+  blocks.push({ type: 'infoTable', rows: [['Work Status', workStatusLabel]] });
+
+  const attachOptions = (model.attachments || []).includes('Other') && model.attachmentOther
+    ? MEDICAL_ATTACHMENT_OPTIONS.map(o => (o === 'Other' ? `Other — ${model.attachmentOther}` : o))
+    : MEDICAL_ATTACHMENT_OPTIONS;
+  const attachChecked = (model.attachments || [])
+    .map(o => (o === 'Other' && model.attachmentOther ? `Other — ${model.attachmentOther}` : o));
+  blocks.push({
+    type: 'twoCol',
+    colA: [
+      { type: 'grayBar', text: 'Attachments' },
+      { type: 'infoTable', rows: [['Provider Note Attached', model.providerNoteAttached ? 'Yes' : 'No']] },
+      { type: 'checkboxGrid', options: attachOptions, checked: attachChecked, columns: 2 },
+    ],
+    colB: [
+      { type: 'grayBar', text: 'Initial Classification' },
+      {
+        type: 'checkboxGrid',
+        options: INITIAL_CLASSIFICATIONS.map(c => c.label),
+        checked: optionLabel(INITIAL_CLASSIFICATIONS, model.initialClassification),
+        columns: 1,
+      },
+    ],
+  });
+
+  blocks.push({ type: 'grayBar', text: 'Signatures' });
+  blocks.push({
+    type: 'signatureRow',
+    label: 'Employee Signature (if able)',
+    nameValue: model.employeeSignatureName || model.employeeName,
+    dataUrl: model.employeeSignatureData,
+    dateValue: fmtDate(model.employeeSignatureDate),
+  });
+  blocks.push({
+    type: 'signatureRow',
+    label: 'Safety / Supervisor Signature',
+    nameValue: model.supervisorSignatureName || model.supervisor,
+    dataUrl: model.supervisorSignatureData,
+    dateValue: fmtDate(model.supervisorSignatureDate),
+  });
+
+  return blocks;
+}

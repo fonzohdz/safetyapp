@@ -458,4 +458,160 @@ export function ConfirmDialog({ title, message, cancelLabel = 'Cancel', confirmL
   );
 }
 
+/* ── Layout capability hooks (C2 redesign phase 3) ──
+   Duplicated from main.jsx's private useIsTouchPrimary/useElementWidth
+   (touch-primary detection uses a real hardware-capability media feature,
+   not a viewport-width guess; container width is measured on the actual
+   rendered element via ResizeObserver, not window.innerWidth) rather than
+   imported -- main.jsx exports nothing. Shared here, once, since all four
+   documents in this module need the same side-by-side/stacked preview
+   layout JSA and Incident already use on their own Review steps. */
+export function useIsTouchPrimary() {
+  const readMatch = () => (typeof window !== 'undefined' && window.matchMedia)
+    ? window.matchMedia('(any-pointer: coarse)').matches
+    : false;
+  const [touch, setTouch] = useState(readMatch);
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return undefined;
+    const mq = window.matchMedia('(any-pointer: coarse)');
+    const handler = () => setTouch(mq.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  return touch;
+}
+export function useElementWidth(ref) {
+  const [width, setWidth] = useState(0);
+  useLayoutEffect(() => {
+    const node = ref.current;
+    if (!node) return undefined;
+    const update = () => setWidth(node.clientWidth);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [ref]);
+  return width;
+}
+
+/* ── Doc facsimile (C2 redesign phase 3b) ──
+   Disciplinary, Separation, Medical Event, and Uncontrolled Event draw
+   their PDF directly via pdfDraw.js stencil calls (see that file's header
+   comment) -- there is no live DOM page to reuse the way JSA/Incident's
+   preview does. This is hand-built markup that mirrors each doc's own
+   drawXPdf() call sequence -- see each *PdfDraw.js's own xFacsimileBlocks()
+   export, kept right next to drawXPdf so a future edit to one is visible
+   next to the other. Content order and field labels match the real PDF;
+   exact pagination does not -- this renders as one continuous sheet rather
+   than reimplementing pdfDraw.js's dynamic page-break measurement. */
+const SHACKELFORD_LOGO_SRC = `${import.meta.env.BASE_URL}icons/shackelford-logo.webp`;
+
+export function DocFacsimile({ formTitle, draft, blocks }) {
+  return (
+    <div className="docFacsimile">
+      <div className="docFacsimileHeader">
+        <img src={SHACKELFORD_LOGO_SRC} alt="Shackelford Construction and Hauling" className="docFacsimileLogo" />
+        <h2>{formTitle}</h2>
+      </div>
+      {blocks.map((block, i) => <FacsimileBlock key={i} block={block} />)}
+      {draft && <div className="docFacsimileWatermark">DRAFT</div>}
+    </div>
+  );
+}
+
+function FacsimileInfoTable({ rows }) {
+  return (
+    <div className="facsimileInfoTable">
+      {rows.map((row, i) => (
+        <div className={`facsimileInfoRow${row.length === 4 ? ' quad' : ''}`} key={i}>
+          <span className="facsimileInfoCellLabel">{row[0]}</span>
+          <span className="facsimileInfoCellValue">{row[1]}</span>
+          {row.length === 4 && (
+            <>
+              <span className="facsimileInfoCellLabel">{row[2]}</span>
+              <span className="facsimileInfoCellValue">{row[3]}</span>
+            </>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FacsimileCheckboxGrid({ options, checked, columns = 2 }) {
+  const list = Array.isArray(checked) ? checked : [checked].filter(Boolean);
+  return (
+    <div className="facsimileCheckboxGrid" style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}>
+      {options.map(opt => (
+        <span className="facsimileCheckboxItem" key={opt}>
+          <span className={`facsimileCheckboxBox${list.includes(opt) ? ' checked' : ''}`} aria-hidden="true" />
+          {opt}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function FacsimileSignatureSlot({ label, nameValue, dataUrl, dateValue, note }) {
+  return (
+    <div className="facsimileSignatureRow">
+      <div className="facsimileSignatureSlot sig">
+        {nameValue !== undefined && <span className="facsimileSignatureName">{nameValue || ' '}</span>}
+        <div className="facsimileSignatureArt">
+          {note ? <span className="facsimileSignatureNote">{note}</span>
+            : dataUrl ? <img className="facsimileSignatureImg" src={dataUrl} alt="" /> : null}
+        </div>
+        <span className="facsimileSignatureLine">{label}</span>
+      </div>
+      {!note && (
+        <div className="facsimileSignatureSlot date">
+          <div className="facsimileSignatureArt"><span>{dateValue || ''}</span></div>
+          <span className="facsimileSignatureLine">Date</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FacsimileBlock({ block }) {
+  switch (block.type) {
+    case 'infoTable':
+      return <FacsimileInfoTable rows={block.rows} />;
+    case 'grayBar':
+      return <div className="facsimileGrayBar">{block.text}</div>;
+    case 'numberedBar':
+      return <div className="facsimileNumberedBar">{block.number != null ? `${block.number}. ` : ''}{block.text}</div>;
+    case 'fieldLabel':
+      return <div className={`facsimileFieldLabel${block.caps === false ? ' noCaps' : ''}`}>{block.text}</div>;
+    case 'note':
+      return <div className="facsimileNote">{block.text}</div>;
+    case 'textBox':
+      return (
+        <div className="facsimileTextBoxWrap">
+          {block.title && <div className="facsimileFieldLabel">{block.title}</div>}
+          <div className="facsimileTextBox">{block.text || ''}</div>
+        </div>
+      );
+    case 'checkboxGrid':
+      return <FacsimileCheckboxGrid options={block.options} checked={block.checked} columns={block.columns} />;
+    case 'twoCol':
+      return (
+        <div className="facsimileTwoCol">
+          <div className="facsimileTwoColCol">{block.colA.map((b, i) => <FacsimileBlock key={i} block={b} />)}</div>
+          <div className="facsimileTwoColCol">{block.colB.map((b, i) => <FacsimileBlock key={i} block={b} />)}</div>
+        </div>
+      );
+    case 'signatureRow':
+      return <FacsimileSignatureSlot {...block} />;
+    case 'multiSignatureRow':
+      return (
+        <div className="facsimileMultiSignatureRow">
+          {block.items.map((item, i) => <FacsimileSignatureSlot key={i} {...item} />)}
+        </div>
+      );
+    default:
+      return null;
+  }
+}
+
 export { SignaturePad };
