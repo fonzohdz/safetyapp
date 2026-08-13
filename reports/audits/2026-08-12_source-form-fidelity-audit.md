@@ -116,12 +116,16 @@ Source: `☐ Full Duty on: ________` and `☐ Off Work Until: ________` — both
 The app has `offWorkUntilDate` but no equivalent for Full Duty. A return-to-full-duty date
 is a real record.
 
-### C3. Medical Event — attachment list differs
+### C3. Medical Event — attachment list differs — **RESOLVED 2026-08-13: keep the app's version**
 Source: `☐ Provider Note ☐ Photo ☐ Other`.
 App: `Photos / Video / Other`, plus a separate "Provider Note Attached? Yes/No" row.
 
 The app *adds* Video and promotes Provider Note to its own row. Defensible — arguably
 better — but it is a divergence, and the app also uses the plural "Photos".
+
+**Fonzo's call:** keep the app's version. Provider Note gets its own dedicated Yes/No,
+and Photos + Video + Other is more useful than forcing the older paper list. No code
+change.
 
 ### C4. Incident — Nature of Injury is multi-select; source says "circle one"
 Source: `Nature of Injury (circle one): sprain/strain, fracture, ...`
@@ -142,9 +146,12 @@ The paper form ships with two rows already printed:
 The app starts the team table empty (max 4 members). Pre-filling would save typing on
 every single incident report.
 
-### C6. Uncontrolled Event — app adds a field the source lacks
+### C6. Uncontrolled Event — app adds a field the source lacks — **RESOLVED 2026-08-13: keep it**
 App prints "Reported By — Title"; the source has only Name / Signature / Date under
 REPORTED BY. This is an addition, not a loss — flagged for completeness.
+
+**Fonzo's call:** keep it. Useful identifying information, doesn't complicate the form.
+No code change.
 
 ---
 
@@ -184,9 +191,13 @@ Source reads "This notice serves as:" above the four warning-level boxes. The ap
 grey bar reading "WARNING LEVEL". The app's version is clearer as a form label; the
 source's is a sentence the notice actually makes. Cheap to restore either way.
 
-### D5. Medical Event — section grouping differs
+### D5. Medical Event — section grouping differs — **RESOLVED 2026-08-13: keep the app's layout**
 Source groups "INITIAL CLASSIFICATION / ATTACHMENTS" as one section. The app splits them
 into two side-by-side blocks. Purely presentational; no content lost.
+
+**Fonzo's call:** keep the side-by-side layout — it still reads as one coherent section on
+the drawn PDF, same information, cleaner use of one-page space. Not worth merging just to
+mimic the Word file literally. No code change.
 
 ### D6. Medical / Incident signature blocks have no Name field
 Source signature blocks print `Name:` above `Signature:` and `Date:`. The app's Medical
@@ -221,15 +232,16 @@ Worth recording so nobody "fixes" these later:
 
 ## Recommended order of work
 
-1. **B1 and B2** — print the two missing sentences. Small, and they're the ones with
-   procedural weight on a signed document.
-2. **C1** — restore the four dropped parentheticals.
-3. **D1, D2, D3, D4** — title suffix, field order, heading wording. All cosmetic, all
-   cheap, all make the app read like the form people already know.
-4. **C2, C5** — Full Duty date; pre-filled investigation team.
-5. **C3, C4, C6, D5, D6** — decide whether the app's version or the form's version is
-   right. These are business/records judgements, not defects.
-6. **A1** — Employee Information Change Form, if wanted. New document type, real scope.
+1. ~~**B1 and B2**~~ — done 2026-08-12.
+2. ~~**C1**~~ — done 2026-08-12 (with a migration so existing drafts keep their ticks).
+3. ~~**D1, D2, D3, D4**~~ — done 2026-08-12.
+4. **C2** — done 2026-08-12 (Full Duty date added). **C5** — decided: do not pre-fill the
+   historical investigation team.
+5. ~~**C3, C6, D5**~~ — decided 2026-08-13, all "keep the app's version," no code changes
+   (see each item above). **C4** — decided 2026-08-12: keep multi-select injury nature,
+   wording updated to say so. **D6** — still open, not yet decided.
+6. **A1** — Employee Information Change Form. Decided: not building it, HR's own.
 
-Nothing in this audit is a rendering defect. The drawn PDF pipeline is doing what it was
-told to do; this is about what it's being told.
+Nothing in this audit was a rendering defect. The drawn PDF pipeline did what it was told
+to do; this was entirely about what it was being told. Every item above is now closed
+except D6.
