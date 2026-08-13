@@ -1,7 +1,6 @@
 /* Uncontrolled Event Report, drawn straight into the PDF. See pdfDraw.js. */
 
-import { createFormPdf, loadLogoPngBytes } from '../pdfDraw';
-import { fmtDate, fmtDateTime } from '../DocPdfShell';
+import { createFormPdf, loadLogoPngBytes, fmtDate, fmtDateTime } from '../pdfDraw';
 import {
   EVENT_CLASSIFICATIONS, EVENT_OUTCOMES, NOTIFICATION_OPTIONS, ATTACHMENT_OPTIONS,
   isUncontrolledEventPrintFinal,

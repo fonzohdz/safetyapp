@@ -6,8 +6,7 @@
    it as labels; MEDICAL EVALUATION / WORK STATUS starts the next major
    division. */
 
-import { createFormPdf, loadLogoPngBytes } from '../pdfDraw';
-import { fmtDate } from '../DocPdfShell';
+import { createFormPdf, loadLogoPngBytes, fmtDate } from '../pdfDraw';
 import {
   SYMPTOM_ONSET_OPTIONS, RESPONSE_ACTIONS, MEDICAL_EVALUATION_TYPES, WORK_STATUS_OPTIONS,
   INITIAL_CLASSIFICATIONS, MEDICAL_ATTACHMENT_OPTIONS,

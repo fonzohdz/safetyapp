@@ -31,6 +31,27 @@
 
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 
+/* Date/time formatting shared by every *PdfDraw.js caller — the model
+   stores ISO strings (<input type="date">/"datetime-local"> native format),
+   the printed form wants US date style. */
+export function fmtDate(v) {
+  if (!v) return '';
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(v);
+  if (!m) return v;
+  return `${m[2]}/${m[3]}/${m[1]}`;
+}
+
+export function fmtDateTime(v) {
+  if (!v) return '';
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(v);
+  if (!m) return v;
+  const [, y, mo, d, h, mi] = m;
+  const hour = Number(h);
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const h12 = ((hour + 11) % 12) + 1;
+  return `${mo}/${d}/${y} ${h12}:${mi} ${ampm}`;
+}
+
 const PT_PER_IN = 72;
 export const PAGE_W = 8.5 * PT_PER_IN;
 export const PAGE_H = 11 * PT_PER_IN;

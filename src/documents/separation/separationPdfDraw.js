@@ -1,7 +1,6 @@
 /* Employee Separation, drawn straight into the PDF. See pdfDraw.js. */
 
-import { createFormPdf, loadLogoPngBytes } from '../pdfDraw';
-import { fmtDate } from '../DocPdfShell';
+import { createFormPdf, loadLogoPngBytes, fmtDate } from '../pdfDraw';
 import {
   SEPARATION_TYPES, SEPARATION_REASONS, REHIRE_STATUSES,
   PROPERTY_RETURNED_OPTIONS, ACCESS_REMOVED_OPTIONS,

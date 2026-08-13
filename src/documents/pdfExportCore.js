@@ -46,15 +46,19 @@ export async function capturePagesToPdf(pageRefsRef, onProgress) {
      inflated by the extra half-leading (~7px at this document family's
      10pt/9.5pt sizes). Every glyph then paints that far BELOW its true
      baseline in the raster — confirmed 2026-08-11 by extracting the real
-     embedded PDF raster and comparing against a same-page DOM screenshot
-     (tools/testing/compare-dom-vs-raster.mjs): all text ~8px low; borders,
-     checkbox squares and signature images unaffected. Neutralizing body
-     line-height for the duration of the capture fixes the probe at the
-     source. Page layout is unaffected because .docPdfPage now pins its own
-     line-height explicitly (docPdf.css). JSA/Incident keep their own
+     embedded PDF raster and comparing against a same-page DOM screenshot:
+     all text ~8px low; borders, checkbox squares and signature images
+     unaffected. Neutralizing body line-height for the duration of the
+     capture fixes the probe at the source. JSA/Incident keep their own
      capture code and their own approved, separately-calibrated
      compensations — do NOT apply this to their pipelines without
-     re-calibrating those. */
+     re-calibrating those.
+
+     This function itself is no longer exercised by any of the four
+     Superintendent documents — they draw their PDFs directly now (see
+     pdfDraw.js) and pass renderPdf to usePdfExport, which bypasses this
+     entirely. It remains as usePdfExport's fallback capture path for any
+     future document that doesn't pass renderPdf. */
   const bodyInlineLineHeight = document.body.style.lineHeight;
   document.body.style.lineHeight = 'normal';
   try {

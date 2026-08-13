@@ -141,31 +141,25 @@ async function runDoc(browser, doc) {
   await page.waitForTimeout(500);
   if (!await gotoReview(page)) { check(doc.id, 'reached Review step', false); await context.close(); return; }
 
-  // 0. Structural invariant on the off-screen export DOM: every row of an
-  // InfoTable must span the same number of columns. A row that spans fewer
-  // has no cells on its right-hand side, so `border-collapse` draws no
-  // border there and the printed document ends up with one row whose right
-  // edge is simply missing. Medical Event's Evaluation block shipped exactly
-  // that (a 4-cell pairRow followed by a 2-cell row).
-  // Note: every document's export root is always mounted, so this sweeps all
-  // of them on every run. Each finding is attributed to the root it came
-  // from rather than to the document currently being walked.
-  const raggedTables = await page.evaluate(() => {
-    const bad = [];
-    document.querySelectorAll('.docPdfExportRoot').forEach(root => {
-      const owner = root.getAttribute('data-doc-id') || 'unknown';
-      root.querySelectorAll('.docPdfInfoTable').forEach((table, ti) => {
-        const spans = Array.from(table.querySelectorAll('tr')).map(tr =>
-          Array.from(tr.children).reduce((n, c) => n + (c.colSpan || 1), 0));
-        if (spans.length > 1 && new Set(spans).size > 1) {
-          bad.push(`${owner} table#${ti} rows span ${spans.join('/')}`);
-        }
-      });
-    });
-    return bad;
-  });
-  check(doc.id, 'no InfoTable row leaves its right edge unclosed',
-    raggedTables.length === 0, raggedTables.join('; '));
+  // Historically this walk also swept the four Superintendent documents'
+  // off-screen `.docPdfExportRoot` DOM for a structural invariant (every
+  // InfoTable row spans the same number of columns — a row spanning fewer
+  // has no cells on its right, so `border-collapse` draws no border there
+  // and the printed page shows one row whose right edge is simply missing;
+  // this is exactly how Medical Event's Evaluation block shipped a broken
+  // row). That DOM stopped being what produces the PDF once those four
+  // documents were converted to drawn PDFs, and the export root components
+  // (DisciplinaryPdf.jsx etc.) were deleted once nothing depended on them —
+  // see 2026-08-13. The equivalent guarantee against the REAL printed
+  // artifact is `checkPdfContract`'s "every row fills its column" check
+  // (pdfContract.mjs), which runs in each of verify-disciplinary.mjs /
+  // verify-separation.mjs / verify-medical-event.mjs /
+  // verify-uncontrolled-event.mjs on every generated PDF. It is a stronger
+  // check than this one ever was: pdfDraw.js's `infoTable` stencil can only
+  // ever draw a full-width row in the first place, so the class of bug this
+  // caught is now structurally prevented rather than merely detected.
+  // Incident never used `.docPdfExportRoot` (it has its own PDF pipeline),
+  // so removing this cost it nothing.
 
   // 1. starts as an editable draft
   check(doc.id, 'starts with Draft badge', (await badgeText(page)).trim().toLowerCase() === 'draft');

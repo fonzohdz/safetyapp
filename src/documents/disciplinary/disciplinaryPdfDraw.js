@@ -1,13 +1,11 @@
 /* Employee Disciplinary Notice, drawn straight into the PDF.
 
-   This is the same form as DisciplinaryPdf.jsx describes, expressed as a
-   sequence of stencil calls instead of as DOM to be photographed. Read it
-   top to bottom and you are reading the printed page top to bottom.
+   A sequence of stencil calls, not DOM to be photographed. Read it top to
+   bottom and you are reading the printed page top to bottom.
 
    See pdfDraw.js for why this exists and what it makes impossible. */
 
-import { createFormPdf, loadLogoPngBytes } from '../pdfDraw';
-import { fmtDate } from '../DocPdfShell';
+import { createFormPdf, loadLogoPngBytes, fmtDate } from '../pdfDraw';
 import { WARNING_LEVELS, warningLevelLabel, isDisciplinaryPrintFinal } from './disciplinaryModel';
 
 const FORM_TITLE = 'EMPLOYEE DISCIPLINARY NOTICE FORM';

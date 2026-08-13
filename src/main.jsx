@@ -4,7 +4,6 @@ import html2canvas from 'html2canvas';
 import { PDFDocument } from 'pdf-lib';
 import './styles.css';
 import './incident/incident.css';
-import './documents/docPdf.css';
 import './voice/voice.css';
 import SpeakButton from './voice/SpeakButton';
 import { emptyIncident, hasMeaningfulIncidentContent, incidentStepProgress, incidentNextStepHint, isIncidentReady, isIncidentPrintFinal, migrateIncidentShape } from './incident/incidentModel';
@@ -25,7 +24,6 @@ import {
   disciplinaryStepProgress, disciplinaryNextStepHint,
 } from './documents/disciplinary/disciplinaryModel';
 import DisciplinaryWorkflow from './documents/disciplinary/DisciplinaryWorkflow';
-import { DisciplinaryPdfExportRoot } from './documents/disciplinary/DisciplinaryPdf';
 import { drawDisciplinaryPdf } from './documents/disciplinary/disciplinaryPdfDraw';
 import { drawSeparationPdf } from './documents/separation/separationPdfDraw';
 import { drawMedicalEventPdf } from './documents/medicalEvent/medicalEventPdfDraw';
@@ -36,21 +34,18 @@ import {
   uncontrolledEventStepProgress, uncontrolledEventNextStepHint,
 } from './documents/uncontrolledEvent/uncontrolledEventModel';
 import UncontrolledEventWorkflow from './documents/uncontrolledEvent/UncontrolledEventWorkflow';
-import { UncontrolledEventPdfExportRoot } from './documents/uncontrolledEvent/UncontrolledEventPdf';
 import {
   emptyMedicalEvent, hasMeaningfulMedicalEventContent, isMedicalEventReady, isMedicalEventPrintFinal,
   buildMedicalEventExportName,
   medicalEventStepProgress, medicalEventNextStepHint,
 } from './documents/medicalEvent/medicalEventModel';
 import MedicalEventWorkflow from './documents/medicalEvent/MedicalEventWorkflow';
-import { MedicalEventPdfExportRoot } from './documents/medicalEvent/MedicalEventPdf';
 import {
   emptySeparation, hasMeaningfulSeparationContent, isSeparationReady, isSeparationPrintFinal,
   buildSeparationExportName, migrateSeparationShape,
   separationStepProgress, separationNextStepHint,
 } from './documents/separation/separationModel';
 import SeparationWorkflow from './documents/separation/SeparationWorkflow';
-import { SeparationPdfExportRoot } from './documents/separation/SeparationPdf';
 
 const DOCUMENT_CATEGORY_ORDER = ['fieldSafety', 'employeeAction'];
 
@@ -2234,10 +2229,10 @@ function App() {
       <PrintableJsa jsa={jsa} />
       <PdfExportRoot jsa={jsa} plan={pdfExportPlan} pageRefsRef={pdfExportPageRefsRef} />
       <IncidentPdfExportRoot incident={incident} pageRefsRef={incidentPdfPageRefsRef} />
-      <DisciplinaryPdfExportRoot model={disciplinary.model} pageRefsRef={disciplinaryPdf.pageRefsRef} />
-      <UncontrolledEventPdfExportRoot model={uncontrolledEvent.model} pageRefsRef={uncontrolledEventPdf.pageRefsRef} />
-      <MedicalEventPdfExportRoot model={medicalEvent.model} pageRefsRef={medicalEventPdf.pageRefsRef} />
-      <SeparationPdfExportRoot model={separation.model} pageRefsRef={separationPdf.pageRefsRef} />
+      {/* The four Superintendent documents draw their PDFs directly
+          (renderPdf passed to usePdfExport below) — no hidden export DOM to
+          mount here. JSA and Incident keep the screenshot pipeline above,
+          which is why they still need theirs. */}
       {toast && <div className="toast">{toast}</div>}
     </>
   );
