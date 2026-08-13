@@ -100,26 +100,30 @@ async function main() {
       await context.close();
     }
 
-    // ── 2. Home: all four new documents reachable via "More Documents" ──
-    console.log('\n=== 2. Home — More Documents quick-start ===');
+    // ── 2. Home: every available document type is equally reachable ──
+    /* Home used to give JSA and Incident hero cards and demote the other four
+       to rows under "More Documents", and this section asserted exactly that
+       split. The split was build order rather than field priority, so what is
+       worth protecting now is the opposite: one tile per available document
+       type, all the same, with nothing buried. */
+    console.log('\n=== 2. Home — every document type has a start tile ===');
     {
       const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
       const page = await context.newPage();
       const pageErrors = [];
       page.on('pageerror', e => pageErrors.push(String(e)));
       await page.goto(BASE_URL, { waitUntil: 'networkidle' });
-      await page.waitForSelector('text=More Documents');
-      for (const title of ['Disciplinary Notice', 'Uncontrolled Event', 'Medical Event', 'Employee Separation']) {
-        const count = await page.locator('.accessRow', { hasText: title }).count();
-        check(count === 1, `Home "More Documents" includes "${title}"`);
+      await page.waitForSelector('text=Start a Document');
+      for (const title of ['JSA', 'Incident Report', 'Uncontrolled Event', 'Medical Event', 'Disciplinary Notice', 'Employee Separation']) {
+        const tile = page.locator('.startDocTile').filter({ has: page.locator('h2', { hasText: title }) });
+        check(await tile.count() === 1, `Home has one start tile for "${title}"`);
+        check(await tile.getByRole('button', { name: `Start ${title}` }).count() === 1, `"${title}" tile has its own Start button`);
       }
-      // Existing JSA/Incident hero cards must remain untouched.
-      check(await page.locator('.startDocCard', { hasText: 'Job Safety Analysis' }).count() === 1, 'JSA hero card unchanged on Home');
-      check(await page.locator('.startDocCard', { hasText: 'Incident Report' }).count() === 1, 'Incident Report hero card unchanged on Home');
-      // Clicking a quick-start row reaches that document's builder.
-      await page.locator('.accessRow', { hasText: 'Employee Separation' }).click();
+      check(await page.locator('.startDocTile').count() === 6, 'Home shows exactly the six available document types');
+      // Clicking a tile reaches that document's builder.
+      await page.getByRole('button', { name: 'Start Employee Separation' }).click();
       await page.waitForSelector('text=Separation Details');
-      check(true, 'Home quick-start row opens the Employee Separation builder');
+      check(true, 'Home start tile opens the Employee Separation builder');
       check(pageErrors.length === 0, `No page errors (${pageErrors.length} found)`);
       await page.screenshot({ path: path.join(outDir, 'home-then-separation-1280.png'), fullPage: true });
       await context.close();

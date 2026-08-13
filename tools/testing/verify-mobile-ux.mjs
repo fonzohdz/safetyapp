@@ -180,7 +180,7 @@ async function main() {
         // the bottom nav disappears (workflow owns the bottom of the screen).
         await page.click('.mobileNavItem:has-text("Home")');
         await page.waitForTimeout(150);
-        await page.click('.startDocCard >> text=Start Blank');
+        await page.click('.startDocTile >> text=Start JSA');
         await page.waitForTimeout(300);
         const navGoneInFlow = await page.evaluate(() => {
           const el = document.querySelector('.mobileBottomNav');

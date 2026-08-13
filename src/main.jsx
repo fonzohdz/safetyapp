@@ -22,6 +22,7 @@ import { downloadDraftFile, buildDraftFilename, readFileAsText, parseDraftFileTe
 import {
   emptyDisciplinary, hasMeaningfulDisciplinaryContent, isDisciplinaryReady, isDisciplinaryPrintFinal,
   buildDisciplinaryExportName, warningLevelLabel,
+  disciplinaryStepProgress, disciplinaryNextStepHint,
 } from './documents/disciplinary/disciplinaryModel';
 import DisciplinaryWorkflow from './documents/disciplinary/DisciplinaryWorkflow';
 import { DisciplinaryPdfExportRoot } from './documents/disciplinary/DisciplinaryPdf';
@@ -32,18 +33,21 @@ import { drawUncontrolledEventPdf } from './documents/uncontrolledEvent/uncontro
 import {
   emptyUncontrolledEvent, hasMeaningfulUncontrolledEventContent, isUncontrolledEventReady, isUncontrolledEventPrintFinal,
   buildUncontrolledEventExportName, migrateUncontrolledEventShape,
+  uncontrolledEventStepProgress, uncontrolledEventNextStepHint,
 } from './documents/uncontrolledEvent/uncontrolledEventModel';
 import UncontrolledEventWorkflow from './documents/uncontrolledEvent/UncontrolledEventWorkflow';
 import { UncontrolledEventPdfExportRoot } from './documents/uncontrolledEvent/UncontrolledEventPdf';
 import {
   emptyMedicalEvent, hasMeaningfulMedicalEventContent, isMedicalEventReady, isMedicalEventPrintFinal,
   buildMedicalEventExportName,
+  medicalEventStepProgress, medicalEventNextStepHint,
 } from './documents/medicalEvent/medicalEventModel';
 import MedicalEventWorkflow from './documents/medicalEvent/MedicalEventWorkflow';
 import { MedicalEventPdfExportRoot } from './documents/medicalEvent/MedicalEventPdf';
 import {
   emptySeparation, hasMeaningfulSeparationContent, isSeparationReady, isSeparationPrintFinal,
   buildSeparationExportName, migrateSeparationShape,
+  separationStepProgress, separationNextStepHint,
 } from './documents/separation/separationModel';
 import SeparationWorkflow from './documents/separation/SeparationWorkflow';
 import { SeparationPdfExportRoot } from './documents/separation/SeparationPdf';
@@ -879,6 +883,12 @@ function IconDrafts(props) { return <svg viewBox="0 0 24 24" fill="none" stroke=
 function IconTemplates(props) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}><rect x="4" y="4" width="7" height="7" rx="1" /><rect x="13" y="4" width="7" height="7" rx="1" /><rect x="4" y="13" width="7" height="7" rx="1" /><rect x="13" y="13" width="7" height="7" rx="1" /></svg>; }
 function IconSettings(props) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="12" cy="12" r="3" /><path d="M12 3v2.4M12 18.6V21M21 12h-2.4M5.4 12H3M18 6l-1.7 1.7M7.7 16.3 6 18M18 18l-1.7-1.7M7.7 7.7 6 6" /></svg>; }
 function IconChevronRight(props) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M9 5l7 7-7 7" /></svg>; }
+/* One mark per document type, for Home's start grid — see DOC_ICONS. */
+function IconIncident(props) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M12 4.5 21 19.5H3z" /><path d="M12 10v4.2" /><path d="M12 17.2h.01" /></svg>; }
+function IconWeather(props) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M7 15.5a3.5 3.5 0 0 1 .4-7A5 5 0 0 1 17 9.3a3.1 3.1 0 0 1 .3 6.2" /><path d="M13 12.5 10 17h3l-1.5 4" /></svg>; }
+function IconMedical(props) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}><rect x="3.5" y="6.5" width="17" height="12" rx="2" /><path d="M9 6.5V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1.5" /><path d="M12 10v5M9.5 12.5h5" /></svg>; }
+function IconWarningNote(props) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M6 3.5h8l4 4v13H6z" /><path d="M14 3.5v4h4" /><path d="M12 10.5v3.5" /><path d="M12 16.8h.01" /></svg>; }
+function IconSeparation(props) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="9" cy="8" r="3.2" /><path d="M3.5 19.5a5.5 5.5 0 0 1 11 0" /><path d="M16.5 12h5" /><path d="M19.5 9.5 22 12l-2.5 2.5" /></svg>; }
 
 /* ── Layout capability helpers ──
    Touch-primary detection uses (any-pointer: coarse), a real hardware-capability
@@ -2022,31 +2032,62 @@ function App() {
     },
   ];
 
-  // Home's compact "More Documents" quick-start rows — the four new
-  // document types only (JSA/Incident already have their own hero cards
-  // above; six giant hero cards would clutter Home, see the mission's own
-  // "good information hierarchy" guidance). Reuses draftEntries above for
-  // draft state instead of recomputing it, and the same start handlers
-  // DocCenterView uses.
-  const newDocStartHandlers = {
+  // One descriptor per available document type for Home — start handler,
+  // and the in-progress draft's own progress when there is one.
+  //
+  // Home used to give JSA and Incident full hero cards and demote the other
+  // four to small rows under "More Documents". That ordering was build order,
+  // not field priority: a superintendent documenting a medical event scrolled
+  // past two heroes and a workspace row to reach it, and their half-finished
+  // Medical Event draft appeared only as grey subtitle text while a JSA draft
+  // got its own card with a progress bar. Every document type reads from this
+  // one list now, so they are all equally findable and a draft is a draft
+  // whatever kind of document it belongs to.
+  const homeStartHandlers = {
+    /* JSA keeps going straight to a blank form, as Home has always done —
+       its tile carries the separate Templates button for the other path.
+       Adding a picker step to the most-used document to make the grid
+       symmetrical would be a worse trade than the asymmetry. */
+    jsa: requestStartBlank,
+    incident: requestStartIncidentBlank,
     disciplinary: disciplinaryEntry.requestStartBlank,
     uncontrolledEvent: uncontrolledEventEntry.requestStartBlank,
     medicalEvent: medicalEventEntry.requestStartBlank,
     separation: separationEntry.requestStartBlank,
   };
-  const moreDocsEntries = DOCUMENT_REGISTRY
-    .filter(d => d.status === 'available' && d.id in newDocStartHandlers)
+  const homeProgress = {
+    jsa: [draftStepProgress, nextStepHint],
+    incident: [incidentStepProgress, incidentNextStepHint],
+    disciplinary: [disciplinaryStepProgress, disciplinaryNextStepHint],
+    uncontrolledEvent: [uncontrolledEventStepProgress, uncontrolledEventNextStepHint],
+    medicalEvent: [medicalEventStepProgress, medicalEventNextStepHint],
+    separation: [separationStepProgress, separationNextStepHint],
+  };
+  const homeDocEntries = DOCUMENT_REGISTRY
+    .filter(d => d.status === 'available' && d.id in homeStartHandlers)
     .map(d => {
       const entry = draftEntries.find(e => e.id === d.id);
-      const hasDraft = Boolean(entry?.savedDraft);
+      const model = entry?.savedDraft;
+      const [progressOf, hintOf] = homeProgress[d.id];
       return {
         id: d.id,
         shortTitle: d.shortTitle,
         description: d.description,
-        hasDraft,
-        draftTitle: entry?.draftTitle,
-        onOpen: entry?.onOpen,
-        onStart: newDocStartHandlers[d.id],
+        /* "Start Incident Report" / "Continue Incident Report" are Incident's
+           own established wording, so they come from incidentCopy rather than
+           being re-derived and left to drift. Every other type reads the same
+           way off its registry short title. */
+        startLabel: d.id === 'incident' ? incidentCopy.home.startButton : `Start ${d.shortTitle}`,
+        continueLabel: d.id === 'incident' ? incidentCopy.home.continueButton : `Continue ${d.shortTitle}`,
+        onStart: homeStartHandlers[d.id],
+        onBrowseTemplates: d.supportsTemplates ? () => setTab('templates') : null,
+        draft: model ? {
+          title: entry.draftTitle,
+          nextStep: hintOf(model),
+          progress: progressOf(model),
+          savedLabel: model.lastSavedAt ? nowNice(new Date(model.lastSavedAt)) : 'on this device',
+          onOpen: entry.onOpen,
+        } : null,
       };
     });
 
@@ -2091,11 +2132,7 @@ function App() {
 
         <main className={`page${isDocFlow ? '' : ' pageWithBottomNav'}`}>
           {tab === 'home' && (
-            <HomeView
-              savedDraft={savedDraft} customTemplates={customTemplates} goJsaStart={goJsaStart} startBlank={requestStartBlank} setTab={setTab} loadSavedDraft={loadSavedDraft}
-              savedIncidentDraft={savedIncidentDraft} startIncidentBlank={requestStartIncidentBlank} loadSavedIncidentDraft={loadSavedIncidentDraft}
-              moreDocsEntries={moreDocsEntries}
-            />
+            <HomeView customTemplates={customTemplates} setTab={setTab} docEntries={homeDocEntries} />
           )}
           {tab === 'documents' && !activeDoc && (
             <DocCenterView startHandlers={{
@@ -2266,26 +2303,26 @@ function PlannedDocumentList() {
   );
 }
 
-/* ── Home view ──
-   A cross-document workspace, not a single "Start a JSA" hero: a compact
-   header, JSA as the one currently-available document type (plus real
-   in-progress draft data when it exists), quick access to the existing
-   Documents/Drafts/Templates destinations, and an always-visible (not
-   disclosure-hidden) preview of the broader document library roadmap. */
-function HomeView({ savedDraft, customTemplates, startBlank, setTab, loadSavedDraft, savedIncidentDraft, startIncidentBlank, loadSavedIncidentDraft, moreDocsEntries }) {
-  const hasDraft = Boolean(savedDraft);
-  const draftTitle = savedDraft?.jobSite || savedDraft?.templateName || 'Untitled JSA Draft';
-  const savedLabel = savedDraft?.lastSavedAt ? nowNice(new Date(savedDraft.lastSavedAt)) : 'on this device';
-  const nextStep = hasDraft ? nextStepHint(savedDraft) : null;
-  const progress = hasDraft ? draftStepProgress(savedDraft) : null;
-  const progressPct = progress ? Math.round((progress.done / progress.total) * 100) : 0;
+/* Per-document-type marks for Home's start grid. Six identical page icons
+   would defeat the point of the grid — on a phone the picture is what a user
+   actually scans for, before the words resolve. */
+const DOC_ICONS = {
+  jsa: IconDocuments,
+  incident: IconIncident,
+  uncontrolledEvent: IconWeather,
+  medicalEvent: IconMedical,
+  disciplinary: IconWarningNote,
+  separation: IconSeparation,
+};
 
-  const hasIncidentDraft = Boolean(savedIncidentDraft);
-  const incidentDraftTitle = savedIncidentDraft?.workplaceLocation || 'Untitled Incident Report';
-  const incidentSavedLabel = savedIncidentDraft?.lastSavedAt ? nowNice(new Date(savedIncidentDraft.lastSavedAt)) : 'on this device';
-  const incidentNextStep = hasIncidentDraft ? incidentNextStepHint(savedIncidentDraft) : null;
-  const incidentProgress = hasIncidentDraft ? incidentStepProgress(savedIncidentDraft) : null;
-  const incidentProgressPct = incidentProgress ? Math.round((incidentProgress.done / incidentProgress.total) * 100) : 0;
+/* ── Home view ──
+   Two questions, in the order a field user actually asks them: "let me finish
+   what I started" and "let me start the right document". Both are answered
+   across ALL six document types on equal footing — see homeDocEntries in
+   App() for why that ordering changed — followed by the Workspace shortcuts
+   and the always-visible (not disclosure-hidden) roadmap. */
+function HomeView({ customTemplates, setTab, docEntries }) {
+  const inProgress = docEntries.filter(e => e.draft);
 
   return (
     <div className="homeLayout">
@@ -2294,70 +2331,61 @@ function HomeView({ savedDraft, customTemplates, startBlank, setTab, loadSavedDr
         <p>Create, manage, review, and export field safety documents.</p>
       </header>
 
-      <div className={`homePrimaryRow${hasDraft ? '' : ' single'}`}>
-        <section className="homeCard startDocCard">
-          <span className="availableNowTag">Available now</span>
-          <h2>Job Safety Analysis</h2>
-          <p>Create a new JSA or begin from a saved template.</p>
-          <div className="homeCardActions">
-            <button className="btn primary homeCardBtn" onClick={startBlank}>Start Blank</button>
-            <button className="btn ghost homeCardBtn" onClick={() => setTab('templates')}>
-              Browse Templates{customTemplates.length > 0 ? ` (${customTemplates.length})` : ''}
-            </button>
+      {inProgress.length > 0 && (
+        <section className="homeSection">
+          <span className="homeSectionEyebrow">Continue Where You Left Off</span>
+          <div className="continueGrid">
+            {inProgress.map(e => {
+              const { progress } = e.draft;
+              const pct = progress.total ? Math.round((progress.done / progress.total) * 100) : 0;
+              const Icon = DOC_ICONS[e.id] || IconDocuments;
+              return (
+                <section className="continueCard" key={e.id}>
+                  <span className="continueCardType"><Icon className="continueCardIcon" />{e.shortTitle}</span>
+                  <strong className="continueCardTitle">{e.draft.title}</strong>
+                  <span className="continueCardMeta">Next: {e.draft.nextStep} &middot; Saved {e.draft.savedLabel}</span>
+                  <span className="continueWorkProgress">
+                    <span className="continueWorkProgressTrack"><span className="continueWorkProgressFill" style={{ width: `${pct}%` }} /></span>
+                    <span>{progress.done} of {progress.total}</span>
+                  </span>
+                  <button className="btn primary continueCardBtn" onClick={e.draft.onOpen}>{e.continueLabel}</button>
+                </section>
+              );
+            })}
           </div>
         </section>
+      )}
 
-        {hasDraft && (
-          <section className="homeCard continueWorkCard">
-            <span className="homeCardEyebrow">Continue Current Work</span>
-            <h2>{draftTitle}</h2>
-            <p className="continueWorkMeta">
-              {savedDraft.location && <>{savedDraft.location} &middot; </>}
-              Next: {nextStep} &middot; Saved {savedLabel}
-            </p>
-            <div className="continueWorkProgress">
-              <div className="continueWorkProgressTrack"><div className="continueWorkProgressFill" style={{ width: `${progressPct}%` }} /></div>
-              <span>{progress.done} of {progress.total} steps complete</span>
-            </div>
-            <div className="homeCardActions">
-              <button className="btn primary" onClick={loadSavedDraft}>Continue JSA</button>
-            </div>
-          </section>
-        )}
-      </div>
-
-      <div className={`homePrimaryRow${hasIncidentDraft ? '' : ' single'}`}>
-        <section className="homeCard startDocCard">
-          <span className="availableNowTag">Available now</span>
-          <h2>Incident Report</h2>
-          <p>Document and investigate a workplace incident, step by step.</p>
-          <div className="homeCardActions">
-            <button className="btn primary homeCardBtn" onClick={startIncidentBlank}>{incidentCopy.home.startButton}</button>
-          </div>
-        </section>
-
-        {hasIncidentDraft && (
-          <section className="homeCard continueWorkCard">
-            <span className="homeCardEyebrow">Continue Current Work</span>
-            <h2>{incidentDraftTitle}</h2>
-            <p className="continueWorkMeta">Next: {incidentNextStep} &middot; Saved {incidentSavedLabel}</p>
-            <div className="continueWorkProgress">
-              <div className="continueWorkProgressTrack"><div className="continueWorkProgressFill" style={{ width: `${incidentProgressPct}%` }} /></div>
-              <span>{incidentProgress.done} of {incidentProgress.total} steps complete</span>
-            </div>
-            <div className="homeCardActions">
-              <button className="btn primary" onClick={loadSavedIncidentDraft}>{incidentCopy.home.continueButton}</button>
-            </div>
-          </section>
-        )}
-      </div>
+      <section className="homeSection">
+        <span className="homeSectionEyebrow">Start a Document</span>
+        <div className="startDocGrid">
+          {docEntries.map(e => {
+            const Icon = DOC_ICONS[e.id] || IconDocuments;
+            return (
+              <section className="startDocTile" key={e.id}>
+                <Icon className="startDocTileIcon" />
+                <h2>{e.shortTitle}</h2>
+                <p>{e.description}</p>
+                <div className="startDocTileActions">
+                  <button className="btn primary" onClick={e.onStart}>{e.startLabel}</button>
+                  {e.onBrowseTemplates && (
+                    <button className="btn ghost" onClick={e.onBrowseTemplates}>
+                      Templates{customTemplates.length > 0 ? ` (${customTemplates.length})` : ''}
+                    </button>
+                  )}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      </section>
 
       <section className="homeSection">
         <span className="homeSectionEyebrow">Workspace</span>
         <div className="workspaceAccessGrid">
           <button className="accessRow" onClick={() => setTab('documents')}>
             <IconDocuments className="accessRowIcon" />
-            <span className="accessRowText"><strong>Documents</strong><small>Start or continue a document</small></span>
+            <span className="accessRowText"><strong>Documents</strong><small>Every document type, with details</small></span>
             <IconChevronRight className="accessRowChevron" />
           </button>
           <button className="accessRow" onClick={() => setTab('drafts')}>
@@ -2370,22 +2398,6 @@ function HomeView({ savedDraft, customTemplates, startBlank, setTab, loadSavedDr
             <span className="accessRowText"><strong>Templates</strong><small>{customTemplates.length > 0 ? `${customTemplates.length} saved` : 'Reusable starting points'}</small></span>
             <IconChevronRight className="accessRowChevron" />
           </button>
-        </div>
-      </section>
-
-      <section className="homeSection">
-        <span className="homeSectionEyebrow">More Documents</span>
-        <div className="workspaceAccessGrid">
-          {moreDocsEntries.map(e => (
-            <button className="accessRow" key={e.id} onClick={e.hasDraft ? e.onOpen : e.onStart}>
-              <IconDocuments className="accessRowIcon" />
-              <span className="accessRowText">
-                <strong>{e.shortTitle}</strong>
-                <small>{e.hasDraft ? `Continue — ${e.draftTitle}` : e.description}</small>
-              </span>
-              <IconChevronRight className="accessRowChevron" />
-            </button>
-          ))}
         </div>
       </section>
 
