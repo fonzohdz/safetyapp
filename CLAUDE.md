@@ -218,6 +218,45 @@ This is the first module of a planned company-wide safety platform. Expect futur
 
 Keep this in mind when naming things or structuring data — code that assumes "JSA is the only document type" will need to generalize later.
 
+## C2 redesign (in progress)
+
+Fonzo is rolling out a full visual/UX redesign sourced from a Claude Design
+project ("C2 Final Handoff", claude.ai/design project
+`e9f7bd10-29ae-4aba-9628-0ab616ef7eec`) — navy `#0B1D2E` / crimson `#C51F3A`
+visual system, Barlow/Barlow Condensed fonts (self-hosted under `src/fonts/`,
+no CDN — this is an offline-first field app), restructured Home, a vertical
+labeled step list, a live "printed form" preview panel on every workflow,
+Review-screen page facsimiles, and a restructured signature flow (sheet for
+supervisor, locked full screen for employee), across 4 responsive breakpoints.
+It's genuinely weeks of work end to end, so it's shipping in small, individually
+reviewed phases (plan → `testing` branch → build → screenshot/PDF review →
+explicit merge approval) rather than one pass. As of 2026-08-13:
+
+- **Shipped:** design tokens + Home screen rebuild (navy sidebar rail, inverted
+  so the compact icon rail is the default at the 1180px primary target instead
+  of the old wide labeled rail; 01-06 numbered tiles; empty/many-drafts states;
+  a real search filter). Then a single shared vertical `StepNav` component
+  (`src/documents/FormPrimitives.jsx`) replacing 3 duplicate horizontal
+  step-rail implementations across all 6 document types — each row's state
+  ("Done" / "You are here" / "Not started" / the actual missing item's own
+  label) is derived from real per-step readiness-check data, not fabricated
+  copy — plus a navy-restyled builder header to match.
+- **New tokens available for continuation work:** `--text-2`/`--text-3`
+  (sunlight-tested secondary/tertiary text), `--text-on-navy-2`, `--border-obj`/
+  `--border-input`/`--rule-2`, `--good-border`/`--warn-border`, a `--space-1`
+  through `--space-10` scale, `--font-condensed`. These sit alongside the older
+  `--muted`/`--line`/etc. tokens rather than replacing them app-wide yet — see
+  the comment above them in `styles.css`.
+- **Not started:** the live preview panel and Review facsimiles for the 5 doc
+  types that don't have JSA's version of either yet (net-new per doc, not a
+  re-skin); the signature flow restructure (changes real interaction, not just
+  visuals — treat as its own decision point, not a drop-in restyle); full
+  4-breakpoint responsive parity beyond what Home/step-nav already got.
+
+Deliberately untouched, and per the source spec not meant to be touched by any
+phase of this redesign: printing, PDF generation, `@media print` CSS. The
+mockup's page previews are explicitly facsimiles, not the real form.
+
 ## Historical lessons
 
 - Printing has been a frequent source of regressions — treat any print CSS or pagination change as high-risk. `styles.css` previously had three conflicting `@media print` blocks; they were consolidated into one authoritative block (2026-07-18, `refactor: consolidate legacy JSA styles`) — see Gotchas and `reports/audits/2026-07-18_full-application-audit.md` section C1/F for the history.
@@ -244,11 +283,28 @@ Historically this repo has been pushed to by uploading whole-folder zips through
 
 ## Architecture
 
-The entire application is two files:
-- `src/main.jsx` (~1840 lines) — every component, all state management, all business logic, and large hard-coded content libraries (hazard/control/task-suggestion text), all in one file.
-- `src/styles.css` (~1410 lines) — all styling, including one consolidated `@media print` block (see Gotchas; this used to be three conflicting blocks).
+`src/main.jsx` (~4460 lines) is still the core — the root `App` component, all
+top-level navigation state, JSA's own workflow, and the large hard-coded content
+libraries (hazard/control/task-suggestion text) — but the app has grown well past
+"two files," and any doc/comment (including older parts of this file) claiming
+otherwise is stale. Five more document types live under `src/documents/` (a
+shared `FormPrimitives.jsx` — fields, `StepNav`, `BuilderHeader`,
+`ReviewExportPanel` — plus a per-type folder each with its own model/workflow/
+PDF-draw file: disciplinary, separation, medicalEvent, uncontrolledEvent) and
+`src/incident/` (Incident Report, deliberately self-contained rather than sharing
+`FormPrimitives.jsx` — see that file's own header comment for why). Styling is 3
+files, not 1: `src/styles.css` (~2700 lines — shared tokens, JSA-specific rules,
+the C2 redesign's navy/crimson/Barlow tokens, and the one consolidated
+`@media print` block, see Gotchas), `src/incident/incident.css`, and
+`src/voice/voice.css`.
 
-There is no router, no component/hooks/utils folder structure, and no state management library — everything is `useState`/`useMemo`/`useRef` inside the root `App` component, passed down via props (deep prop-drilling is normal here, e.g. `JsaWorkflow` takes ~24 props).
+There is no router and no state management library — everything is
+`useState`/`useMemo`/`useRef`, passed down via props (deep prop-drilling is
+normal here, e.g. `JsaWorkflow` takes ~24 props). `DOCUMENT_REGISTRY`
+(`src/documents/registry.js`) is the source of truth for which 6 document types
+exist and their Home-tile order/numbering, but routing into each workflow is
+still hand-written per type in `main.jsx`, not registry-driven — adding a 7th
+document still means a new conditional block there.
 
 ### Navigation model
 
@@ -291,3 +347,4 @@ Pagination is computed in JS, not left to the browser: `paginateTaskContent()` /
   - The same `.docPdfInfoTable` cells were *still* visibly top-biased after that fix, in real PDFs from an actual iPad, not just this dev environment. Unlike the JSA case, this was NOT explained by measurable DOM slack — debug instrumentation showed ~1-2px of slack in the live DOM for every row alike, including rows that render fine, so there was no real per-row difference to redistribute via computed padding (the technique that fixed this exact class of bug for Incident's `.incCellContent`, see `centerCompactCellContent()` in `incidentPdfGenerate.jsx`, was tried here and made no measurable difference). What actually worked: a small **constant** upward shift (`transform: translateY(-4px)` on `.docPdfCellContent`) calibrated by direct trial against real generated PDFs. This means html2canvas's real rendered row height for this table can diverge from the live DOM's by more than the DOM itself shows — treat any DOM-measurement-based centering fix for this app's PDF pipeline as a hypothesis to verify against a real raster, not a guaranteed solution, and be ready to fall back to an empirically-calibrated constant shift (matching the precedent already set by `.pdfSingleLineText`'s `-5px` in `styles.css` and Incident's `COMPACT_CELL_SHIFT_PX`).
   - Takeaway: never certify a print/PDF layout change from the live preview, a DOM screenshot, or DOM-measured slack alone — always extract and inspect the actual embedded raster from a real generated PDF (see "Generating review screenshots/PDFs" above), and confirm on a real generated PDF, not just this dev environment, before considering a centering fix done.
 - **`package-lock.json` is committed and git-tracked**, so `npm install` (including in CI) resolves deterministically from it. An earlier version of this doc claimed no lockfile was committed and `DEPLOY_NOTES.txt` still says to exclude it from manual zip uploads — both are stale; verify with `git ls-files | grep lock` before trusting either claim again.
+- **New binary/static assets referenced from CSS must go under `src/`, not `public/`.** Because `vite.config.js` sets `base: './'` (required for the GitHub Pages project URL), a hardcoded root-absolute path like `url('/fonts/x.woff2')` in `styles.css` resolves to the wrong origin in production even though it works fine in local dev — Vite doesn't rewrite `public/`-referenced paths against a custom `base` for you (that's why JS code that needs `public/` assets, e.g. the Shackelford logo, goes through `${import.meta.env.BASE_URL}...` instead of a bare `/icons/...` string). The fix used for the C2 redesign's Barlow fonts: put the files under `src/fonts/` and reference them with a relative `url('./fonts/x.woff2')` from `styles.css` — Vite's normal CSS asset pipeline then hashes and rewrites the path correctly for both dev and the GitHub Pages build. Reach for this pattern again for any future asset a stylesheet needs to `url()`.
