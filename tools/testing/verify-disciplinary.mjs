@@ -180,8 +180,92 @@ async function main() {
       await context.close();
     }
 
-    // ── 2. Draft collision isolation: Disciplinary draft must not touch JSA/Incident keys ──
-    console.log('\n=== 2. Draft key isolation ===');
+    // ── 2. Employee refused/unavailable to sign — must unblock Mark Complete ──
+    // A real, common outcome: the employee isn't present, or won't sign. That
+    // must not leave the notice permanently stuck as an unfinished DRAFT with
+    // no way to mark it complete (see disciplinaryModel.js's
+    // employeeRefusedToSign). Manager still has to sign — only the employee
+    // half is excused.
+    console.log('\n=== 2. Employee refused/unavailable to sign ===');
+    {
+      const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+      const page = await context.newPage();
+      const consoleErrors = []; const pageErrors = [];
+      page.on('console', m => { if (m.type() === 'error') consoleErrors.push(m.text()); });
+      page.on('pageerror', e => pageErrors.push(String(e)));
+
+      await page.goto(BASE_URL, { waitUntil: 'networkidle' });
+      await page.getByRole('button', { name: 'Documents', exact: false }).first().click();
+      await page.locator('.listItem', { hasText: 'Employee Disciplinary Notice' }).getByRole('button', { name: 'Start' }).click();
+      await page.waitForSelector('text=Notice Details');
+      await page.getByRole('textbox', { name: 'Employee Name', exact: true }).fill('Wade Coker');
+      await page.getByRole('textbox', { name: 'Supervisor', exact: true }).fill('Ray Ferris');
+      await page.getByRole('button', { name: 'Final Warning', exact: true }).click();
+      await page.getByRole('textbox', { name: 'What happened?', exact: true }).fill('Employee left the site without notice after a safety violation was raised; not present to sign or respond.');
+
+      await page.getByRole('button', { name: 'Next' }).click();
+      await page.waitForSelector('text=Corrective Action');
+      await page.getByRole('textbox', { name: 'What must the employee do to correct this?', exact: true }).fill('Employee must report to HR before returning to any jobsite.');
+
+      // Toggle refused BEFORE signing anything — this is the point of the
+      // fix: the employee slot must never accept input while refused is set.
+      // BooleanToggle renders <label class="field"><span>label text</span>
+      // <div class="yesNoToggle"><button>Yes/No</button></div></label> — the
+      // button's own accessible name is just "No"/"Yes", so scope by the
+      // .field container's text instead of the button's own name.
+      await page.locator('label.field', { hasText: 'Employee refused / unavailable to sign' }).locator('button').click();
+      const employeeAddSigCount = await page.locator('.signaturePad', { hasText: 'Employee Signature' }).getByRole('button', { name: 'Add signature' }).count();
+      check(employeeAddSigCount === 0, 'Employee signature pad is not offered once refused/unavailable is toggled on');
+
+      // Only the manager signs.
+      await page.locator('.signaturePad', { hasText: 'Manager Signature' }).getByRole('button', { name: 'Add signature' }).click();
+      const canvas = page.locator('canvas.signatureCanvas').first();
+      await canvas.scrollIntoViewIfNeeded();
+      const box = await canvas.boundingBox();
+      await page.mouse.move(box.x + 20, box.y + box.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(box.x + box.width - 20, box.y + box.height / 2 - 10, { steps: 8 });
+      await page.mouse.up();
+      await page.locator('.signaturePadActions button', { hasText: /^Save$/ }).first().click();
+
+      await page.getByRole('button', { name: 'Go to Review' }).click();
+      await page.waitForSelector('text=Readiness');
+      const pendingItems = await page.locator('.incidentReadinessItem.pending').count();
+      check(pendingItems === 0, `Checklist fully satisfied with only a manager signature, once refused is set (${pendingItems} pending item(s))`);
+
+      const finishBtn = page.getByRole('button', { name: 'Mark Complete', exact: true });
+      check(await finishBtn.isEnabled(), 'Mark Complete is enabled — this is the bug being fixed: it used to stay permanently disabled');
+      await finishBtn.click();
+      await page.locator('.dialogPanel', { hasText: 'Mark this document complete?' }).getByRole('button', { name: 'Mark Complete', exact: true }).click();
+      await page.waitForTimeout(300);
+      const badge = await page.locator('.builderHeaderBadges .badge').innerText();
+      check(badge.trim().toLowerCase() === 'completed', `Status badge reads "Completed" (got "${badge.trim()}")`);
+
+      await page.getByRole('button', { name: /Create Document/ }).click();
+      await page.waitForSelector('.pdfReadyPanel', { timeout: 30000 });
+      const { pdf, suggestedName } = await downloadGeneratedPdf(page, path.join(outDir, 'employee-refused.pdf'));
+      check(!/_DRAFT/.test(suggestedName), `No DRAFT stamp / _DRAFT suffix on the completed export (got "${suggestedName}")`);
+      const contract = await checkPdfContract(pdf, {
+        label: 'employee-refused',
+        pages: 1,
+        draft: false,
+        mustContain: ['Wade Coker', 'Refused / Unavailable to Sign'],
+      });
+      contract.forEach(r => check(r.ok, r.label));
+      // Logo + manager's signature only — no employee signature image, and
+      // no signing date printed next to the refusal note (see pdfDraw.js's
+      // signatureRow: a note suppresses dateValue, matching multiSignatureRow).
+      check(pdf.pages[0].images.length === 2, `Only logo + manager signature embedded, no employee signature (found ${pdf.pages[0].images.length} images)`);
+
+      check(consoleErrors.length === 0, `No console errors (${consoleErrors.length} found)${consoleErrors.length ? ': ' + consoleErrors.join(' | ') : ''}`);
+      check(pageErrors.length === 0, `No page errors (${pageErrors.length} found)${pageErrors.length ? ': ' + pageErrors.join(' | ') : ''}`);
+
+      await page.evaluate(key => window.localStorage.removeItem(key), STORAGE_KEY);
+      await context.close();
+    }
+
+    // ── 3. Draft collision isolation: Disciplinary draft must not touch JSA/Incident keys ──
+    console.log('\n=== 3. Draft key isolation ===');
     {
       const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
       await context.addInitScript(json => window.localStorage.setItem('sdc.discipline.draft.v1', json), loadFixture('disciplinary-normal.json'));
@@ -203,7 +287,7 @@ async function main() {
     // so the hidden .docPdfExportRoot DOM is no longer what gets printed and
     // measuring it proves nothing about the artifact. Every check below reads
     // the downloaded PDF itself.
-    console.log('\n=== 3. PDF fixtures (real generated PDF) ===');
+    console.log('\n=== 4. PDF fixtures (real generated PDF) ===');
     const fixtures = [
       {
         name: 'disciplinary-normal.json',
@@ -282,7 +366,7 @@ async function main() {
     }
 
     // ── 4. Mobile viewport (390px): no overflow, sidebar hidden, signature usable ──
-    console.log('\n=== 4. Mobile viewport (390px) ===');
+    console.log('\n=== 5. Mobile viewport (390px) ===');
     {
       const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
       const page = await context.newPage();
@@ -334,7 +418,7 @@ async function main() {
     }
 
     // ── 5. Mark Complete confirmation and editing lock ──
-    console.log('\n=== 5. Mark Complete confirmation and editing lock ===');
+    console.log('\n=== 6. Mark Complete confirmation and editing lock ===');
     {
       const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
       const page = await context.newPage();

@@ -58,7 +58,10 @@ export function emptyDisciplinary() {
     companyWill: '', // 6. The company will
     ifNotCorrected: '', // 7. If behavior is not corrected / performance does not improve
 
-    // Signatures
+    // Signatures. An employee who is unavailable or refuses to sign is a
+    // real, common outcome on a disciplinary notice — not a reason the
+    // document should be stuck unable to complete. See employeeRefusedToSign.
+    employeeRefusedToSign: false,
     employeeSignatureData: null,
     employeeSignatureDate: '',
     managerSignatureData: null,
@@ -81,6 +84,7 @@ export function hasMeaningfulDisciplinaryContent(model) {
     model.correctiveActionRequired, model.companyWill, model.ifNotCorrected,
   ].some(v => String(v || '').trim().length > 0)
     || Boolean(model.warningLevel)
+    || Boolean(model.employeeRefusedToSign)
     || Boolean(model.employeeSignatureData)
     || Boolean(model.managerSignatureData);
 }
@@ -100,7 +104,11 @@ export function getDisciplinaryReadinessChecks(model) {
     { key: 'warningLevel', label: 'Warning level selected', ok: has(model.warningLevel), step: 'notice' },
     { key: 'whatOccurred', label: 'Section 1 — What occurred', ok: has(model.whatOccurred), step: 'notice' },
     { key: 'correctiveActionRequired', label: 'Section 5 — Corrective action required', ok: has(model.correctiveActionRequired), step: 'response' },
-    { key: 'employeeSignature', label: 'Employee signature', ok: Boolean(model.employeeSignatureData), step: 'response' },
+    // An employee who won't sign doesn't mean the notice can't be finished —
+    // it means that has to be documented instead of a signature. Satisfied by
+    // either a captured signature or the explicit refused/unavailable flag,
+    // never by silently dropping the requirement (see employeeRefusedToSign).
+    { key: 'employeeSignature', label: 'Employee signature (or marked refused/unavailable)', ok: model.employeeRefusedToSign || Boolean(model.employeeSignatureData), step: 'response' },
     { key: 'managerSignature', label: 'Manager signature', ok: Boolean(model.managerSignatureData), step: 'response' },
   ];
 }

@@ -57,16 +57,16 @@ export async function drawDisciplinaryPdf(model, onProgress) {
 
   doc.space(8);
   doc.grayBar('Signatures');
-  const employeeSig = await doc.embedSignature(model.employeeSignatureData);
-  const managerSig = await doc.embedSignature(model.managerSignatureData);
-  doc.signatureRow({
-    label: 'Employee Signature',
-    image: employeeSig,
-    dateValue: fmtDate(model.employeeSignatureDate),
-  });
+  doc.signatureRow(model.employeeRefusedToSign
+    ? { label: 'Employee Signature', note: 'Refused / Unavailable to Sign' }
+    : {
+      label: 'Employee Signature',
+      image: await doc.embedSignature(model.employeeSignatureData),
+      dateValue: fmtDate(model.employeeSignatureDate),
+    });
   doc.signatureRow({
     label: 'Manager Signature',
-    image: managerSig,
+    image: await doc.embedSignature(model.managerSignatureData),
     dateValue: fmtDate(model.managerSignatureDate),
   });
 

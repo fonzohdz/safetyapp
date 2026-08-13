@@ -6,8 +6,33 @@ import {
   Field, TextAreaField, SegmentedToggle, StepPanel, NumberedSection, StepFooter,
   BuilderHeader, ReviewExportPanel, SignaturePad,
 } from '../FormPrimitives';
-import { LockedContext } from '../lockedContext';
+import { LockedContext, useLocked } from '../lockedContext';
 import { downloadDraftFile, buildDraftFilename } from '../../shared/draftTransfer';
+
+/* Same pattern as Separation's employee-refused-to-sign toggle and Medical
+   Event's Provider Note Attached -- a plain Yes/No button for a fact the
+   source form has no other way to capture. An employee who is unavailable
+   or refuses to sign is a real, common outcome, not a reason the notice
+   should be stuck unable to complete (see disciplinaryModel.js). */
+function BooleanToggle({ label, value, onChange, onLabel = 'Yes', offLabel = 'No' }) {
+  const locked = useLocked();
+  return (
+    <label className="field">
+      <span>{label}</span>
+      <div className="yesNoToggle">
+        <button
+          type="button"
+          aria-pressed={value}
+          aria-disabled={locked}
+          className={`btn${value ? ' active yes' : ''}`}
+          onClick={() => { if (!locked) onChange(!value); }}
+        >
+          {value ? onLabel : offLabel}
+        </button>
+      </div>
+    </label>
+  );
+}
 
 /* ── Step: Notice Details — employee info, warning level, sections 1-4 ── */
 function StepNotice({ model, upd, next }) {
@@ -68,9 +93,10 @@ function StepResponse({ model, upd, prev, next }) {
 
       <div className="formSection">
         <span className="formSectionHeading">Signatures</span>
+        <BooleanToggle label="Employee refused / unavailable to sign" value={model.employeeRefusedToSign} onChange={v => upd({ employeeRefusedToSign: v })} />
         <div className="formPairRow">
-          <SignaturePad label="Employee Signature" value={model.employeeSignatureData} onChange={data => upd({ employeeSignatureData: data, employeeSignatureDate: data ? new Date().toISOString().slice(0, 10) : model.employeeSignatureDate })} />
-          <Field label="Employee Signature Date" type="date" value={model.employeeSignatureDate} onChange={v => upd({ employeeSignatureDate: v })} />
+          <SignaturePad label="Employee Signature" value={model.employeeSignatureData} disabled={model.employeeRefusedToSign} onChange={data => upd({ employeeSignatureData: data, employeeSignatureDate: data ? new Date().toISOString().slice(0, 10) : model.employeeSignatureDate })} />
+          <Field label="Employee Signature Date" type="date" value={model.employeeSignatureDate} onChange={v => upd({ employeeSignatureDate: v })} disabled={model.employeeRefusedToSign} />
         </div>
         <div className="formPairRow">
           <SignaturePad label="Manager Signature" value={model.managerSignatureData} onChange={data => upd({ managerSignatureData: data, managerSignatureDate: data ? new Date().toISOString().slice(0, 10) : model.managerSignatureDate })} />

@@ -409,7 +409,9 @@ export async function createFormPdf({ formTitle, logoBytes, draft, watermarkText
       line(colX, y + slotH, colX + sigW, y + slotH);
       drawTextAt(String(sigLabel).toUpperCase(), colX, y + slotH + topBaseline(3, capSize), capSize, font, MUTED);
 
-      if (dateValue) drawTextAt(dateValue, dateX + 2, y + slotH - 4, 10, font);
+      // A note (e.g. "Refused / Unavailable to Sign") replaces the date too —
+      // there is no signing date to print. Same guard multiSignatureRow uses.
+      if (!note && dateValue) drawTextAt(dateValue, dateX + 2, y + slotH - 4, 10, font);
       line(dateX, y + slotH, colX + colW, y + slotH);
       drawTextAt(String(dateLabel).toUpperCase(), dateX, y + slotH + topBaseline(3, capSize), capSize, font, MUTED);
       y += slotH + capH + 4;
