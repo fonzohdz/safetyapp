@@ -212,11 +212,15 @@ async function main() {
         // Values the user typed, and the full section headings. A heading
         // that comes back short is truncation, which on a signed record is
         // data loss rather than a cosmetic defect.
+        // Headings are the paper form's own wording (2026-08-12 fidelity
+        // audit) — sections 2 and 5 had been shortened, and the source
+        // sentence "This notice serves as:" had been replaced by a label.
         mustContain: [
           'Marcus Doyle', 'Ray Ferris', 'Equipment Operator',
-          'IF BEHAVIOR IS NOT CORRECTED / PERFORMANCE DOES NOT IMPROVE',
-          'CORRECTIVE ACTION REQUIRED OF EMPLOYEE',
-          'EARLIER WARNINGS / DISCUSSIONS',
+          'This notice serves as:',
+          'If behavior is not corrected/performance does not improve',
+          'Corrective action that must be taken by the employee',
+          'Earlier verbal or written warnings, discussions, etc. on this issue',
           'Employee operated the excavator without a spotter present',
         ],
       },

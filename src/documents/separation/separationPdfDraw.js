@@ -8,7 +8,7 @@ import {
   isSeparationPrintFinal,
 } from './separationModel';
 
-const FORM_TITLE = 'EMPLOYEE SEPARATION';
+const FORM_TITLE = 'EMPLOYEE SEPARATION FORM';
 /* One label-column width for every full-width label/value table on this form,
    so the rule between label and answer lines up all the way down the page. */
 const LABEL_W = 0.32;
@@ -87,7 +87,11 @@ export async function drawSeparationPdf(model, onProgress) {
   doc.textBox({ title: 'Outstanding Property / Notes', text: model.outstandingPropertyNotes, minH: 24 });
 
   doc.space(6);
-  doc.grayBar('Approvals');
+  doc.grayBar('Acknowledgement / Approvals');
+  /* This sentence is the reason an employee can sign a separation form
+     without it meaning they agree with it. It belongs on the copy they keep,
+     not only on the screen the supervisor filled in. */
+  doc.note('Employee signature acknowledges receipt and does not necessarily indicate agreement.');
   const employeeItem = model.employeeRefusedToSign
     ? { label: 'Employee Signature', note: 'Refused / Unavailable to Sign' }
     : {

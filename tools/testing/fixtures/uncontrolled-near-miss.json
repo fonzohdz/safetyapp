@@ -12,7 +12,7 @@
   "reportedToSupervisorDateTime": "2026-08-06T12:20",
   "eventClassifications": ["Equipment / Mechanical Failure (not misuse)"],
   "eventClassificationOther": "",
-  "eventOutcomes": ["Near Miss"],
+  "eventOutcomes": ["Near Miss (no damage/injury)"],
   "eventOutcomeOther": "",
   "estimatedCost": "",
   "whatHappened": "A tag line on a suspended load slipped loose momentarily while repositioning material near the laydown yard. No contact occurred; the load was re-secured immediately.",

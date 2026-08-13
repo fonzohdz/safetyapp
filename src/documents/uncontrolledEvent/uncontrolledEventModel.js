@@ -23,26 +23,65 @@ function localDateTimeNow() {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/* Labels are the paper form's, parentheticals included. Those parentheticals
+   are decision aids, not decoration: "(no damage/injury)" is what defines a
+   Near Miss, and "(record separately)" is what tells a superintendent an
+   injury still needs its own record. Four of them had been dropped while the
+   others were kept — see the 2026-08-12 source-fidelity audit.
+
+   These strings are also the stored values in a saved draft, so renaming one
+   orphans an existing selection. migrateUncontrolledEventShape() below
+   rewrites old drafts; do not rename an option without adding it there. */
 export const EVENT_CLASSIFICATIONS = [
-  'Weather / Natural',
+  'Weather / Natural (wind, lightning, flood, heat/cold)',
   'Utility / Power / Communications',
   'Third-Party Traffic / Public / Delivery',
   'Equipment / Mechanical Failure (not misuse)',
-  'Site Condition Change',
+  'Site Condition Change (ground, erosion, collapse)',
   'Medical Event / Illness (non-occupational)',
   'Wildlife / Environmental',
   'Other',
 ];
 
+/* The one outcome the app reacts to — it raises the cross-report reminder in
+   UncontrolledEventWorkflow. Named, because a workflow that matched the
+   display string directly would silently stop reminding anyone the next time
+   the label is reworded. */
+export const OUTCOME_INJURY = 'Injury / Illness (record separately)';
+
 export const EVENT_OUTCOMES = [
-  'Near Miss',
+  'Near Miss (no damage/injury)',
   'Operational Delay / Shutdown',
   'Property Damage',
   'Environmental Release / Spill',
-  'Injury / Illness',
+  OUTCOME_INJURY,
   'Security / Trespass',
   'Other',
 ];
+
+/* Options renamed on 2026-08-12 to restore the source form's parentheticals,
+   old stored value -> current one. */
+const RENAMED_OPTIONS = {
+  'Weather / Natural': 'Weather / Natural (wind, lightning, flood, heat/cold)',
+  'Site Condition Change': 'Site Condition Change (ground, erosion, collapse)',
+  'Near Miss': 'Near Miss (no damage/injury)',
+  'Injury / Illness': 'Injury / Illness (record separately)',
+};
+
+/* A saved draft stores the option LABEL, so restoring the parentheticals
+   would silently untick a selection made before that change — the checkbox
+   would print empty and the superintendent's answer would be gone. Rewriting
+   on load keeps those answers. Idempotent: a current-shape draft's values
+   aren't in the map and pass through untouched. */
+export function migrateUncontrolledEventShape(raw) {
+  if (!raw) return raw;
+  const rename = list => (Array.isArray(list) ? list.map(v => RENAMED_OPTIONS[v] || v) : list);
+  return {
+    ...raw,
+    eventClassifications: rename(raw.eventClassifications),
+    eventOutcomes: rename(raw.eventOutcomes),
+  };
+}
 
 export const NOTIFICATION_OPTIONS = [
   'Supervisor',

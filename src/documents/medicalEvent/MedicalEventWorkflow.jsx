@@ -83,6 +83,9 @@ function StepEvaluation({ model, upd, prev, next }) {
         )}
         <Field label="Clinic / Provider" value={model.clinicProvider} onChange={v => upd({ clinicProvider: v })} />
         <SegmentedToggle label="Work Status" value={model.workStatus} onChange={v => upd({ workStatus: v })} options={WORK_STATUS_OPTIONS} />
+        {model.workStatus === 'fullDuty' && (
+          <Field label="Full Duty On" type="date" value={model.fullDutyOnDate} onChange={v => upd({ fullDutyOnDate: v })} />
+        )}
         {model.workStatus === 'offWork' && (
           <Field label="Off Work Until" type="date" value={model.offWorkUntilDate} onChange={v => upd({ offWorkUntilDate: v })} />
         )}
@@ -118,14 +121,17 @@ function StepEvaluation({ model, upd, prev, next }) {
 
       <div className="formSection">
         <span className="formSectionHeading">Signatures</span>
+        <p className="helperText">Leave a name blank to print the employee/supervisor named at the top of the form.</p>
         <div className="formPairRow">
           <SignaturePad label="Employee Signature (if able)" value={model.employeeSignatureData} onChange={data => upd({ employeeSignatureData: data, employeeSignatureDate: data ? new Date().toISOString().slice(0, 10) : model.employeeSignatureDate })} />
           <Field label="Employee Signature Date" type="date" value={model.employeeSignatureDate} onChange={v => upd({ employeeSignatureDate: v })} />
         </div>
+        <Field label="Employee Name (printed)" value={model.employeeSignatureName} placeholder={model.employeeName} onChange={v => upd({ employeeSignatureName: v })} />
         <div className="formPairRow">
-          <SignaturePad label="Supervisor / Safety Signature" value={model.supervisorSignatureData} onChange={data => upd({ supervisorSignatureData: data, supervisorSignatureDate: data ? new Date().toISOString().slice(0, 10) : model.supervisorSignatureDate })} />
+          <SignaturePad label="Safety / Supervisor Signature" value={model.supervisorSignatureData} onChange={data => upd({ supervisorSignatureData: data, supervisorSignatureDate: data ? new Date().toISOString().slice(0, 10) : model.supervisorSignatureDate })} />
           <Field label="Supervisor Signature Date" type="date" value={model.supervisorSignatureDate} onChange={v => upd({ supervisorSignatureDate: v })} />
         </div>
+        <Field label="Safety / Supervisor Name (printed)" value={model.supervisorSignatureName} placeholder={model.supervisor} onChange={v => upd({ supervisorSignatureName: v })} />
       </div>
 
       <StepFooter hasBack hasNext onBack={prev} onNext={next} nextLabel="Go to Review" />

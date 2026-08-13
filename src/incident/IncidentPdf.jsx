@@ -198,7 +198,10 @@ export function Page2Content({ incident }) {
         [label('Name, Title, Years in Company & Current Trade', '38%'), value(na([incident.injuredPartyName, incident.injuredPartyTitle, incident.injuredPartyYearsWithCompany, incident.injuredPartyCurrentTrade].filter(Boolean).join(' \u2022 ')))],
         [label('Contact Info (phone)', '38%'), value(na(incident.injuredPartyPhone))],
         [label('Contact Info (email)', '38%'), value(na(incident.injuredPartyEmail))],
-        [label('Nature of Injury', '38%'), value(na((incident.injuryNature || []).join(', ') + (incident.injuryNature?.includes('Other') && incident.injuryNatureOther ? ` (${incident.injuryNatureOther})` : '')))],
+        // The paper form says "circle one"; this app deliberately allows more
+        // than one, because a real injury is often a laceration AND a burn.
+        // The printed label says so rather than contradicting the page.
+        [label('Nature of Injury (select all that apply)', '38%'), value(na((incident.injuryNature || []).join(', ') + (incident.injuryNature?.includes('Other') && incident.injuryNatureOther ? ` (${incident.injuryNatureOther})` : '')))],
         [label('Body Part(s) Affected', '38%'), value(na(incident.bodyPartsAffectedText))],
         [label('Treatment', '38%'), value(na(incident.treatmentLevel === 'firstAid' ? 'First aid' : incident.treatmentLevel === 'beyondFirstAid' ? 'Services beyond first aid' : ''))],
         [label('Physician/Clinic for First Aid Treatment', '38%'), value(na(incident.treatingPhysicianOrClinic))],

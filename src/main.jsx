@@ -31,7 +31,7 @@ import { drawMedicalEventPdf } from './documents/medicalEvent/medicalEventPdfDra
 import { drawUncontrolledEventPdf } from './documents/uncontrolledEvent/uncontrolledEventPdfDraw';
 import {
   emptyUncontrolledEvent, hasMeaningfulUncontrolledEventContent, isUncontrolledEventReady, isUncontrolledEventPrintFinal,
-  buildUncontrolledEventExportName,
+  buildUncontrolledEventExportName, migrateUncontrolledEventShape,
 } from './documents/uncontrolledEvent/uncontrolledEventModel';
 import UncontrolledEventWorkflow from './documents/uncontrolledEvent/UncontrolledEventWorkflow';
 import { UncontrolledEventPdfExportRoot } from './documents/uncontrolledEvent/UncontrolledEventPdf';
@@ -1246,6 +1246,7 @@ function App() {
     storageKey: DOCUMENT_STORAGE_KEYS.uncontrolledEvent,
     emptyModel: emptyUncontrolledEvent,
     hasMeaningfulContent: hasMeaningfulUncontrolledEventContent,
+    migrateShape: migrateUncontrolledEventShape,
     firstStepId: 'event',
     active: activeDoc === 'uncontrolledEvent',
   });

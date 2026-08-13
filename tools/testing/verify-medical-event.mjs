@@ -129,7 +129,7 @@ async function main() {
       // Only the Supervisor/Safety signature is required — sign that one
       // (employee "if able" is deliberately left blank in this run to
       // exercise the optional-employee-signature path).
-      await page.locator('.signaturePad', { hasText: 'Supervisor / Safety Signature' }).getByRole('button', { name: 'Add signature' }).click();
+      await page.locator('.signaturePad', { hasText: 'Safety / Supervisor Signature' }).getByRole('button', { name: 'Add signature' }).click();
       await drawSignature(page);
 
       await page.getByRole('button', { name: 'Go to Review' }).click();
@@ -306,7 +306,7 @@ async function main() {
       await page.getByRole('textbox', { name: 'What did safety/supervision observe and do?' }).fill('Moved employee to shade and monitored.');
       await page.getByRole('button', { name: 'Next' }).click();
       await page.waitForSelector('text=Evaluation & Classification');
-      await page.locator('.signaturePad', { hasText: 'Supervisor / Safety Signature' }).getByRole('button', { name: 'Add signature' }).click();
+      await page.locator('.signaturePad', { hasText: 'Safety / Supervisor Signature' }).getByRole('button', { name: 'Add signature' }).click();
       const canvas = page.locator('canvas.signatureCanvas').first();
       await canvas.scrollIntoViewIfNeeded();
       await page.waitForTimeout(200);
@@ -349,7 +349,7 @@ async function main() {
       await page.getByRole('button', { name: 'Next' }).click();
       await page.waitForSelector('text=Evaluation & Classification');
       await page.getByRole('button', { name: 'Non-Occupational Medical Event', exact: true }).click();
-      await page.locator('.signaturePad', { hasText: 'Supervisor / Safety Signature' }).getByRole('button', { name: 'Add signature' }).click();
+      await page.locator('.signaturePad', { hasText: 'Safety / Supervisor Signature' }).getByRole('button', { name: 'Add signature' }).click();
       const canvas = page.locator('canvas.signatureCanvas').first();
       await canvas.scrollIntoViewIfNeeded();
       const box = await canvas.boundingBox();

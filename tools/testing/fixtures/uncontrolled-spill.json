@@ -10,7 +10,7 @@
   "weatherConditions": "Light rain",
   "reportWrittenDateTime": "2026-08-05T09:35",
   "reportedToSupervisorDateTime": "2026-08-05T09:05",
-  "eventClassifications": ["Equipment / Mechanical Failure (not misuse)", "Site Condition Change"],
+  "eventClassifications": ["Equipment / Mechanical Failure (not misuse)", "Site Condition Change (ground, erosion, collapse)"],
   "eventClassificationOther": "",
   "eventOutcomes": ["Environmental Release / Spill", "Property Damage"],
   "eventOutcomeOther": "",

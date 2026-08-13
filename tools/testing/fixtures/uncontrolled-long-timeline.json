@@ -12,7 +12,7 @@
   "reportedToSupervisorDateTime": "2026-08-05T09:05",
   "eventClassifications": [
     "Equipment / Mechanical Failure (not misuse)",
-    "Site Condition Change"
+    "Site Condition Change (ground, erosion, collapse)"
   ],
   "eventClassificationOther": "",
   "eventOutcomes": [

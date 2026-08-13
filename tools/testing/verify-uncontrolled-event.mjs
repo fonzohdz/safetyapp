@@ -9,7 +9,7 @@ import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
 import { killTree } from './lib/killTree.mjs';
 import { downloadGeneratedPdf } from './lib/downloadPdf.mjs';
-import { checkPdfContract } from './lib/pdfContract.mjs';
+import { checkPdfContract, checkedOptions } from './lib/pdfContract.mjs';
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -76,15 +76,15 @@ async function main() {
       await page.waitForSelector('text=Event Info & Classification');
 
       await page.getByRole('textbox', { name: 'Workplace Location / Project', exact: true }).fill('Ridgeland, MS Test Site');
-      await page.getByRole('button', { name: 'Weather / Natural', exact: true }).click();
-      await page.getByRole('button', { name: 'Near Miss', exact: true }).click();
+      await page.getByRole('button', { name: 'Weather / Natural (wind, lightning, flood, heat/cold)', exact: true }).click();
+      await page.getByRole('button', { name: 'Near Miss (no damage/injury)', exact: true }).click();
 
       const injuryNotice = await page.locator('.pdfStaleWarning', { hasText: 'Injury/Illness' }).count();
       check(injuryNotice === 0, 'No injury cross-report notice shown when Injury/Illness not selected');
-      await page.getByRole('button', { name: 'Injury / Illness', exact: true }).click();
+      await page.getByRole('button', { name: 'Injury / Illness (record separately)', exact: true }).click();
       await page.waitForSelector('.pdfStaleWarning:has-text("Injury/Illness")');
       check(true, 'Injury cross-report notice appears once Injury/Illness outcome is selected');
-      await page.getByRole('button', { name: 'Injury / Illness', exact: true }).click(); // deselect for the rest of this run
+      await page.getByRole('button', { name: 'Injury / Illness (record separately)', exact: true }).click(); // deselect for the rest of this run
 
       await page.getByRole('button', { name: 'Next' }).click();
       await page.waitForSelector('text=Narrative & Notifications');
@@ -188,6 +188,46 @@ async function main() {
       await context.close();
     }
 
+    // ── 2b. Renamed options must survive in an already-saved draft ──
+    //
+    // Restoring the source form's parentheticals ("Near Miss" ->
+    // "Near Miss (no damage/injury)") changes the string a draft has already
+    // stored. Without migrateUncontrolledEventShape() the old value stops
+    // matching any option, so the box prints empty and the superintendent's
+    // answer is gone with nothing to show it ever existed.
+    console.log('\n=== 2b. Pre-rename draft keeps its selections ===');
+    {
+      const legacy = JSON.stringify({
+        ...JSON.parse(loadFixture('uncontrolled-spill.json')),
+        status: 'draft',
+        eventClassifications: ['Weather / Natural', 'Site Condition Change'],
+        eventOutcomes: ['Near Miss', 'Injury / Illness'],
+      });
+      const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+      await context.addInitScript(json => window.localStorage.setItem('sdc.uncontrolled.draft.v1', json), legacy);
+      const page = await context.newPage();
+      await page.goto(BASE_URL, { waitUntil: 'networkidle' });
+      await page.locator('.sidebarNavItem, .mobileNavItem', { hasText: 'Drafts' }).first().click();
+      await page.locator('.listItem', { hasText: 'Brandon' }).getByRole('button', { name: 'Open Draft' }).click();
+      await page.getByRole('button', { name: 'Next' }).click().catch(() => {});
+      await page.getByRole('button', { name: 'Go to Review' }).click().catch(() => {});
+      await page.waitForSelector('text=Readiness', { timeout: 5000 }).catch(() => {});
+      await page.getByRole('button', { name: /Create Document/ }).click();
+      await page.waitForSelector('.pdfReadyPanel', { timeout: 30000 });
+      const { pdf } = await downloadGeneratedPdf(page, path.join(outDir, 'legacy-option-names.pdf'));
+      const ticked = checkedOptions(pdf);
+      for (const expected of [
+        'Weather / Natural (wind, lightning, flood, heat/cold)',
+        'Site Condition Change (ground, erosion, collapse)',
+        'Near Miss (no damage/injury)',
+        'Injury / Illness (record separately)',
+      ]) {
+        check(ticked.includes(expected), `Pre-rename draft still prints "${expected}" ticked`);
+      }
+      await page.evaluate(() => window.localStorage.clear());
+      await context.close();
+    }
+
     // ── 3. PDF fixtures: near miss / spill / long timeline ──
     console.log('\n=== 3. PDF fixtures (page count + no clipping) ===');
     const fixtures = [
@@ -285,8 +325,8 @@ async function main() {
       // (see src/incident/SignaturePad.jsx) with real CDP touch dispatch,
       // not synthetic JS calls into the component's internals.
       await page.getByRole('textbox', { name: 'Workplace Location / Project', exact: true }).fill('Touch Smoke Test Site');
-      await page.getByRole('button', { name: 'Weather / Natural', exact: true }).click();
-      await page.getByRole('button', { name: 'Near Miss', exact: true }).click();
+      await page.getByRole('button', { name: 'Weather / Natural (wind, lightning, flood, heat/cold)', exact: true }).click();
+      await page.getByRole('button', { name: 'Near Miss (no damage/injury)', exact: true }).click();
       await page.getByRole('button', { name: 'Next' }).click();
       await page.waitForSelector('text=Narrative & Notifications');
       await page.locator('.signaturePad button', { hasText: 'Add signature' }).first().click();
@@ -325,8 +365,8 @@ async function main() {
       await page.locator('.listItem', { hasText: 'Uncontrolled Event Report' }).getByRole('button', { name: 'Start' }).click();
       await page.waitForSelector('text=Event Info & Classification');
       await page.getByRole('textbox', { name: 'Workplace Location / Project', exact: true }).fill('Finish Lock Test Site');
-      await page.getByRole('button', { name: 'Weather / Natural', exact: true }).click();
-      await page.getByRole('button', { name: 'Near Miss', exact: true }).click();
+      await page.getByRole('button', { name: 'Weather / Natural (wind, lightning, flood, heat/cold)', exact: true }).click();
+      await page.getByRole('button', { name: 'Near Miss (no damage/injury)', exact: true }).click();
       await page.getByRole('button', { name: 'Next' }).click();
       await page.waitForSelector('text=Narrative & Notifications');
       await page.getByRole('textbox', { name: 'What Happened / Brief Summary / Timeline', exact: true }).fill('Test timeline.');

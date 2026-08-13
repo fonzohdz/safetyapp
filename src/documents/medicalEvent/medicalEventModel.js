@@ -97,6 +97,9 @@ export function emptyMedicalEvent() {
     medicalEvaluationOther: '',
     clinicProvider: '',
     workStatus: '', // '' | 'fullDuty' | 'restrictedDuty' | 'offWork' | 'pending'
+    // The paper form dates BOTH return-to-work outcomes: "Full Duty on: ___"
+    // and "Off Work Until: ___".
+    fullDutyOnDate: '',
     offWorkUntilDate: '',
     providerNoteAttached: false,
 
@@ -107,9 +110,15 @@ export function emptyMedicalEvent() {
     // Initial Classification (never auto-set by the app)
     initialClassification: '', // '' | 'nonOccupational' | 'workRelated' | 'pendingReview'
 
-    // Signatures
+    // Signatures. The paper form prints a NAME line above each signature.
+    // Left blank these fall back to the employee/supervisor named up top, so
+    // the printed form is never missing a name — but they stay editable,
+    // because the person who signs for Safety is not always the supervisor
+    // recorded in the employee information block.
+    employeeSignatureName: '',
     employeeSignatureData: null, // employee may not always be able to sign
     employeeSignatureDate: '',
+    supervisorSignatureName: '',
     supervisorSignatureData: null,
     supervisorSignatureDate: '',
 
@@ -127,7 +136,8 @@ export function hasMeaningfulMedicalEventContent(model) {
     model.employeeName, model.supervisor, model.position, model.projectLocation,
     model.reportedSymptoms, model.workEventDescription, model.responseActionsOther,
     model.safetyObservations, model.medicalEvaluationOther, model.clinicProvider,
-    model.offWorkUntilDate, model.attachmentOther,
+    model.fullDutyOnDate, model.offWorkUntilDate, model.attachmentOther,
+    model.employeeSignatureName, model.supervisorSignatureName,
   ].some(v => String(v || '').trim().length > 0)
     || Boolean(model.symptomsOnset) || Boolean(model.specificWorkEventReported)
     || Boolean(model.initialClassification) || Boolean(model.medicalEvaluationType)
@@ -153,7 +163,7 @@ export function getMedicalEventReadinessChecks(model) {
     { key: 'symptomsOnset', label: 'When symptoms first appeared', ok: has(model.symptomsOnset), step: 'condition' },
     { key: 'specificWorkEventReported', label: 'Specific work event/exposure question answered', ok: has(model.specificWorkEventReported), step: 'condition' },
     { key: 'initialClassification', label: 'Initial classification selected', ok: has(model.initialClassification), step: 'evaluation' },
-    { key: 'supervisorSignature', label: 'Supervisor / Safety signature', ok: Boolean(model.supervisorSignatureData), step: 'evaluation' },
+    { key: 'supervisorSignature', label: 'Safety / Supervisor signature', ok: Boolean(model.supervisorSignatureData), step: 'evaluation' },
   ];
   if (model.specificWorkEventReported === 'yes') {
     checks.push({ key: 'workEventDescription', label: 'Work event/exposure description', ok: has(model.workEventDescription), step: 'condition' });

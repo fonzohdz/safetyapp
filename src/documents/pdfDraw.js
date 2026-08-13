@@ -199,13 +199,31 @@ export async function createFormPdf({ formTitle, logoBytes, draft, watermarkText
       y += h;
     },
 
-    /* Subsection label — the bare bold caption above a field. */
-    fieldLabel(text) {
+    /* Subsection label — the bare bold caption above a field. Caps by
+       default, matching every other caption in the kit; `caps: false` keeps
+       the source form's own sentence where the paper reads as a sentence
+       rather than a label ("This notice serves as:"). */
+    fieldLabel(text, { caps = true } = {}) {
       const size = 9.5;
       const h = 13;
       ensure(h + 16);
-      drawTextAt(String(text).toUpperCase(), colX, y + centeredBaseline(h, size), size, bold);
+      drawTextAt(caps ? String(text).toUpperCase() : String(text), colX, y + centeredBaseline(h, size), size, bold);
       y += h;
+    },
+
+    /* A line of small print — an instruction or a legal note the paper form
+       carries. Not a label and not a field: it exists to be READ off the
+       printed page, which is why it belongs here and not only in the app's
+       on-screen helper text. */
+    note(text) {
+      const size = 8;
+      const lines = wrap(text, colW, size, italic);
+      ensure(lines.length * 10 + 4);
+      lines.forEach(ln => {
+        drawTextAt(ln, colX, y + topBaseline(2, size), size, italic, MUTED);
+        y += 10;
+      });
+      y += 2;
     },
 
     /* Rows of [label, value] or [label, value, label, value]. `labelW` is a
@@ -336,12 +354,20 @@ export async function createFormPdf({ formTitle, logoBytes, draft, watermarkText
     },
 
     /* One signature + date pair. The slot owns the single signing rule; the
-       caption below it draws none. */
-    signatureRow({ label: sigLabel, dateLabel = 'Date', image, dateValue, note }) {
+       caption below it draws none. `nameValue` prints a NAME line above the
+       signature, the way the paper Medical Event form asks for it. */
+    signatureRow({ label: sigLabel, dateLabel = 'Date', image, dateValue, note, nameValue }) {
       const slotH = 40;
       const capSize = 8;
       const capH = 12;
-      ensure(slotH + capH + 8);
+      ensure(slotH + capH + 8 + (nameValue !== undefined ? 18 : 0));
+      if (nameValue !== undefined) {
+        const nameH = 15;
+        drawTextAt('NAME', colX, y + topBaseline(4, capSize), capSize, font, MUTED);
+        drawTextAt(String(nameValue || ''), colX + 34, y + topBaseline(3, 10), 10, font);
+        line(colX + 30, y + nameH, colX + colW, y + nameH);
+        y += nameH + 3;
+      }
       y += 6;
       const gap = 12;
       const sigW = colW * 0.64;

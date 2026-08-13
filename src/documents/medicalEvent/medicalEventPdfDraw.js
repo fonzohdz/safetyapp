@@ -14,7 +14,7 @@ import {
   isMedicalEventPrintFinal,
 } from './medicalEventModel';
 
-const FORM_TITLE = 'EMPLOYEE MEDICAL EVENT';
+const FORM_TITLE = 'EMPLOYEE MEDICAL EVENT FORM';
 
 function optionLabel(options, v) {
   return options.find(o => o.value === v)?.label || '';
@@ -29,10 +29,11 @@ export async function drawMedicalEventPdf(model, onProgress) {
     draft: !isMedicalEventPrintFinal(model),
   });
 
+  // Field order is the paper form's.
   doc.infoTable([
-    ['Employee Name', model.employeeName, 'Date', fmtDate(model.eventDate)],
-    ['Supervisor', model.supervisor, 'Position', model.position],
-    ['Project / Location', model.projectLocation, 'Time Reported', model.timeReported],
+    ['Employee Name', model.employeeName, 'Supervisor', model.supervisor],
+    ['Position', model.position, 'Project / Location', model.projectLocation],
+    ['Date', fmtDate(model.eventDate), 'Time Reported', model.timeReported],
   ], 0.19);
 
   doc.space(6);
@@ -44,6 +45,10 @@ export async function drawMedicalEventPdf(model, onProgress) {
     ['Specific Work Event/Exposure Reported?',
       model.specificWorkEventReported === 'yes' ? 'Yes' : model.specificWorkEventReported === 'no' ? 'No' : ''],
   ], 0.4);
+  /* The routing rule off the paper form — a work-related medical event still
+     needs its own incident investigation, and this is where a supervisor
+     reads that weeks later. */
+  doc.note('If yes, complete the Incident Reporting and Investigation Form.');
   if (model.specificWorkEventReported === 'yes') {
     doc.space(4);
     doc.textBox({ title: 'Work Event / Exposure Reported', text: model.workEventDescription, minH: 30 });
@@ -69,7 +74,9 @@ export async function drawMedicalEventPdf(model, onProgress) {
     || (model.medicalEvaluationType === 'other' ? model.medicalEvaluationOther : '');
   const workStatusLabel = model.workStatus === 'offWork'
     ? `Off Work Until ${fmtDate(model.offWorkUntilDate)}`
-    : optionLabel(WORK_STATUS_OPTIONS, model.workStatus);
+    : model.workStatus === 'fullDuty' && model.fullDutyOnDate
+      ? `Full Duty on ${fmtDate(model.fullDutyOnDate)}`
+      : optionLabel(WORK_STATUS_OPTIONS, model.workStatus);
   doc.infoTable([
     ['Medical Evaluation', evalLabel, 'Clinic / Provider', model.clinicProvider],
   ], 0.19);
@@ -99,13 +106,18 @@ export async function drawMedicalEventPdf(model, onProgress) {
 
   doc.space(6);
   doc.grayBar('Signatures');
+  /* The paper form prints Name above Signature and Date for both signers.
+     A blank name falls back to whoever is already named up top, so the
+     printed form never carries an empty NAME line. */
   doc.signatureRow({
     label: 'Employee Signature (if able)',
+    nameValue: model.employeeSignatureName || model.employeeName,
     image: await doc.embedSignature(model.employeeSignatureData),
     dateValue: fmtDate(model.employeeSignatureDate),
   });
   doc.signatureRow({
-    label: 'Supervisor / Safety Signature',
+    label: 'Safety / Supervisor Signature',
+    nameValue: model.supervisorSignatureName || model.supervisor,
     image: await doc.embedSignature(model.supervisorSignatureData),
     dateValue: fmtDate(model.supervisorSignatureDate),
   });

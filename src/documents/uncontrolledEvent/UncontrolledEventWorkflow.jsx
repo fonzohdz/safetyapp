@@ -1,6 +1,6 @@
 import {
   UNCONTROLLED_EVENT_STEPS, uncontrolledEventStepStatus,
-  EVENT_CLASSIFICATIONS, EVENT_OUTCOMES, NOTIFICATION_OPTIONS, ATTACHMENT_OPTIONS,
+  EVENT_CLASSIFICATIONS, EVENT_OUTCOMES, NOTIFICATION_OPTIONS, ATTACHMENT_OPTIONS, OUTCOME_INJURY,
   getUncontrolledEventReadinessChecks, isUncontrolledEventReady, isUncontrolledEventPrintFinal,
 } from './uncontrolledEventModel';
 import {
@@ -42,7 +42,7 @@ function StepEvent({ model, upd, next }) {
       {(model.eventOutcomes || []).includes('Other') && (
         <Field label="Other outcome — specify" value={model.eventOutcomeOther} onChange={v => upd({ eventOutcomeOther: v })} />
       )}
-      {(model.eventOutcomes || []).includes('Injury / Illness') && (
+      {(model.eventOutcomes || []).includes(OUTCOME_INJURY) && (
         <div className="pdfStaleWarning">
           <strong>Injury/Illness selected.</strong>
           <p>An Incident Report may also be required for an injury/illness — this form does not replace it. Complete the Incident Reporting and Investigation Form separately if applicable.</p>
