@@ -1191,7 +1191,6 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   .workflowShell.withStepNav.withPreview {
     grid-template-columns: 1fr;
   }
-  .stepNav { position: static; }
 }
 .workflowLeft { display: grid; gap: 18px; min-width: 0; }
 /* top matches .page's own responsive top padding (clamp 22-32px);
@@ -1261,6 +1260,19 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   min-width: 0;
   position: sticky;
   top: 24px;
+}
+/* Below 900px the step list stacks above the content instead of sitting in
+   its own column (see .workflowShell.withStepNav above) -- sticky only
+   makes sense in that side column layout. This override MUST come after
+   the base .stepNav rule above: same specificity, so source order decides,
+   and a duplicate of this same override previously sat earlier in the file
+   (next to the grid-template-columns responsive rule) where the later base
+   rule always beat it, leaving every document's step list pinned on top of
+   the page on real phones/narrow viewports while the content scrolled
+   underneath it -- invisible on short screens, glaringly visible once a
+   screen (e.g. Review with its facsimile panel) got tall enough to scroll. */
+@media (max-width: 900px) {
+  .stepNav { position: static; }
 }
 .stepNavHead {
   padding: 0 10px 4px;
