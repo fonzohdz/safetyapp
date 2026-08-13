@@ -94,7 +94,7 @@ async function main() {
 
       await page.goto(BASE_URL, { waitUntil: 'domcontentloaded' });
       await page.waitForSelector('.homeLayout');
-      await page.getByRole('button', { name: 'Start Blank' }).click();
+      await page.getByRole('button', { name: 'Start JSA' }).click();
       await page.waitForTimeout(200);
 
       // Job Info step: short Field()s only, no mic anywhere.
@@ -141,7 +141,7 @@ async function main() {
       page.on('dialog', d => d.accept());
       await page.goto(BASE_URL, { waitUntil: 'domcontentloaded' });
       await page.waitForSelector('.homeLayout');
-      await page.getByRole('button', { name: 'Start Blank' }).click();
+      await page.getByRole('button', { name: 'Start JSA' }).click();
       await page.getByRole('tab', { name: /Meeting Info/ }).click();
       await page.waitForTimeout(150);
       check(await page.locator('.voiceBtn').count() === 0, 'No mic buttons rendered when SpeechRecognition is unsupported');
@@ -168,7 +168,7 @@ async function main() {
 
       await page.goto(BASE_URL, { waitUntil: 'domcontentloaded' });
       await page.waitForSelector('.homeLayout');
-      await page.getByRole('button', { name: 'Start Blank' }).click();
+      await page.getByRole('button', { name: 'Start JSA' }).click();
       await page.getByRole('tab', { name: /Meeting Info/ }).click();
       await page.waitForTimeout(150);
 
@@ -210,7 +210,7 @@ async function main() {
       page.on('dialog', d => d.accept());
       await page.goto(BASE_URL, { waitUntil: 'domcontentloaded' });
       await page.waitForSelector('.homeLayout');
-      await page.getByRole('button', { name: 'Start Blank' }).click();
+      await page.getByRole('button', { name: 'Start JSA' }).click();
       await page.getByRole('tab', { name: /Meeting Info/ }).click();
       await page.waitForTimeout(150);
 
@@ -236,7 +236,7 @@ async function main() {
       page.on('dialog', d => d.accept());
       await page.goto(BASE_URL, { waitUntil: 'domcontentloaded' });
       await page.waitForSelector('.homeLayout');
-      await page.getByRole('button', { name: 'Start Blank' }).click();
+      await page.getByRole('button', { name: 'Start JSA' }).click();
       await page.getByRole('tab', { name: /Meeting Info/ }).click();
       await page.waitForTimeout(150);
       const micBtn = page.locator('label.field', { hasText: 'Tailgate Safety Topic' }).getByRole('button', { name: 'Dictate this field' });

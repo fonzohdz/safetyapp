@@ -119,7 +119,7 @@ async function main() {
 
     await page.goto(BASE_URL, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('.homeLayout');
-    await page.getByRole('button', { name: 'Start Blank' }).click();
+    await page.getByRole('button', { name: 'Start JSA' }).click();
     await page.waitForTimeout(200);
 
     // ── 1. Narrative field is NOT list-split (mode isolation) ──

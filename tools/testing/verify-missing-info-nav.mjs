@@ -60,7 +60,7 @@ async function main() {
     console.log('\n=== JSA ===');
     await page.goto(BASE_URL, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('.homeLayout');
-    await page.getByRole('button', { name: 'Start Blank' }).click();
+    await page.getByRole('button', { name: 'Start JSA' }).click();
     await page.waitForTimeout(150);
     await page.getByRole('tab', { name: /Review/ }).click();
     await page.waitForTimeout(150);
