@@ -69,9 +69,11 @@ function StepNotice({ model, upd, next }) {
         <TextAreaField label="What company rule or policy applies?" rows={3} value={model.companyPolicyStates} onChange={v => upd({ companyPolicyStates: v })} voice />
       </NumberedSection>
 
-      <NumberedSection number={4} title="Employee Statement" help="Write down what the employee says, in their own words — don't summarize or rephrase it.">
-        <TextAreaField label="What does the employee say happened?" rows={4} value={model.employeeStatement} onChange={v => upd({ employeeStatement: v })} voice />
-      </NumberedSection>
+      {!isVerbalWarning(model) && (
+        <NumberedSection number={4} title="Employee Statement" help="Write down what the employee says, in their own words — don't summarize or rephrase it.">
+          <TextAreaField label="What does the employee say happened?" rows={4} value={model.employeeStatement} onChange={v => upd({ employeeStatement: v })} voice />
+        </NumberedSection>
+      )}
 
       <StepFooter hasNext onNext={next} />
     </StepPanel>

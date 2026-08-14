@@ -77,6 +77,10 @@ async function main() {
     await page.waitForSelector('text=Corrective Action');
     await page.getByRole('textbox', { name: 'What must the employee do to correct this?', exact: true }).fill('Raise concerns privately with a supervisor instead of talking back during group meetings.');
 
+    // No Employee Statement section either -- it's a coaching conversation,
+    // not a formal statement being taken down.
+    check(await page.locator('text=Employee Statement').count() === 0, 'No "Employee Statement" section rendered for a Verbal Warning');
+
     // The core behavior under test: no employee signature pad/toggle at all
     // for a Verbal Warning, just the explanatory note and the manager pad.
     const employeeSigPad = page.locator('.signaturePad', { hasText: 'Employee Signature' });
@@ -121,7 +125,11 @@ async function main() {
         'Verbal Warning — No Employee Signature Required',
         'Spoke out disruptively during the morning safety meeting after another employee was corrected about turning in a radio.',
         'Raise concerns privately with a supervisor instead of talking back during group meetings.',
+        // Section 5 keeps its original number (no renumbering) even though
+        // section 4 is skipped for Verbal.
+        '5. CORRECTIVE ACTION THAT MUST BE TAKEN BY THE EMPLOYEE',
       ],
+      mustNotContain: ['EMPLOYEE STATEMENT'],
     });
     contract.forEach(r => check(r.ok, r.label));
     // Logo + manager signature only -- no employee signature image.

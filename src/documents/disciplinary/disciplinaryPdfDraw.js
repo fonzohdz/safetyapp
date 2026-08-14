@@ -32,6 +32,14 @@ const SECTIONS = [
   [7, 'If behavior is not corrected/performance does not improve', 'ifNotCorrected'],
 ];
 
+// A verbal warning is a coaching conversation -- there's no formal statement
+// to take down, so section 4 is skipped (numbering intentionally keeps its
+// gap rather than renumbering, matching the paper form's own section
+// numbers used elsewhere, e.g. the "Section 5" readiness-check label).
+function sectionsForModel(model) {
+  return isVerbalWarning(model) ? SECTIONS.filter(([number]) => number !== 4) : SECTIONS;
+}
+
 export async function drawDisciplinaryPdf(model, onProgress) {
   onProgress?.(1, 1);
   const logoBytes = await loadLogoPngBytes(`${import.meta.env.BASE_URL}icons/shackelford-logo.webp`);
@@ -56,7 +64,7 @@ export async function drawDisciplinaryPdf(model, onProgress) {
     columns: 4,
   });
 
-  for (const [number, title, field] of SECTIONS) {
+  for (const [number, title, field] of sectionsForModel(model)) {
     doc.space(5);
     doc.numberedBar(number, title);
     // 40pt ~= two written lines plus padding. Sized so a notice with short
@@ -102,7 +110,7 @@ export function disciplinaryFacsimileBlocks(model) {
     columns: 4,
   });
 
-  for (const [number, title, field] of SECTIONS) {
+  for (const [number, title, field] of sectionsForModel(model)) {
     blocks.push({ type: 'numberedBar', number, text: title });
     blocks.push({ type: 'textBox', text: model[field] });
   }
