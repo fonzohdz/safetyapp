@@ -111,7 +111,10 @@ async function main() {
     console.log(`[6/7] PDF ready: ${readyHeadline} (${readyFilename})`);
 
     const downloadPromise = page.waitForEvent('download');
-    await page.locator('button:has-text("Download Document")').click();
+    // Scoped to .pdfReadyPanel -- a second "Download Document" button now
+    // also exists elsewhere on the Review step (unrelated to this script),
+    // so the old unscoped locator became ambiguous.
+    await page.locator('.pdfReadyPanel button:has-text("Download Document")').click();
     const download = await downloadPromise;
     const pdfPath = path.join(outDir, 'entergy-taps-generated.pdf');
     await download.saveAs(pdfPath);

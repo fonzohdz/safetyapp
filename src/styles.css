@@ -2650,11 +2650,20 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   .attachedSigLine {
     min-height: 0;
     height: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
     border-right: 1px solid #000;
     border-bottom: 1px solid #000;
     padding: 5px 7px;
     font-size: 10px;
   }
+  .attachedSigLineNum { flex: 0 0 auto; }
+  /* A captured kiosk signature ("printer ink," per Fonzo) prints inline next
+     to its number -- object-fit: contain so it scales down cleanly whether
+     the sheet has 8 lines/page (tall rows) or 40 (short rows), never
+     stretches or overflows into the border. */
+  .attachedSigLineImg { flex: 1 1 auto; max-width: 100%; max-height: 90%; object-fit: contain; object-position: left center; }
 
   /* .printFooter itself: no rule needed here -- the unconditional
      .documentPage .printFooter, .printPage .printFooter rule (higher
@@ -2854,11 +2863,16 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 .pdfExportRoot .attachedSigLine {
   min-height: 0;
   height: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   border-right: 1px solid #000;
   border-bottom: 1px solid #000;
   padding: 5px 7px;
   font-size: 10px;
 }
+.pdfExportRoot .attachedSigLineNum { flex: 0 0 auto; }
+.pdfExportRoot .attachedSigLineImg { flex: 1 1 auto; max-width: 100%; max-height: 90%; object-fit: contain; object-position: left center; }
 .pdfExportRoot .mainJsaPage .taskTableFill,
 .pdfExportRoot .continuationPage .continuationTaskTable { flex: 1 0 auto; }
 .pdfExportRoot .printFooter { flex: 0 0 auto; }

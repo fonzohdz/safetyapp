@@ -50,6 +50,19 @@ export default function CrewSignInKiosk({ jsa, upd, onExit }) {
   const signedCount = jsa.crewSignatures?.length || 0;
   const currentNumber = signedCount + 1;
 
+  // Header number deliberately does NOT track currentNumber live -- during
+  // the 'confirmed' overlay, currentNumber has already bumped to the NEXT
+  // signer (crewSignatures grew the instant upd() ran), which would show
+  // "Sign Here — #2" behind a "Signed, pass it along" message for #1 still
+  // on screen. Holding headerNumber back until phase returns to 'signing'
+  // means the header and the blank pad flip to the next signer together, in
+  // one beat, instead of the header jumping ahead early (Fonzo's call,
+  // 2026-08-14).
+  const [headerNumber, setHeaderNumber] = useState(currentNumber);
+  useEffect(() => {
+    if (phase === 'signing') setHeaderNumber(currentNumber);
+  }, [phase, currentNumber]);
+
   useEffect(() => {
     function computeWidth() {
       const w = wrapRef.current ? wrapRef.current.clientWidth : 320;
@@ -233,7 +246,7 @@ export default function CrewSignInKiosk({ jsa, upd, onExit }) {
       <div className="crewKioskBody">
         <div className="crewKioskHead">
           <span className="crewKioskEyebrow">Crew Sign-In</span>
-          <h1 className="crewKioskNumber">Sign Here — #{currentNumber}</h1>
+          <h1 className="crewKioskNumber">Sign Here — #{headerNumber}</h1>
           <p className="crewKioskHint">Sign your name below, then tap Confirm &amp; Next.</p>
         </div>
         {/* The canvas stays mounted across both phases on purpose -- when it

@@ -342,17 +342,39 @@ function paginateTaskContent(jsa) {
     mainUsed,
   };
 }
-function getSignaturePages(signatureLineCount) {
-  const count = Math.max(1, Math.min(100, Number(signatureLineCount) || 1));
+// Once the crew kiosk has captured digital signatures, the printed sheet
+// leads with those (numbered, filled in with the actual signature image --
+// "printer ink"), then signatureLineCount blank lines after them for anyone
+// who signs in person later ("pen ink"). Before any kiosk signatures exist,
+// signatureLineCount means what it always has: the sheet's total blank line
+// count -- unchanged, so existing JSAs that never touch the kiosk print
+// exactly as before. Deliberately uncapped by signatureLineCount's own
+// 1-100 UI clamp: every real captured signature must appear on the printed
+// record, never silently truncated (see CLAUDE.md's data-integrity
+// priority) -- only the manually-typed "extra blank lines" count is capped.
+// Shared by getSignaturePages and MainJsaDocumentPage's own "generated for
+// N signatures" note, so the two can't drift apart.
+function signInLineTotal(jsa) {
+  const crew = Array.isArray(jsa.crewSignatures) ? jsa.crewSignatures : [];
+  const extraBlank = Math.max(1, Math.min(100, Number(jsa.signatureLineCount) || 1));
+  return crew.length > 0 ? crew.length + extraBlank : extraBlank;
+}
+function getSignaturePages(jsa) {
+  const crew = Array.isArray(jsa.crewSignatures) ? jsa.crewSignatures : [];
+  const total = signInLineTotal(jsa);
   const maxPerPage = 40;
-  const pageCount = Math.ceil(count / maxPerPage);
-  const baseSize = Math.floor(count / pageCount);
-  const extra = count % pageCount;
+  const pageCount = Math.ceil(total / maxPerPage);
+  const baseSize = Math.floor(total / pageCount);
+  const extra = total % pageCount;
   const pages = [];
   let next = 1;
   for (let i = 0; i < pageCount; i += 1) {
     const size = baseSize + (i < extra ? 1 : 0);
-    pages.push(Array.from({ length: size }, () => next++));
+    pages.push(Array.from({ length: size }, () => {
+      const n = next++;
+      const signed = crew[n - 1];
+      return signed ? { n, dataUrl: signed.dataUrl } : { n };
+    }));
   }
   return pages;
 }
@@ -363,7 +385,7 @@ function getSignaturePages(signatureLineCount) {
 // works exactly as before.
 function getPagePlan(jsa) {
   const taskPlan = paginateTaskContent(jsa);
-  const signInPages = getSignaturePages(jsa.signatureLineCount);
+  const signInPages = getSignaturePages(jsa);
   return {
     ...taskPlan,
     signInPages,
@@ -383,6 +405,10 @@ function fingerprintPaginationInput(jsa) {
     jsa.location, jsa.jobSite, jsa.timeIssued, jsa.timeExpired, jsa.date, jsa.jobNumber,
     jsa.superintendentForeman, jsa.emergencyPhone, jsa.client, jsa.nearestMedicalFacility,
     jsa.siteContactPhone, jsa.musterPoint, jsa.acknowledgement, jsa.signatureLineCount,
+    // crewSignatures only ever grows by append (see CrewSignInKiosk.jsx), so
+    // length alone fully captures "did the sign-in sheet's content change" --
+    // stringifying the actual dataUrls would be expensive for no benefit.
+    jsa.crewSignatures?.length || 0,
   ]);
 }
 /* Real rendered-height pagination — the packing algorithm is the same
@@ -480,7 +506,7 @@ function buildMeasuredPlan(jsa, measurements) {
 // only an initial fallback, never the final pagination authority.
 function resolvePagePlan(jsa, measurements) {
   const taskPlan = buildMeasuredPlan(jsa, measurements) || paginateTaskContent(jsa);
-  const signInPages = getSignaturePages(jsa.signatureLineCount);
+  const signInPages = getSignaturePages(jsa);
   return {
     ...taskPlan,
     signInPages,
@@ -861,7 +887,7 @@ function getReviewChecks(jsa, measurements) {
     { label: 'At least one task', ok: getContentRows(jsa).some(row => hasText(row.step)), step: 'work' },
     { label: 'Hazards identified', ok: getContentRows(jsa).some(row => hasText(row.hazards)), step: 'work' },
     { label: 'Controls identified', ok: getContentRows(jsa).some(row => hasText(row.controls)), step: 'work' },
-    { label: `Signature setup (${Math.max(1, Number(jsa.signatureLineCount) || 1)} lines)`, ok: Number(jsa.signatureLineCount) >= 1 && Number(jsa.signatureLineCount) <= 100, step: 'signatures' },
+    { label: `Signature setup (${signInLineTotal(jsa)} lines)`, ok: Number(jsa.signatureLineCount) >= 1 && Number(jsa.signatureLineCount) <= 100, step: 'signatures' },
     // No single earlier step reliably fixes an overflowing page plan (it can
     // require trimming any of meeting/work/signatures) -- left non-clickable
     // rather than guessing wrong.
@@ -3166,22 +3192,26 @@ function StepSignatures({ jsa, upd, sigCount, prev, next, onOpenKiosk }) {
           <TA label="Acknowledgement Text" value={jsa.acknowledgement} onChange={v => upd({ acknowledgement: v })} rows={6} />
           <div className="sigSetup">
             <label className="field">
-              <span>Number of Signature Lines</span>
+              <span>{crewSignedCount > 0 ? 'Extra Blank Lines (for late/in-person sign-ins)' : 'Number of Signature Lines'}</span>
               <input type="number" min="1" max="100" value={sigCount} onChange={e => upd({ signatureLineCount: Math.max(1, Math.min(100, Number(e.target.value) || 1)) })} />
-              <small>Signatures always print on a separate attached sign-in sheet, up to 40 lines per sheet.</small>
+              <small>
+                {crewSignedCount > 0
+                  ? 'Printed after the digital signatures below, blank, for anyone who signs in ink later.'
+                  : 'Signatures always print on a separate attached sign-in sheet, up to 40 lines per sheet.'}
+              </small>
             </label>
             <div className="sigRuleBox">
               <strong>Attached sign-in sheet will be generated.</strong>
-              <p>The main JSA will note an attached sign-in sheet. Requested lines: {sigCount}.</p>
+              <p>
+                {crewSignedCount > 0
+                  ? `${crewSignedCount} digital signature${crewSignedCount === 1 ? '' : 's'} print filled in, plus ${sigCount} blank line${sigCount === 1 ? '' : 's'} after them.`
+                  : `The main JSA will note an attached sign-in sheet. Requested lines: ${sigCount}.`}
+              </p>
             </div>
           </div>
-          {/* DESIGN PROTOTYPE (2026-08-13) -- digital crew sign-in via
-              CrewSignInKiosk. Not wired into the printed sign-in sheet yet
-              (that stays blank numbered lines for pen signing); this only
-              captures and stores signatures for review/testing. */}
           <div className="sigRuleBox">
-            <strong>Crew Sign-In (kiosk mode) — prototype</strong>
-            <p>{crewSignedCount === 0 ? 'No one has signed yet.' : `${crewSignedCount} crew member${crewSignedCount === 1 ? '' : 's'} signed so far.`}</p>
+            <strong>Crew Sign-In (kiosk mode)</strong>
+            <p>{crewSignedCount === 0 ? 'No one has signed yet.' : `${crewSignedCount} crew member${crewSignedCount === 1 ? '' : 's'} signed so far — their signatures will print on the attached sign-in sheet.`}</p>
             <button type="button" className="btn secondary sm" onClick={onOpenKiosk}>Start Crew Sign-In</button>
           </div>
         </div>
@@ -3845,7 +3875,7 @@ function PrintTaskTable({ rows, className = '' }) {
 }
 
 function MainJsaDocumentPage({ jsa, plan, className = '', pageRef }) {
-  const sigCount = Math.max(1, Math.min(100, Number(jsa.signatureLineCount) || 1));
+  const sigCount = signInLineTotal(jsa);
   return (
     <div className={`documentPage mainJsaPage ${className}`.trim()} ref={pageRef}>
       <PrintBrandHeader title="Job Safety Analysis" subtitle="JSA & Tailgate Meeting Form" pageNumber={1} totalPages={plan.totalPages} />
@@ -4464,7 +4494,12 @@ function AttachedSignIn({ jsa, pages, pageOffset, totalPages, getPageRef }) {
               </table>
               <div className="ackBlock signInAck"><strong>Acknowledgement:</strong> I have reviewed and understand the JSA and tailgate meeting information and will exercise stop work authority for unsafe acts, conditions, or hazards.</div>
               <div className="attachedSignatureGrid" style={{ '--signature-rows': rowCount }}>
-                {lines.map(n => <div className="attachedSigLine" key={n}>{n}.</div>)}
+                {lines.map(({ n, dataUrl }) => (
+                  <div className={`attachedSigLine${dataUrl ? ' attachedSigLineDigital' : ''}`} key={n}>
+                    <span className="attachedSigLineNum">{n}.</span>
+                    {dataUrl && <img className="attachedSigLineImg" src={dataUrl} alt="" />}
+                  </div>
+                ))}
               </div>
               <footer className="printFooter">Shackelford Construction and Hauling, LLC · Attached Sign-In Sheet</footer>
             </div>
