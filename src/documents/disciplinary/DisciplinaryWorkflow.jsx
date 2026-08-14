@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import {
   DISCIPLINARY_STEPS, WARNING_LEVELS,
-  getDisciplinaryReadinessChecks, isDisciplinaryReady, isDisciplinaryPrintFinal,
+  getDisciplinaryReadinessChecks, isDisciplinaryReady, isDisciplinaryPrintFinal, isVerbalWarning,
 } from './disciplinaryModel';
 import { disciplinaryFacsimileBlocks } from './disciplinaryPdfDraw';
 import {
@@ -96,11 +96,17 @@ function StepResponse({ model, upd, prev, next }) {
 
       <div className="formSection">
         <span className="formSectionHeading">Signatures</span>
-        <BooleanToggle label="Employee refused / unavailable to sign" value={model.employeeRefusedToSign} onChange={v => upd({ employeeRefusedToSign: v })} />
-        <div className="formPairRow">
-          <SignaturePad label="Employee Signature" value={model.employeeSignatureData} disabled={model.employeeRefusedToSign} onChange={data => upd({ employeeSignatureData: data, employeeSignatureDate: data ? new Date().toISOString().slice(0, 10) : model.employeeSignatureDate })} />
-          <Field label="Employee Signature Date" type="date" value={model.employeeSignatureDate} onChange={v => upd({ employeeSignatureDate: v })} disabled={model.employeeRefusedToSign} />
-        </div>
+        {isVerbalWarning(model) ? (
+          <p className="helperText">A verbal warning is a coaching conversation, not a signed notice — the employee doesn't sign this. Document what was said above; only the manager signs below.</p>
+        ) : (
+          <>
+            <BooleanToggle label="Employee refused / unavailable to sign" value={model.employeeRefusedToSign} onChange={v => upd({ employeeRefusedToSign: v })} />
+            <div className="formPairRow">
+              <SignaturePad label="Employee Signature" value={model.employeeSignatureData} disabled={model.employeeRefusedToSign} onChange={data => upd({ employeeSignatureData: data, employeeSignatureDate: data ? new Date().toISOString().slice(0, 10) : model.employeeSignatureDate })} />
+              <Field label="Employee Signature Date" type="date" value={model.employeeSignatureDate} onChange={v => upd({ employeeSignatureDate: v })} disabled={model.employeeRefusedToSign} />
+            </div>
+          </>
+        )}
         <div className="formPairRow">
           <SignaturePad label="Manager Signature" value={model.managerSignatureData} onChange={data => upd({ managerSignatureData: data, managerSignatureDate: data ? new Date().toISOString().slice(0, 10) : model.managerSignatureDate })} />
           <Field label="Manager Signature Date" type="date" value={model.managerSignatureDate} onChange={v => upd({ managerSignatureDate: v })} />

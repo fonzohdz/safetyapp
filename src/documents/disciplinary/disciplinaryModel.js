@@ -95,22 +95,33 @@ export const DISCIPLINARY_STEPS = [
   { id: 'review', label: 'Review & Export', helper: 'Save, generate, and share the PDF' },
 ];
 
+// A verbal warning is a coaching conversation, not a signed notice -- the
+// employee never signs it (see disciplinaryPdfDraw.js's employeeSigNote).
+export function isVerbalWarning(model) {
+  return model.warningLevel === 'verbal';
+}
+
 export function getDisciplinaryReadinessChecks(model) {
   const has = v => String(v || '').trim().length > 0;
-  return [
+  const checks = [
     { key: 'employeeName', label: 'Employee name', ok: has(model.employeeName), step: 'notice' },
     { key: 'supervisor', label: 'Supervisor', ok: has(model.supervisor), step: 'notice' },
     { key: 'noticeDate', label: 'Date', ok: has(model.noticeDate), step: 'notice' },
     { key: 'warningLevel', label: 'Warning level selected', ok: has(model.warningLevel), step: 'notice' },
     { key: 'whatOccurred', label: 'Section 1 — What occurred', ok: has(model.whatOccurred), step: 'notice' },
     { key: 'correctiveActionRequired', label: 'Section 5 — Corrective action required', ok: has(model.correctiveActionRequired), step: 'response' },
-    // An employee who won't sign doesn't mean the notice can't be finished —
-    // it means that has to be documented instead of a signature. Satisfied by
-    // either a captured signature or the explicit refused/unavailable flag,
-    // never by silently dropping the requirement (see employeeRefusedToSign).
-    { key: 'employeeSignature', label: 'Employee signature (or marked refused/unavailable)', ok: model.employeeRefusedToSign || Boolean(model.employeeSignatureData), step: 'response' },
-    { key: 'managerSignature', label: 'Manager signature', ok: Boolean(model.managerSignatureData), step: 'response' },
   ];
+  // An employee who won't sign doesn't mean the notice can't be finished --
+  // it means that has to be documented instead of a signature. Satisfied by
+  // either a captured signature or the explicit refused/unavailable flag,
+  // never by silently dropping the requirement (see employeeRefusedToSign).
+  // Verbal warnings skip this entirely -- there is nothing for the employee
+  // to sign.
+  if (!isVerbalWarning(model)) {
+    checks.push({ key: 'employeeSignature', label: 'Employee signature (or marked refused/unavailable)', ok: model.employeeRefusedToSign || Boolean(model.employeeSignatureData), step: 'response' });
+  }
+  checks.push({ key: 'managerSignature', label: 'Manager signature', ok: Boolean(model.managerSignatureData), step: 'response' });
+  return checks;
 }
 
 export function isDisciplinaryReady(model) {

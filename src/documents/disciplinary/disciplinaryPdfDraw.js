@@ -6,7 +6,17 @@
    See pdfDraw.js for why this exists and what it makes impossible. */
 
 import { createFormPdf, loadLogoPngBytes, fmtDate } from '../pdfDraw';
-import { WARNING_LEVELS, warningLevelLabel, isDisciplinaryPrintFinal } from './disciplinaryModel';
+import { WARNING_LEVELS, warningLevelLabel, isDisciplinaryPrintFinal, isVerbalWarning } from './disciplinaryModel';
+
+// Verbal warnings are a coaching conversation, not a signed notice -- the
+// employee never signs (see DisciplinaryWorkflow.jsx's StepResponse). Shared
+// by the real PDF draw and the review-screen facsimile so the two note texts
+// can't drift apart.
+function employeeSigNote(model) {
+  if (isVerbalWarning(model)) return 'Verbal Warning — No Employee Signature Required';
+  if (model.employeeRefusedToSign) return 'Refused / Unavailable to Sign';
+  return null;
+}
 
 const FORM_TITLE = 'EMPLOYEE DISCIPLINARY NOTICE FORM';
 
@@ -57,8 +67,9 @@ export async function drawDisciplinaryPdf(model, onProgress) {
 
   doc.space(8);
   doc.grayBar('Signatures');
-  doc.signatureRow(model.employeeRefusedToSign
-    ? { label: 'Employee Signature', note: 'Refused / Unavailable to Sign' }
+  const empNote = employeeSigNote(model);
+  doc.signatureRow(empNote
+    ? { label: 'Employee Signature', note: empNote }
     : {
       label: 'Employee Signature',
       image: await doc.embedSignature(model.employeeSignatureData),
@@ -97,11 +108,12 @@ export function disciplinaryFacsimileBlocks(model) {
   }
 
   blocks.push({ type: 'grayBar', text: 'Signatures' });
+  const empNote = employeeSigNote(model);
   blocks.push({
     type: 'signatureRow',
     label: 'Employee Signature',
-    ...(model.employeeRefusedToSign
-      ? { note: 'Refused / Unavailable to Sign' }
+    ...(empNote
+      ? { note: empNote }
       : { dataUrl: model.employeeSignatureData, dateValue: fmtDate(model.employeeSignatureDate) }),
   });
   blocks.push({
