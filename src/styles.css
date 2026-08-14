@@ -2867,3 +2867,125 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   --success: var(--good);
   --warning: var(--warn);
 }
+
+/* ── JSA Crew Sign-In Kiosk (design prototype, 2026-08-13) ──
+   Full-screen, locked, single-purpose -- see CrewSignInKiosk.jsx's own
+   header comment for the interaction design. Deliberately excluded from
+   print media (kiosk-only UI, never part of a printed page). */
+.crewKiosk {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: var(--navy, #0B1D2E);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+}
+.crewKioskExitHold {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+  padding: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.crewKioskExitHoldFill {
+  position: absolute;
+  inset: 0;
+  background: var(--crimson, #C51F3A);
+  transform-origin: left center;
+  transform: scaleX(0);
+  transition: transform 30ms linear;
+}
+.crewKioskBody {
+  width: 100%;
+  max-width: 760px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+}
+.crewKioskHead { text-align: center; display: grid; gap: 6px; }
+.crewKioskEyebrow {
+  font: 600 13px 'Barlow', sans-serif;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--text-on-navy-2, #B4C4D3);
+}
+.crewKioskNumber {
+  margin: 0;
+  font: 600 clamp(28px, 5vw, 44px)/1.1 var(--font-condensed, 'Barlow Condensed'), sans-serif;
+  text-transform: uppercase;
+  letter-spacing: .01em;
+}
+.crewKioskHint { margin: 0; font-size: 16px; color: var(--text-on-navy-2, #B4C4D3); }
+.crewKioskPadWrap {
+  position: relative;
+  width: 100%;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .35);
+}
+.crewKioskCanvas { display: block; touch-action: none; border-radius: 8px; }
+.crewKioskConfirmedOverlay {
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--navy, #0B1D2E);
+}
+.crewKioskActions {
+  display: flex;
+  gap: 14px;
+  width: 100%;
+}
+.crewKioskActions .btn {
+  flex: 1;
+  min-height: 68px;
+  font-size: 17px;
+}
+.crewKioskConfirm:disabled { opacity: .4; }
+.crewKioskCheck {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--good-tint, #E3F0E8);
+  color: var(--good, #1F6B4A);
+  display: grid;
+  place-items: center;
+  font-size: 36px;
+}
+.crewKioskConfirmedOverlay h1 {
+  margin: 0;
+  font: 600 26px var(--font-condensed, 'Barlow Condensed'), sans-serif;
+  text-transform: uppercase;
+  color: var(--navy, #0B1D2E);
+}
+.crewKioskConfirmedOverlay p { margin: 0; color: var(--text-2, #43525F); font-size: 15px; }
+.crewKioskFooter {
+  position: absolute;
+  bottom: 16px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-on-navy-2, #B4C4D3);
+}
+@media print {
+  .crewKiosk { display: none !important; }
+}

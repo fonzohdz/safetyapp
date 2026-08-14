@@ -6,6 +6,7 @@ import './styles.css';
 import './incident/incident.css';
 import './voice/voice.css';
 import SpeakButton from './voice/SpeakButton';
+import CrewSignInKiosk from './jsa/CrewSignInKiosk';
 import { emptyIncident, hasMeaningfulIncidentContent, incidentStepProgress, incidentNextStepHint, isIncidentReady, isIncidentPrintFinal, migrateIncidentShape } from './incident/incidentModel';
 import { loadIncidentDraft, saveIncidentDraft, clearIncidentDraft, upsertIncidentRecord } from './incident/incidentStorage';
 import { deletePhotosForIncident } from './incident/incidentPhotoStorage';
@@ -547,6 +548,12 @@ function emptyJsa() {
     // it are handled by the existing `{ ...emptyJsa(), ...raw }` merge pattern.
     suggestionBundles: [],
     signatureLineCount: 30,
+    // Digitally-captured crew sign-in (kiosk mode) -- [{ dataUrl, signedAt }],
+    // app-generated timestamp, never typed. Day-specific like date/tailgate
+    // topic below: always reset to empty on a new day / saved template, never
+    // carried forward. Distinct from signatureLineCount, which only ever
+    // controlled how many blank lines print for pen signing.
+    crewSignatures: [],
     notes: '',
     lastSavedAt: '',
   };
@@ -561,7 +568,7 @@ const BUILT_IN_TEMPLATES = [{
 }];
 
 function makeTodayFromTemplate(data) {
-  return { ...emptyJsa(), ...data, id: crypto.randomUUID?.() || String(Date.now()), status: 'draft', date: todayISO(), timeIssued: '', timeExpired: '', tailgateTopic: '', previousDaySafety: 'None reported.', signatureLineCount: Number(data?.signatureLineCount) || 30, notes: '', lastSavedAt: '', taskRows: withRowIds(data?.taskRows) };
+  return { ...emptyJsa(), ...data, id: crypto.randomUUID?.() || String(Date.now()), status: 'draft', date: todayISO(), timeIssued: '', timeExpired: '', tailgateTopic: '', previousDaySafety: 'None reported.', signatureLineCount: Number(data?.signatureLineCount) || 30, crewSignatures: [], notes: '', lastSavedAt: '', taskRows: withRowIds(data?.taskRows) };
 }
 function templatePayload(jsa, name) {
   return {
@@ -571,7 +578,7 @@ function templatePayload(jsa, name) {
     description: 'Custom saved JSA template',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    data: { ...jsa, id: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'), source: 'custom', status: 'template', templateName: name, date: '', timeIssued: '', timeExpired: '', tailgateTopic: '', previousDaySafety: 'None reported.', signatureLineCount: Number(jsa.signatureLineCount) || 30, notes: '', lastSavedAt: '' },
+    data: { ...jsa, id: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'), source: 'custom', status: 'template', templateName: name, date: '', timeIssued: '', timeExpired: '', tailgateTopic: '', previousDaySafety: 'None reported.', signatureLineCount: Number(jsa.signatureLineCount) || 30, crewSignatures: [], notes: '', lastSavedAt: '' },
   };
 }
 
@@ -2609,6 +2616,7 @@ function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTem
   const isTouchPrimary = useIsTouchPrimary();
   const canSideBySide = !isTouchPrimary && shellWidth >= 1000;
   const [showPreview, setShowPreview] = useState(false);
+  const [kioskOpen, setKioskOpen] = useState(false);
   const debugLayout = useDebugLayoutFlag();
   const layoutMode = canSideBySide ? 'desktop-side-by-side' : (isTouchPrimary ? 'touch-stacked' : 'desktop-stacked-narrow');
   const isReviewStep = jsaStep === 'review';
@@ -2649,6 +2657,7 @@ function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTem
 
   return (
     <>
+      {kioskOpen && <CrewSignInKiosk jsa={jsa} upd={upd} onExit={() => setKioskOpen(false)} />}
       <div className="builderHeader">
         <div className="builderHeaderTitleRow">
           <div className="builderHeaderTitleBlock">
@@ -2677,7 +2686,7 @@ function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTem
           {jsaStep === 'job' && <StepJob jsa={jsa} upd={upd} prev={prev} next={next} />}
           {jsaStep === 'meeting' && <StepMeeting jsa={jsa} upd={upd} prev={prev} next={next} />}
           {jsaStep === 'work' && <StepWork jsa={jsa} upd={upd} addRow={addRow} updRow={updRow} removeRow={removeRow} addSummaryAsRow={addSummaryAsRow} addRowTemplate={addRowTemplate} customQuick={settings.customQuick || { task: [], hazard: [], control: [] }} prev={prev} next={next} />}
-          {jsaStep === 'signatures' && <StepSignatures jsa={jsa} upd={upd} sigCount={sigCount} prev={prev} next={next} />}
+          {jsaStep === 'signatures' && <StepSignatures jsa={jsa} upd={upd} sigCount={sigCount} prev={prev} next={next} onOpenKiosk={() => setKioskOpen(true)} />}
           {jsaStep === 'review' && <StepReview jsa={jsa} upd={upd} fit={fit} saveName={saveName} setSaveName={setSaveName} saveTemplate={saveTemplate} updateTemplate={updateTemplate} saveDraft={saveDraft} markReady={markReady} exportPdf={exportPdf} legacyBrowserPrint={legacyBrowserPrint} pdfExportState={pdfExportState} isPdfStale={isPdfStale} shareGeneratedPdfClick={shareGeneratedPdfClick} downloadGeneratedPdfClick={downloadGeneratedPdfClick} clearDraft={clearDraft} prev={prev} next={next} setJsaStep={setJsaStep} />}
 
           {!canSideBySide && previewOpen && previewPanel}
@@ -3147,7 +3156,8 @@ function StepWork({ jsa, upd, addRow, updRow, removeRow, addSummaryAsRow, addRow
 }
 
 /* ── Step: Signatures ── */
-function StepSignatures({ jsa, upd, sigCount, prev, next }) {
+function StepSignatures({ jsa, upd, sigCount, prev, next, onOpenKiosk }) {
+  const crewSignedCount = jsa.crewSignatures?.length || 0;
   return (
     <div className="stepStack">
       <div className="stepPanel">
@@ -3164,6 +3174,15 @@ function StepSignatures({ jsa, upd, sigCount, prev, next }) {
               <strong>Attached sign-in sheet will be generated.</strong>
               <p>The main JSA will note an attached sign-in sheet. Requested lines: {sigCount}.</p>
             </div>
+          </div>
+          {/* DESIGN PROTOTYPE (2026-08-13) -- digital crew sign-in via
+              CrewSignInKiosk. Not wired into the printed sign-in sheet yet
+              (that stays blank numbered lines for pen signing); this only
+              captures and stores signatures for review/testing. */}
+          <div className="sigRuleBox">
+            <strong>Crew Sign-In (kiosk mode) — prototype</strong>
+            <p>{crewSignedCount === 0 ? 'No one has signed yet.' : `${crewSignedCount} crew member${crewSignedCount === 1 ? '' : 's'} signed so far.`}</p>
+            <button type="button" className="btn secondary sm" onClick={onOpenKiosk}>Start Crew Sign-In</button>
           </div>
         </div>
       </div>
