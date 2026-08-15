@@ -237,10 +237,11 @@ export default function CrewSignInKiosk({ jsa, upd, onExit }) {
         onPointerUp={clearExitHold}
         onPointerLeave={clearExitHold}
         onPointerCancel={clearExitHold}
-        aria-label="Hold to exit crew sign-in"
-        title="Hold to exit"
+        aria-label="Hold to end sign-in"
+        title="Hold to end sign-in"
       >
         <span className="crewKioskExitHoldFill" style={{ transform: `scaleX(${exitHoldProgress})` }} />
+        <span className="crewKioskExitHoldLabel">Hold to End Sign-In</span>
       </button>
 
       <div className="crewKioskBody">

@@ -2899,27 +2899,60 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   padding: 24px;
   box-sizing: border-box;
 }
+/* Deliberately low-key (small, dim, corner-parked) so it doesn't read as an
+   inviting "Done" button to a crew member waiting in line, but it DOES need
+   a visible label -- the old bare-circle version relied on the `title`
+   attribute alone, which only shows on mouse hover and never fires on a
+   touchscreen, so on the one input method this actually gets used with it
+   was functionally invisible (real-world finding, 2026-08-15: even Fonzo,
+   the intended operator, couldn't find it). The hold-to-confirm mechanic
+   (crewKioskExitHoldFill) is unchanged -- a visible label doesn't make it
+   any easier to trigger by accident, a brush/tap still does nothing. */
 .crewKioskExitHold {
   position: absolute;
   top: 14px;
   right: 14px;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.25);
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.08);
   overflow: hidden;
-  padding: 0;
+  padding: 0 12px 0 4px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
+.crewKioskExitHold::before {
+  content: '';
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
 .crewKioskExitHoldFill {
   position: absolute;
-  inset: 0;
+  left: 4px;
+  top: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
   background: var(--crimson, #C51F3A);
   transform-origin: left center;
   transform: scaleX(0);
   transition: transform 30ms linear;
+}
+.crewKioskExitHoldLabel {
+  position: relative;
+  font-family: var(--font-condensed, 'Barlow Condensed'), sans-serif;
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.75);
+  white-space: nowrap;
 }
 .crewKioskBody {
   width: 100%;
