@@ -262,14 +262,13 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:focus-v
 }
 .sidebarBrand { padding: 0 4px 20px; text-align: center; display: grid; gap: 4px; }
 .sidebarBrandName {
-  font-size: 11px;
+  font-family: var(--font-condensed);
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 0;
-  line-height: 1.2;
+  line-height: 1.15;
   color: var(--sidebar-text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
   display: block;
 }
 .sidebarBrandSub { display: none; }
@@ -282,20 +281,20 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:focus-v
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   padding: 9px 4px;
   border-radius: 5px;
   border-left: 3px solid transparent;
   color: var(--sidebar-text-muted);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
-  line-height: 1.1;
-  letter-spacing: .1px;
+  line-height: 1.15;
+  letter-spacing: 0;
   text-align: center;
-  min-height: 56px;
+  min-height: 58px;
   transition: color .15s, background .15s, border-color .15s;
 }
-.sidebarNavIcon { width: 22px; height: 22px; flex-shrink: 0; }
+.sidebarNavIcon { width: 23px; height: 23px; flex-shrink: 0; }
 .sidebarNavLabel { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .sidebarNavItem:hover { color: var(--sidebar-text); background: var(--sidebar-bg-hover); }
 .sidebarNavItem.active {
