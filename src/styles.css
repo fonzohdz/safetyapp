@@ -2635,20 +2635,21 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   .mainJsaPage .taskTableFill { flex: 1 0 auto; }
   .continuationPage .continuationTaskTable { flex: 1 0 auto; }
 
-  /* Sign-in sheet */
+  /* Sign-in sheet. Row height is FIXED (--sig-row-h, set inline from
+     SIGNIN_ROW_HEIGHT_PX in main.jsx -- one source of truth, see the big
+     comment on getSignaturePages there), not divided evenly across however
+     many rows happen to be on a page. flex: 0 0 auto so the grid is exactly
+     as tall as its rows need and nothing tries to stretch it further. */
   .attachedSignatureGrid {
-    flex: 1 1 auto;
-    min-height: 0;
+    flex: 0 0 auto;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-rows: repeat(var(--signature-rows), minmax(0, 1fr));
+    grid-auto-rows: var(--sig-row-h);
     border-left: 1px solid #000;
     border-top: 1px solid #000;
     margin-top: 6px;
   }
   .attachedSigLine {
-    min-height: 0;
-    height: auto;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -2659,14 +2660,24 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   }
   .attachedSigLineNum { flex: 0 0 auto; }
   /* A captured kiosk signature ("printer ink," per Fonzo) prints inline next
-     to its number. Sizing is NOT done here -- width/height come inline from
-     sigImageStyle() in main.jsx, computed from the signature's own stored
-     aspect ratio. object-fit: contain + a percentage max-height used to
-     live here, which matched the live DOM but rendered visibly distorted in
-     the actual html2canvas PDF raster once rows got short (confirmed
-     2026-08-17, 40 lines/page). flex: 0 0 auto so flex-grow can't stretch
-     the image past the size sigImageStyle() gave it. */
-  .attachedSigLineImg { flex: 0 0 auto; max-width: 100%; display: block; }
+     to its number, sized directly off the row's own fixed, known height --
+     16px accounts for the row's vertical padding plus a small margin so ink
+     never touches the border. width: auto so the browser scales the image
+     from its own real proportions -- ordinary <img> behavior, not a layout
+     feature that needs to separately survive html2canvas.
+     Three earlier approaches here (object-fit + percentage height; JS
+     measuring the row and setting explicit pixel width/height at capture
+     time, twice, once with an image-decode fix) each passed every
+     automated test in this repo and still came out wrong in real generated
+     PDFs (Fonzo, 2026-08-17) -- a FIXED row height removes the need for any
+     of that runtime measurement/fitting in the first place. */
+  .attachedSigLineImg {
+    flex: 0 0 auto;
+    height: calc(var(--sig-row-h) - 16px);
+    width: auto;
+    max-width: 100%;
+    display: block;
+  }
 
   /* .printFooter itself: no rule needed here -- the unconditional
      .documentPage .printFooter, .printPage .printFooter rule (higher
@@ -2854,18 +2865,15 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
    re-measured if any of those three values change again. */
 .pdfExportRoot .pdfSingleLineText { display: inline-block; transform: translateY(-5px); }
 .pdfExportRoot .attachedSignatureGrid {
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: 0 0 auto;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: repeat(var(--signature-rows), minmax(0, 1fr));
+  grid-auto-rows: var(--sig-row-h);
   border-left: 1px solid #000;
   border-top: 1px solid #000;
   margin-top: 6px;
 }
 .pdfExportRoot .attachedSigLine {
-  min-height: 0;
-  height: auto;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -2875,7 +2883,13 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   font-size: 10px;
 }
 .pdfExportRoot .attachedSigLineNum { flex: 0 0 auto; }
-.pdfExportRoot .attachedSigLineImg { flex: 0 0 auto; max-width: 100%; display: block; }
+.pdfExportRoot .attachedSigLineImg {
+  flex: 0 0 auto;
+  height: calc(var(--sig-row-h) - 16px);
+  width: auto;
+  max-width: 100%;
+  display: block;
+}
 .pdfExportRoot .mainJsaPage .taskTableFill,
 .pdfExportRoot .continuationPage .continuationTaskTable { flex: 1 0 auto; }
 .pdfExportRoot .printFooter { flex: 0 0 auto; }

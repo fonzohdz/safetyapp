@@ -235,6 +235,20 @@ const PRINT_CONTENT_HEIGHT_PX = PRINT_CONTENT_HEIGHT_IN * PRINT_PX_PER_IN_GEOMET
 // top padding is already baked into them by construction).
 const PRINT_CONTENT_BOTTOM_PX = (PRINT_PAGE_HEIGHT_IN - PRINT_PAGE_PADDING_IN) * PRINT_PX_PER_IN_GEOMETRY;
 
+// Sign-in sheet: a fixed row height, not a fitted one — see the big comment
+// on getSignaturePages for why. 80px gives a real, legible signature (about
+// 3x the height a full 40-lines/page sheet used to allow) with margin to
+// spare: a signInPage's chrome (brand header + info table + acknowledgement
+// text) measures ~182px, leaving ~831px of real usable grid height on an
+// otherwise-empty page (measured directly via Playwright against the real
+// rendered DOM, 2026-08-17) — 9 rows of 80px is 720px, comfortably inside
+// that even allowing some slack for a Superintendent/Foreman field long
+// enough to wrap an extra line. --sig-row-h below must be this same number;
+// it exists as a CSS custom property (not a hardcoded px in styles.css) so
+// this one constant is the only place the number lives.
+const SIGNIN_ROW_HEIGHT_PX = 80;
+const SIGNIN_ROWS_PER_PAGE = 9; // 18 signature lines/page
+
 function estimateTextLines(value, charsPerLine) {
   const text = String(value || '');
   if (!text.trim()) return 1;
@@ -359,21 +373,32 @@ function signInLineTotal(jsa) {
   const extraBlank = Math.max(1, Math.min(100, Number(jsa.signatureLineCount) || 1));
   return crew.length > 0 ? crew.length + extraBlank : extraBlank;
 }
+// Fixed, not fitted to whatever's left over: SIGNIN_ROW_HEIGHT_PX (defined
+// near the print geometry constants above) is a real, generous, known box a
+// signature always gets, the same way a pre-printed paper sign-in sheet has
+// a fixed number of ruled lines per page -- not "however many lines happen
+// to fit today, shrunk to squeeze them all on one page." A big crew simply
+// gets more sign-in pages instead of smaller signatures. This directly
+// replaced a variable-row-height layout (CSS Grid `fr` tracks) that could
+// only be sized correctly at the moment a page happened to be captured --
+// three targeted fixes at that layer all worked in this repo's own tests
+// and still came out wrong in real generated PDFs (Fonzo, 2026-08-17).
+// Fixed-size boxes need no runtime fitting at all, which is the actual
+// point: nothing left to get wrong between "looks right in a test" and
+// "looks right in the field."
 function getSignaturePages(jsa) {
   const crew = Array.isArray(jsa.crewSignatures) ? jsa.crewSignatures : [];
   const total = signInLineTotal(jsa);
-  const maxPerPage = 40;
+  const maxPerPage = SIGNIN_ROWS_PER_PAGE * 2;
   const pageCount = Math.ceil(total / maxPerPage);
-  const baseSize = Math.floor(total / pageCount);
-  const extra = total % pageCount;
   const pages = [];
   let next = 1;
   for (let i = 0; i < pageCount; i += 1) {
-    const size = baseSize + (i < extra ? 1 : 0);
+    const size = Math.min(maxPerPage, total - next + 1);
     pages.push(Array.from({ length: size }, () => {
       const n = next++;
       const signed = crew[n - 1];
-      return signed ? { n, dataUrl: signed.dataUrl, width: signed.width, height: signed.height } : { n };
+      return signed ? { n, dataUrl: signed.dataUrl } : { n };
     }));
   }
   return pages;
@@ -4280,56 +4305,6 @@ function prepareSingleLineTextForCapture(pageEl) {
   };
 }
 
-/* Sized crew signatures to actually fill their sign-in line, not sit tiny in
-   a mostly-empty box (Fonzo, 2026-08-17: "you can fill up the box with your
-   name and not some tiny signature" -- and, critically, this may end up as
-   court evidence, so it has to actually work, not just work in testing).
-   sigImageStyle() in AttachedSignIn gives every signature a safe *default*
-   size before this runs (used for the initial render and the legacy print
-   fallback below); this then grows it to fill the real row right before
-   that page is captured.
-
-   Two earlier versions of this both passed every automated test here and
-   STILL came out small/tiny in Fonzo's own hands (2026-08-17, twice) --
-   first because object-fit/percentage-height under html2canvas doesn't
-   reliably match the live DOM, then because reading img.naturalWidth
-   requires the data-URL image to have finished decoding first, which
-   isn't guaranteed by the fonts/layout settle already done in
-   generateJsaPdf. Both fixes were real and are still in effect elsewhere,
-   but rather than add a third targeted patch on top of an approach that's
-   now failed twice in ways this repo's own tests didn't catch, this
-   deliberately no longer depends on either of those failure-prone paths:
-
-   - No object-fit, no percentage max-height on the image (the CSS approach
-     that broke under html2canvas the first time).
-   - No img.naturalWidth/naturalHeight, no img.decode() (the async image
-     state that broke the second time, silently, with no error).
-
-   Instead: measure the row's own already-rendered box (line.clientHeight --
-   a plain synchronous DOM read of an element already on the page, not
-   something that can be "not ready yet" the way image decode can), set the
-   image's height explicitly from that measurement, and leave width as
-   'auto' -- an <img> with an explicit height and width:auto preserves its
-   own intrinsic aspect ratio using the browser's ordinary, decades-old
-   image-rendering behavior, not a layout feature that needs cross-checking
-   against html2canvas. If THIS silently didn't work, ordinary images
-   (the Shackelford logo, Incident photos) would look wrong on every single
-   generated PDF, not just this one case -- which they don't. */
-function prepareSignatureSizingForCapture(pageEl) {
-  const lines = pageEl.querySelectorAll('.attachedSigLine');
-  lines.forEach((line) => {
-    const img = line.querySelector('.attachedSigLineImg');
-    if (!img) return;
-    const cs = getComputedStyle(line);
-    const padTop = parseFloat(cs.paddingTop) || 0;
-    const padBottom = parseFloat(cs.paddingBottom) || 0;
-    const availableHeight = line.clientHeight - padTop - padBottom;
-    if (availableHeight <= 0) return;
-    img.style.height = `${availableHeight * 0.92}px`; // small margin so ink never touches the row border
-    img.style.width = 'auto';
-  });
-}
-
 /* The deterministic PDF export pipeline (Phase 4B). Captures each logical
    page from PdfExportRoot sequentially — one canvas at a time, released
    before starting the next — and assembles them into a single PDF with
@@ -4368,7 +4343,6 @@ async function generateJsaPdf(pageRefsRef, onProgress) {
     }
 
     const cleanupSingleLineText = prepareSingleLineTextForCapture(el);
-    prepareSignatureSizingForCapture(el);
     let canvas;
     try {
       canvas = await html2canvas(el, { scale, backgroundColor: '#ffffff', useCORS: true, logging: false });
@@ -4528,66 +4502,41 @@ function TaskContinuationPage({ jsa, rows, pageNumber, totalPages, continuationN
   );
 }
 
-// Explicit pixel width/height for a captured crew signature on the sign-in
-// sheet, computed in JS rather than left to CSS (object-fit: contain inside
-// a percentage-height CSS Grid row). That combo measures fine in the live
-// DOM but html2canvas renders it wrong -- confirmed 2026-08-17 by comparing
-// the actual generated PDF raster against the live DOM at high row counts
-// (40 lines/page, the real-world case): the image box comes out badly
-// disproportionate and object-fit doesn't correct it, so every signature
-// prints flattened.
-//
-// This is only the SAFE DEFAULT/fallback size -- comfortably under the
-// shortest row this layout ever produces (~34px content height at the
-// densest, 40 lines/page packing), used for the initial React render and
-// for the legacy window.print() fallback path (which never runs
-// prepareSignatureSizingForCapture below, so it has no other sizing).
-// The primary export path (generateJsaPdf -> prepareSignatureSizingForCapture)
-// overrides this with the row's real measured size right before capture, so
-// signatures actually fill their line instead of sitting small in a mostly-
-// empty box (Fonzo, 2026-08-17). SIG_MAX_WIDTH is a defensive cap in case a
-// future layout tightens column width further. FALLBACK_RATIO only applies
-// to signatures captured before this fix shipped (no stored width/height).
-const SIG_TARGET_HEIGHT = 22;
-const SIG_MAX_WIDTH = 160;
-const SIG_FALLBACK_RATIO = 2.4;
-function sigImageStyle(width, height) {
-  const ratio = width > 0 && height > 0 ? width / height : SIG_FALLBACK_RATIO;
-  let h = SIG_TARGET_HEIGHT;
-  let w = h * ratio;
-  if (w > SIG_MAX_WIDTH) { h *= SIG_MAX_WIDTH / w; w = SIG_MAX_WIDTH; }
-  return { width: w, height: h };
-}
-
+// Signature sizing is pure CSS now (.attachedSigLineImg in styles.css,
+// height driven by the --sig-row-h custom property below) -- no JS math, no
+// runtime measurement, no post-render DOM mutation. See the big comment on
+// getSignaturePages/SIGNIN_ROW_HEIGHT_PX above for why: every previous
+// attempt to compute a signature's size at capture time worked in this
+// repo's own tests and still came out wrong for Fonzo in the field. A fixed
+// row height means the CSS can size the image correctly on the very first
+// render, the same way on every export path (the primary pipeline AND the
+// legacy window.print() fallback), with nothing to get out of sync.
 function AttachedSignIn({ jsa, pages, pageOffset, totalPages, getPageRef }) {
   return (
     <>
-      {pages.map((lines, pageIdx) => {
-        const rowCount = Math.ceil(lines.length / 2);
-        return (
-          <section className="printSheet" key={pageIdx}>
-            <div className="printPage signInPage" ref={getPageRef ? (el => getPageRef(pageIdx, el)) : undefined}>
-              <PrintBrandHeader title="JSA Sign-In Sheet" subtitle={`Attached Sign-In ${pageIdx + 1} of ${pages.length}`} pageNumber={pageOffset + pageIdx + 1} totalPages={totalPages} />
-              <table className="printInfoTable signInInfoTable">
-                <tbody>
-                  <tr><th>Location:</th><td>{jsa.location}</td><th>Date:</th><td>{dateStr(jsa.date)}</td><th>Job #:</th><td>{jsa.jobNumber}</td></tr>
-                  <tr><th>Job Site:</th><td>{jsa.jobSite}</td><th>Superintendent/Foreman:</th><td>{jsa.superintendentForeman}</td><th>Overall Task:</th><td>{jsa.overallWorkTask}</td></tr>
-                </tbody>
-              </table>
-              <div className="ackBlock signInAck"><strong>Acknowledgement:</strong> I have reviewed and understand the JSA and tailgate meeting information and will exercise stop work authority for unsafe acts, conditions, or hazards.</div>
-              <div className="attachedSignatureGrid" style={{ '--signature-rows': rowCount }}>
-                {lines.map(({ n, dataUrl, width, height }) => (
-                  <div className={`attachedSigLine${dataUrl ? ' attachedSigLineDigital' : ''}`} key={n}>
-                    <span className="attachedSigLineNum">{n}.</span>
-                    {dataUrl && <img className="attachedSigLineImg" src={dataUrl} alt="" style={sigImageStyle(width, height)} />}
-                  </div>
-                ))}
-              </div>
-              <footer className="printFooter">Shackelford Construction and Hauling, LLC · Attached Sign-In Sheet</footer>
+      {pages.map((lines, pageIdx) => (
+        <section className="printSheet" key={pageIdx}>
+          <div className="printPage signInPage" ref={getPageRef ? (el => getPageRef(pageIdx, el)) : undefined}>
+            <PrintBrandHeader title="JSA Sign-In Sheet" subtitle={`Attached Sign-In ${pageIdx + 1} of ${pages.length}`} pageNumber={pageOffset + pageIdx + 1} totalPages={totalPages} />
+            <table className="printInfoTable signInInfoTable">
+              <tbody>
+                <tr><th>Location:</th><td>{jsa.location}</td><th>Date:</th><td>{dateStr(jsa.date)}</td><th>Job #:</th><td>{jsa.jobNumber}</td></tr>
+                <tr><th>Job Site:</th><td>{jsa.jobSite}</td><th>Superintendent/Foreman:</th><td>{jsa.superintendentForeman}</td><th>Overall Task:</th><td>{jsa.overallWorkTask}</td></tr>
+              </tbody>
+            </table>
+            <div className="ackBlock signInAck"><strong>Acknowledgement:</strong> I have reviewed and understand the JSA and tailgate meeting information and will exercise stop work authority for unsafe acts, conditions, or hazards.</div>
+            <div className="attachedSignatureGrid" style={{ '--sig-row-h': `${SIGNIN_ROW_HEIGHT_PX}px` }}>
+              {lines.map(({ n, dataUrl }) => (
+                <div className={`attachedSigLine${dataUrl ? ' attachedSigLineDigital' : ''}`} key={n}>
+                  <span className="attachedSigLineNum">{n}.</span>
+                  {dataUrl && <img className="attachedSigLineImg" src={dataUrl} alt="" />}
+                </div>
+              ))}
             </div>
-          </section>
-        );
-      })}
+            <footer className="printFooter">Shackelford Construction and Hauling, LLC · Attached Sign-In Sheet</footer>
+          </div>
+        </section>
+      ))}
     </>
   );
 }

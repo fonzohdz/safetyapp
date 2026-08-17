@@ -29,7 +29,15 @@ import { useEffect, useRef, useState } from 'react';
    deliberately out of scope for this pass. This component only captures
    and stores the data; nothing about the print pipeline changes. */
 
-const PAD_HEIGHT = 320;
+// A real signature line is wide and short, not a tall box -- 200 (down from
+// 320) keeps the pad comfortable to sign on while making the drawn stroke
+// itself closer in shape to the printed sign-in line it lands on (Fonzo,
+// 2026-08-17: "change the actual signing portion to match the actual box
+// that it's going into"). Print sizing itself doesn't depend on this ratio
+// matching exactly (see SIGNIN_ROW_HEIGHT_PX in main.jsx -- width is always
+// `auto` from the image's own real proportions), but a closer match means
+// people naturally sign at a size that was already going to look right.
+const PAD_HEIGHT = 200;
 const EXIT_HOLD_MS = 1500;
 const CONFIRM_PAUSE_MS = 1200;
 
@@ -198,13 +206,8 @@ export default function CrewSignInKiosk({ jsa, upd, onExit }) {
 
   function confirmSignature() {
     if (!hasStrokeRef.current) return;
-    const canvas = canvasRef.current;
-    const dataUrl = canvas.toDataURL('image/png');
-    // Store the captured canvas's own pixel ratio so the print pipeline can
-    // size this image correctly later without guessing -- see the
-    // attachedSigLineImg sizing note in main.jsx for why this can't just be
-    // left to CSS object-fit.
-    const next = [...(jsa.crewSignatures || []), { dataUrl, width: canvas.width, height: canvas.height, signedAt: new Date().toISOString() }];
+    const dataUrl = canvasRef.current.toDataURL('image/png');
+    const next = [...(jsa.crewSignatures || []), { dataUrl, signedAt: new Date().toISOString() }];
     upd({ crewSignatures: next });
     setPhase('confirmed');
     window.setTimeout(() => setPhase('signing'), CONFIRM_PAUSE_MS);
