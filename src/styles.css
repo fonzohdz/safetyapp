@@ -335,8 +335,8 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:focus-v
 }
 
 /* ── Mobile bottom navigation ──
-   Below the file's existing 680px phone breakpoint (see .page/.libraryRow
-   etc. further down) the icon-rail sidebar above is replaced outright by a
+   Below the file's existing 680px phone breakpoint (see .homeSection etc.
+   further down) the icon-rail sidebar above is replaced outright by a
    fixed bottom tab bar — a phone shouldn't spend a permanent vertical strip
    on navigation chrome. Same navy sidebar surface/tokens so it still reads
    as the same brand chrome, just relocated. Hidden by default so it never
@@ -613,7 +613,6 @@ input:focus, select:focus, textarea:focus {
 .badge.warn { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
 .badge.bad { background: color-mix(in srgb, var(--danger) 16%, transparent); color: var(--danger); }
 .badge.avail { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
-.badge.soon { background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
 
 /* ── Toast ── */
 .toast {
@@ -973,33 +972,6 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 .accessRowText small { font-size: 12.5px; color: var(--muted); }
 .accessRowChevron { flex-shrink: 0; width: 16px; height: 16px; color: var(--text-very-faint); }
 
-/* ── Planned document library ──
-   One shared surface (not seven floating cards) holding compact, visibly
-   inert rows — lower contrast, no hover elevation, no pointer cursor, a
-   muted "Planned" badge instead of anything that reads as actionable. */
-.libraryCard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: clip; }
-.libraryList { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.libraryRow {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 72px;
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--line);
-  cursor: default;
-}
-/* Vertical divider between the two columns, skipped on the right column. */
-.libraryList .libraryRow:nth-child(odd) { border-right: 1px solid var(--line); }
-.libraryRowIcon { width: 15px; height: 15px; flex-shrink: 0; color: var(--text-very-faint); }
-.libraryRowText { display: grid; gap: 1px; min-width: 0; flex: 1 1 auto; }
-.libraryRowText strong { font-size: 13.5px; font-weight: 700; color: var(--muted); }
-.libraryRowText span { font-size: 12px; color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-@media (max-width: 900px) {
-  .libraryList { grid-template-columns: 1fr; }
-  .libraryList .libraryRow:nth-child(odd) { border-right: none; }
-}
-
 /* ── Home, phone widths ──
    Same content, deliberately tighter rhythm: less top-level whitespace than
    the desktop dashboard now that the sidebar's width offset is gone and the
@@ -1023,33 +995,6 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   .homeSection { gap: 10px; }
   .workspaceAccessGrid { grid-template-columns: 1fr; gap: 10px; }
   .accessRow { padding: 14px 16px; min-height: 64px; }
-
-  /* Document Library rows: readability over compactness. The description
-     was single-line-ellipsis on desktop where two columns leave little
-     width per row; single-column phone width has room to let it wrap to
-     two lines instead, with the Planned badge dropped to its own row under
-     the icon column rather than squeezed against the title. */
-  .libraryRow {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    grid-template-areas: "icon text" "icon badge";
-    column-gap: 12px;
-    row-gap: 6px;
-    align-items: start;
-    min-height: auto;
-    padding: 14px 16px;
-  }
-  .libraryRowIcon { grid-area: icon; margin-top: 2px; }
-  .libraryRowText { grid-area: text; }
-  .libraryRowText span {
-    white-space: normal;
-    overflow: hidden;
-    text-overflow: clip;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-  }
-  .libraryRow .badge.soon { grid-area: badge; justify-self: start; }
 }
 
 /* Lightweight text-only disclosure for low-priority content (future document
@@ -2635,24 +2580,48 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   .mainJsaPage .taskTableFill { flex: 1 0 auto; }
   .continuationPage .continuationTaskTable { flex: 1 0 auto; }
 
-  /* Sign-in sheet */
+  /* Sign-in sheet. Row height is FIXED (--sig-row-h, set inline from
+     SIGNIN_ROW_HEIGHT_PX in main.jsx -- one source of truth, see the big
+     comment on getSignaturePages there), not divided evenly across however
+     many rows happen to be on a page. flex: 0 0 auto so the grid is exactly
+     as tall as its rows need and nothing tries to stretch it further. */
   .attachedSignatureGrid {
-    flex: 1 1 auto;
-    min-height: 0;
+    flex: 0 0 auto;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-rows: repeat(var(--signature-rows), minmax(0, 1fr));
+    grid-auto-rows: var(--sig-row-h);
     border-left: 1px solid #000;
     border-top: 1px solid #000;
     margin-top: 6px;
   }
   .attachedSigLine {
-    min-height: 0;
-    height: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
     border-right: 1px solid #000;
     border-bottom: 1px solid #000;
     padding: 5px 7px;
     font-size: 10px;
+  }
+  .attachedSigLineNum { flex: 0 0 auto; }
+  /* A captured kiosk signature ("printer ink," per Fonzo) prints inline next
+     to its number, sized directly off the row's own fixed, known height --
+     16px accounts for the row's vertical padding plus a small margin so ink
+     never touches the border. width: auto so the browser scales the image
+     from its own real proportions -- ordinary <img> behavior, not a layout
+     feature that needs to separately survive html2canvas.
+     Three earlier approaches here (object-fit + percentage height; JS
+     measuring the row and setting explicit pixel width/height at capture
+     time, twice, once with an image-decode fix) each passed every
+     automated test in this repo and still came out wrong in real generated
+     PDFs (Fonzo, 2026-08-17) -- a FIXED row height removes the need for any
+     of that runtime measurement/fitting in the first place. */
+  .attachedSigLineImg {
+    flex: 0 0 auto;
+    height: calc(var(--sig-row-h) - 16px);
+    width: auto;
+    max-width: 100%;
+    display: block;
   }
 
   /* .printFooter itself: no rule needed here -- the unconditional
@@ -2841,22 +2810,30 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
    re-measured if any of those three values change again. */
 .pdfExportRoot .pdfSingleLineText { display: inline-block; transform: translateY(-5px); }
 .pdfExportRoot .attachedSignatureGrid {
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: 0 0 auto;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: repeat(var(--signature-rows), minmax(0, 1fr));
+  grid-auto-rows: var(--sig-row-h);
   border-left: 1px solid #000;
   border-top: 1px solid #000;
   margin-top: 6px;
 }
 .pdfExportRoot .attachedSigLine {
-  min-height: 0;
-  height: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   border-right: 1px solid #000;
   border-bottom: 1px solid #000;
   padding: 5px 7px;
   font-size: 10px;
+}
+.pdfExportRoot .attachedSigLineNum { flex: 0 0 auto; }
+.pdfExportRoot .attachedSigLineImg {
+  flex: 0 0 auto;
+  height: calc(var(--sig-row-h) - 16px);
+  width: auto;
+  max-width: 100%;
+  display: block;
 }
 .pdfExportRoot .mainJsaPage .taskTableFill,
 .pdfExportRoot .continuationPage .continuationTaskTable { flex: 1 0 auto; }
@@ -2865,4 +2842,134 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 :root {
   --success: var(--good);
   --warning: var(--warn);
+}
+
+/* ── JSA Crew Sign-In Kiosk (design prototype, 2026-08-13) ──
+   Full-screen, locked, single-purpose -- see CrewSignInKiosk.jsx's own
+   header comment for the interaction design. Deliberately excluded from
+   print media (kiosk-only UI, never part of a printed page). */
+.crewKiosk {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: var(--navy, #0B1D2E);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+}
+/* Deliberately low-key (small, dim, corner-parked) so it doesn't read as an
+   inviting "Done" button to a crew member waiting in line, but it DOES need
+   a visible label -- the old bare-circle version relied on the `title`
+   attribute alone, which only shows on mouse hover and never fires on a
+   touchscreen, so on the one input method this actually gets used with it
+   was functionally invisible (real-world finding, 2026-08-15: even Fonzo,
+   the intended operator, couldn't find it). Used to require a hold instead
+   of a tap, specifically to guard against an accidental bump -- dropped
+   that (2026-08-17) because a hold-and-drag is exactly the gesture that
+   fires iOS Safari's own text-selection magnifying-glass loupe, and the two
+   fought each other in the field. A plain tap is safe here because exiting
+   doesn't lose anything -- every signature is already persisted the moment
+   it's confirmed. */
+.crewKioskExitHold {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: flex;
+  align-items: center;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0 14px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.crewKioskExitHoldLabel {
+  position: relative;
+  font-family: var(--font-condensed, 'Barlow Condensed'), sans-serif;
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.75);
+  white-space: nowrap;
+}
+.crewKioskBody {
+  width: 100%;
+  max-width: 760px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+}
+.crewKioskHead { text-align: center; display: grid; gap: 6px; }
+.crewKioskEyebrow {
+  font: 600 13px 'Barlow', sans-serif;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--text-on-navy-2, #B4C4D3);
+}
+.crewKioskNumber {
+  margin: 0;
+  font: 600 clamp(28px, 5vw, 44px)/1.1 var(--font-condensed, 'Barlow Condensed'), sans-serif;
+  text-transform: uppercase;
+  letter-spacing: .01em;
+}
+.crewKioskHint { margin: 0; font-size: 16px; color: var(--text-on-navy-2, #B4C4D3); }
+.crewKioskPadWrap {
+  position: relative;
+  width: 100%;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .35);
+}
+.crewKioskCanvas { display: block; touch-action: none; border-radius: 8px; }
+.crewKioskConfirmedOverlay {
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--navy, #0B1D2E);
+}
+.crewKioskActions {
+  display: flex;
+  gap: 14px;
+  width: 100%;
+}
+.crewKioskActions .btn {
+  flex: 1;
+  min-height: 68px;
+  font-size: 17px;
+}
+.crewKioskConfirm:disabled { opacity: .4; }
+.crewKioskCheck {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--good-tint, #E3F0E8);
+  color: var(--good, #1F6B4A);
+  display: grid;
+  place-items: center;
+  font-size: 36px;
+}
+.crewKioskFooter {
+  position: absolute;
+  bottom: 16px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-on-navy-2, #B4C4D3);
+}
+@media print {
+  .crewKiosk { display: none !important; }
 }

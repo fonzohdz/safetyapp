@@ -1,0 +1,12 @@
+{
+  // Tells Cloudflare's deploy tool this is a plain static site (the built
+  // dist/ folder), not a Worker with server-side code. Used only by the
+  // Cloudflare Pages/Workers preview deploy of the `testing` branch -- the
+  // live site's own build/deploy (GitHub Actions -> GitHub Pages, see
+  // .github/workflows/deploy-pages.yml) does not read this file at all.
+  "name": "safetyapp",
+  "compatibility_date": "2026-08-14",
+  "assets": {
+    "directory": "./dist"
+  }
+}

@@ -11,7 +11,11 @@ import { readPdf } from './readPdf.mjs';
 
 export async function downloadGeneratedPdf(page, savePath) {
   const downloadPromise = page.waitForEvent('download');
-  await page.locator('button', { hasText: 'Download Document' }).click();
+  // Scoped to .pdfReadyPanel -- some Review screens now show a second,
+  // unrelated "Download Document" button elsewhere on the page (e.g. the
+  // "What Will Print" facsimile panel), which made an unscoped locator here
+  // ambiguous.
+  await page.locator('.pdfReadyPanel button', { hasText: 'Download Document' }).click();
   const download = await downloadPromise;
   await download.saveAs(savePath);
   return {

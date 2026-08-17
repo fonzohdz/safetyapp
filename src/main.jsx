@@ -6,6 +6,7 @@ import './styles.css';
 import './incident/incident.css';
 import './voice/voice.css';
 import SpeakButton from './voice/SpeakButton';
+import CrewSignInKiosk from './jsa/CrewSignInKiosk';
 import { emptyIncident, hasMeaningfulIncidentContent, incidentStepProgress, incidentNextStepHint, isIncidentReady, isIncidentPrintFinal, migrateIncidentShape } from './incident/incidentModel';
 import { loadIncidentDraft, saveIncidentDraft, clearIncidentDraft, upsertIncidentRecord } from './incident/incidentStorage';
 import { deletePhotosForIncident } from './incident/incidentPhotoStorage';
@@ -234,6 +235,25 @@ const PRINT_CONTENT_HEIGHT_PX = PRINT_CONTENT_HEIGHT_IN * PRINT_PX_PER_IN_GEOMET
 // top padding is already baked into them by construction).
 const PRINT_CONTENT_BOTTOM_PX = (PRINT_PAGE_HEIGHT_IN - PRINT_PAGE_PADDING_IN) * PRINT_PX_PER_IN_GEOMETRY;
 
+// Sign-in sheet: a fixed row height, not a fitted one — see the big comment
+// on getSignaturePages for why. A signInPage's chrome (brand header + info
+// table + acknowledgement text) measures ~182px, leaving ~831px of real
+// usable grid height on an otherwise-empty page (measured directly via
+// Playwright against the real rendered DOM, 2026-08-17). 55px still reads as
+// a real, legible signature — about 2x the height of the old ~27px/row
+// layout that Fonzo confirmed was too small/prone to looking distorted, well
+// short of this fix's original 80px — while roughly 44% more signatures fit
+// per sign-in page, which is the point: fewer wasted pages on a big crew's
+// printed sheet without going back anywhere near the size that broke before
+// (Fonzo, 2026-08-17: same legibility bar, smaller box, not a smaller
+// signature squeezed into the same box). 13 rows of 55px is 715px,
+// comfortably inside 831px with a margin similar to the original 80px/9-row
+// choice. --sig-row-h below must be this same number; it exists as a CSS
+// custom property (not a hardcoded px in styles.css) so this one constant is
+// the only place the number lives.
+const SIGNIN_ROW_HEIGHT_PX = 55;
+const SIGNIN_ROWS_PER_PAGE = 13; // 26 signature lines/page
+
 function estimateTextLines(value, charsPerLine) {
   const text = String(value || '');
   if (!text.trim()) return 1;
@@ -341,17 +361,50 @@ function paginateTaskContent(jsa) {
     mainUsed,
   };
 }
-function getSignaturePages(signatureLineCount) {
-  const count = Math.max(1, Math.min(100, Number(signatureLineCount) || 1));
-  const maxPerPage = 40;
-  const pageCount = Math.ceil(count / maxPerPage);
-  const baseSize = Math.floor(count / pageCount);
-  const extra = count % pageCount;
+// Once the crew kiosk has captured digital signatures, the printed sheet
+// leads with those (numbered, filled in with the actual signature image --
+// "printer ink"), then signatureLineCount blank lines after them for anyone
+// who signs in person later ("pen ink"). Before any kiosk signatures exist,
+// signatureLineCount means what it always has: the sheet's total blank line
+// count -- unchanged, so existing JSAs that never touch the kiosk print
+// exactly as before. Deliberately uncapped by signatureLineCount's own
+// 1-100 UI clamp: every real captured signature must appear on the printed
+// record, never silently truncated (see CLAUDE.md's data-integrity
+// priority) -- only the manually-typed "extra blank lines" count is capped.
+// Shared by getSignaturePages and MainJsaDocumentPage's own "generated for
+// N signatures" note, so the two can't drift apart.
+function signInLineTotal(jsa) {
+  const crew = Array.isArray(jsa.crewSignatures) ? jsa.crewSignatures : [];
+  const extraBlank = Math.max(1, Math.min(100, Number(jsa.signatureLineCount) || 1));
+  return crew.length > 0 ? crew.length + extraBlank : extraBlank;
+}
+// Fixed, not fitted to whatever's left over: SIGNIN_ROW_HEIGHT_PX (defined
+// near the print geometry constants above) is a real, generous, known box a
+// signature always gets, the same way a pre-printed paper sign-in sheet has
+// a fixed number of ruled lines per page -- not "however many lines happen
+// to fit today, shrunk to squeeze them all on one page." A big crew simply
+// gets more sign-in pages instead of smaller signatures. This directly
+// replaced a variable-row-height layout (CSS Grid `fr` tracks) that could
+// only be sized correctly at the moment a page happened to be captured --
+// three targeted fixes at that layer all worked in this repo's own tests
+// and still came out wrong in real generated PDFs (Fonzo, 2026-08-17).
+// Fixed-size boxes need no runtime fitting at all, which is the actual
+// point: nothing left to get wrong between "looks right in a test" and
+// "looks right in the field."
+function getSignaturePages(jsa) {
+  const crew = Array.isArray(jsa.crewSignatures) ? jsa.crewSignatures : [];
+  const total = signInLineTotal(jsa);
+  const maxPerPage = SIGNIN_ROWS_PER_PAGE * 2;
+  const pageCount = Math.ceil(total / maxPerPage);
   const pages = [];
   let next = 1;
   for (let i = 0; i < pageCount; i += 1) {
-    const size = baseSize + (i < extra ? 1 : 0);
-    pages.push(Array.from({ length: size }, () => next++));
+    const size = Math.min(maxPerPage, total - next + 1);
+    pages.push(Array.from({ length: size }, () => {
+      const n = next++;
+      const signed = crew[n - 1];
+      return signed ? { n, dataUrl: signed.dataUrl } : { n };
+    }));
   }
   return pages;
 }
@@ -362,7 +415,7 @@ function getSignaturePages(signatureLineCount) {
 // works exactly as before.
 function getPagePlan(jsa) {
   const taskPlan = paginateTaskContent(jsa);
-  const signInPages = getSignaturePages(jsa.signatureLineCount);
+  const signInPages = getSignaturePages(jsa);
   return {
     ...taskPlan,
     signInPages,
@@ -382,6 +435,10 @@ function fingerprintPaginationInput(jsa) {
     jsa.location, jsa.jobSite, jsa.timeIssued, jsa.timeExpired, jsa.date, jsa.jobNumber,
     jsa.superintendentForeman, jsa.emergencyPhone, jsa.client, jsa.nearestMedicalFacility,
     jsa.siteContactPhone, jsa.musterPoint, jsa.acknowledgement, jsa.signatureLineCount,
+    // crewSignatures only ever grows by append (see CrewSignInKiosk.jsx), so
+    // length alone fully captures "did the sign-in sheet's content change" --
+    // stringifying the actual dataUrls would be expensive for no benefit.
+    jsa.crewSignatures?.length || 0,
   ]);
 }
 /* Real rendered-height pagination — the packing algorithm is the same
@@ -479,7 +536,7 @@ function buildMeasuredPlan(jsa, measurements) {
 // only an initial fallback, never the final pagination authority.
 function resolvePagePlan(jsa, measurements) {
   const taskPlan = buildMeasuredPlan(jsa, measurements) || paginateTaskContent(jsa);
-  const signInPages = getSignaturePages(jsa.signatureLineCount);
+  const signInPages = getSignaturePages(jsa);
   return {
     ...taskPlan,
     signInPages,
@@ -547,6 +604,12 @@ function emptyJsa() {
     // it are handled by the existing `{ ...emptyJsa(), ...raw }` merge pattern.
     suggestionBundles: [],
     signatureLineCount: 30,
+    // Digitally-captured crew sign-in (kiosk mode) -- [{ dataUrl, signedAt }],
+    // app-generated timestamp, never typed. Day-specific like date/tailgate
+    // topic below: always reset to empty on a new day / saved template, never
+    // carried forward. Distinct from signatureLineCount, which only ever
+    // controlled how many blank lines print for pen signing.
+    crewSignatures: [],
     notes: '',
     lastSavedAt: '',
   };
@@ -561,7 +624,7 @@ const BUILT_IN_TEMPLATES = [{
 }];
 
 function makeTodayFromTemplate(data) {
-  return { ...emptyJsa(), ...data, id: crypto.randomUUID?.() || String(Date.now()), status: 'draft', date: todayISO(), timeIssued: '', timeExpired: '', tailgateTopic: '', previousDaySafety: 'None reported.', signatureLineCount: Number(data?.signatureLineCount) || 30, notes: '', lastSavedAt: '', taskRows: withRowIds(data?.taskRows) };
+  return { ...emptyJsa(), ...data, id: crypto.randomUUID?.() || String(Date.now()), status: 'draft', date: todayISO(), timeIssued: '', timeExpired: '', tailgateTopic: '', previousDaySafety: 'None reported.', signatureLineCount: Number(data?.signatureLineCount) || 30, crewSignatures: [], notes: '', lastSavedAt: '', taskRows: withRowIds(data?.taskRows) };
 }
 function templatePayload(jsa, name) {
   return {
@@ -571,7 +634,7 @@ function templatePayload(jsa, name) {
     description: 'Custom saved JSA template',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    data: { ...jsa, id: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'), source: 'custom', status: 'template', templateName: name, date: '', timeIssued: '', timeExpired: '', tailgateTopic: '', previousDaySafety: 'None reported.', signatureLineCount: Number(jsa.signatureLineCount) || 30, notes: '', lastSavedAt: '' },
+    data: { ...jsa, id: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'), source: 'custom', status: 'template', templateName: name, date: '', timeIssued: '', timeExpired: '', tailgateTopic: '', previousDaySafety: 'None reported.', signatureLineCount: Number(jsa.signatureLineCount) || 30, crewSignatures: [], notes: '', lastSavedAt: '' },
   };
 }
 
@@ -854,7 +917,7 @@ function getReviewChecks(jsa, measurements) {
     { label: 'At least one task', ok: getContentRows(jsa).some(row => hasText(row.step)), step: 'work' },
     { label: 'Hazards identified', ok: getContentRows(jsa).some(row => hasText(row.hazards)), step: 'work' },
     { label: 'Controls identified', ok: getContentRows(jsa).some(row => hasText(row.controls)), step: 'work' },
-    { label: `Signature setup (${Math.max(1, Number(jsa.signatureLineCount) || 1)} lines)`, ok: Number(jsa.signatureLineCount) >= 1 && Number(jsa.signatureLineCount) <= 100, step: 'signatures' },
+    { label: `Signature setup (${signInLineTotal(jsa)} lines)`, ok: Number(jsa.signatureLineCount) >= 1 && Number(jsa.signatureLineCount) <= 100, step: 'signatures' },
     // No single earlier step reliably fixes an overflowing page plan (it can
     // require trimming any of meeting/work/signatures) -- left non-clickable
     // rather than guessing wrong.
@@ -2222,36 +2285,6 @@ function MobileBottomNav({ tab, goHome, goDocs, setTab }) {
   );
 }
 
-/* ── Planned document library ──
-   Shared by Home and Documents so the "not yet built" list is defined once.
-   Deliberately inert: no onClick, no href, cursor:default via CSS — these
-   are not disabled buttons pretending to be buttons, they're plain rows. */
-const PLANNED_DOCUMENT_TYPES = [
-  { name: 'BBS Observation', desc: 'Behavior-based safety observations and coaching notes.' },
-  { name: 'Sign-In Sheet', desc: 'Standalone sign-in sheet for meetings and training.' },
-  { name: 'Toolbox Talk', desc: 'Short-form safety talks and crew acknowledgement.' },
-  { name: 'SOP', desc: 'Standard operating procedures for recurring tasks.' },
-  { name: 'Inspection', desc: 'Site and equipment inspection checklists.' },
-];
-function PlannedDocumentList() {
-  return (
-    <div className="libraryCard">
-      <div className="libraryList">
-        {PLANNED_DOCUMENT_TYPES.map(doc => (
-          <div className="libraryRow" key={doc.name}>
-            <IconLock className="libraryRowIcon" />
-            <div className="libraryRowText">
-              <strong>{doc.name}</strong>
-              <span>{doc.desc}</span>
-            </div>
-            <span className="badge soon">Planned</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 /* Per-document-type marks for Home's start grid. Six identical page icons
    would defeat the point of the grid — on a phone the picture is what a user
    actually scans for, before the words resolve. */
@@ -2276,8 +2309,7 @@ function docNumber(id) {
    Two questions, in the order a field user actually asks them: "let me finish
    what I started" and "let me start the right document". Both are answered
    across ALL six document types on equal footing — see homeDocEntries in
-   App() for why that ordering changed — followed by the Workspace shortcuts
-   and the always-visible (not disclosure-hidden) roadmap. */
+   App() for why that ordering changed — followed by the Workspace shortcuts. */
 function HomeView({ customTemplates, setTab, docEntries }) {
   const [query, setQuery] = useState('');
   const inProgress = docEntries.filter(e => e.draft);
@@ -2405,11 +2437,6 @@ function HomeView({ customTemplates, setTab, docEntries }) {
         </div>
       </section>
 
-      <section className="homeSection">
-        <span className="homeSectionEyebrow">Document Library</span>
-        <p className="homeSectionSub">More document types are planned for future releases.</p>
-        <PlannedDocumentList />
-      </section>
     </div>
   );
 }
@@ -2441,7 +2468,7 @@ function DocCenterView({ startHandlers, onImportFile }) {
       <div className="sectionTitle">
         <div className="eyebrow">Documents</div>
         <h2>Documents</h2>
-        <p>Start or open a document type that's available now. Planned types will arrive in later releases.</p>
+        <p>Start or open a document type.</p>
       </div>
 
       <section className="homeSection">
@@ -2474,11 +2501,6 @@ function DocCenterView({ startHandlers, onImportFile }) {
           ))}
         </section>
       ))}
-
-      <section className="homeSection">
-        <span className="homeSectionEyebrow">Planned</span>
-        <PlannedDocumentList />
-      </section>
     </div>
   );
 }
@@ -2609,6 +2631,7 @@ function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTem
   const isTouchPrimary = useIsTouchPrimary();
   const canSideBySide = !isTouchPrimary && shellWidth >= 1000;
   const [showPreview, setShowPreview] = useState(false);
+  const [kioskOpen, setKioskOpen] = useState(false);
   const debugLayout = useDebugLayoutFlag();
   const layoutMode = canSideBySide ? 'desktop-side-by-side' : (isTouchPrimary ? 'touch-stacked' : 'desktop-stacked-narrow');
   const isReviewStep = jsaStep === 'review';
@@ -2649,6 +2672,7 @@ function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTem
 
   return (
     <>
+      {kioskOpen && <CrewSignInKiosk jsa={jsa} upd={upd} onExit={() => setKioskOpen(false)} />}
       <div className="builderHeader">
         <div className="builderHeaderTitleRow">
           <div className="builderHeaderTitleBlock">
@@ -2677,7 +2701,7 @@ function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTem
           {jsaStep === 'job' && <StepJob jsa={jsa} upd={upd} prev={prev} next={next} />}
           {jsaStep === 'meeting' && <StepMeeting jsa={jsa} upd={upd} prev={prev} next={next} />}
           {jsaStep === 'work' && <StepWork jsa={jsa} upd={upd} addRow={addRow} updRow={updRow} removeRow={removeRow} addSummaryAsRow={addSummaryAsRow} addRowTemplate={addRowTemplate} customQuick={settings.customQuick || { task: [], hazard: [], control: [] }} prev={prev} next={next} />}
-          {jsaStep === 'signatures' && <StepSignatures jsa={jsa} upd={upd} sigCount={sigCount} prev={prev} next={next} />}
+          {jsaStep === 'signatures' && <StepSignatures jsa={jsa} upd={upd} sigCount={sigCount} prev={prev} next={next} onOpenKiosk={() => setKioskOpen(true)} />}
           {jsaStep === 'review' && <StepReview jsa={jsa} upd={upd} fit={fit} saveName={saveName} setSaveName={setSaveName} saveTemplate={saveTemplate} updateTemplate={updateTemplate} saveDraft={saveDraft} markReady={markReady} exportPdf={exportPdf} legacyBrowserPrint={legacyBrowserPrint} pdfExportState={pdfExportState} isPdfStale={isPdfStale} shareGeneratedPdfClick={shareGeneratedPdfClick} downloadGeneratedPdfClick={downloadGeneratedPdfClick} clearDraft={clearDraft} prev={prev} next={next} setJsaStep={setJsaStep} />}
 
           {!canSideBySide && previewOpen && previewPanel}
@@ -3147,7 +3171,8 @@ function StepWork({ jsa, upd, addRow, updRow, removeRow, addSummaryAsRow, addRow
 }
 
 /* ── Step: Signatures ── */
-function StepSignatures({ jsa, upd, sigCount, prev, next }) {
+function StepSignatures({ jsa, upd, sigCount, prev, next, onOpenKiosk }) {
+  const crewSignedCount = jsa.crewSignatures?.length || 0;
   return (
     <div className="stepStack">
       <div className="stepPanel">
@@ -3156,14 +3181,27 @@ function StepSignatures({ jsa, upd, sigCount, prev, next }) {
           <TA label="Acknowledgement Text" value={jsa.acknowledgement} onChange={v => upd({ acknowledgement: v })} rows={6} />
           <div className="sigSetup">
             <label className="field">
-              <span>Number of Signature Lines</span>
+              <span>{crewSignedCount > 0 ? 'Extra Blank Lines (for late/in-person sign-ins)' : 'Number of Signature Lines'}</span>
               <input type="number" min="1" max="100" value={sigCount} onChange={e => upd({ signatureLineCount: Math.max(1, Math.min(100, Number(e.target.value) || 1)) })} />
-              <small>Signatures always print on a separate attached sign-in sheet, up to 40 lines per sheet.</small>
+              <small>
+                {crewSignedCount > 0
+                  ? 'Printed after the digital signatures below, blank, for anyone who signs in ink later.'
+                  : 'Signatures always print on a separate attached sign-in sheet, up to 40 lines per sheet.'}
+              </small>
             </label>
             <div className="sigRuleBox">
               <strong>Attached sign-in sheet will be generated.</strong>
-              <p>The main JSA will note an attached sign-in sheet. Requested lines: {sigCount}.</p>
+              <p>
+                {crewSignedCount > 0
+                  ? `${crewSignedCount} digital signature${crewSignedCount === 1 ? '' : 's'} print filled in, plus ${sigCount} blank line${sigCount === 1 ? '' : 's'} after them.`
+                  : `The main JSA will note an attached sign-in sheet. Requested lines: ${sigCount}.`}
+              </p>
             </div>
+          </div>
+          <div className="sigRuleBox">
+            <strong>Crew Sign-In (kiosk mode)</strong>
+            <p>{crewSignedCount === 0 ? 'No one has signed yet.' : `${crewSignedCount} crew member${crewSignedCount === 1 ? '' : 's'} signed so far — their signatures will print on the attached sign-in sheet.`}</p>
+            <button type="button" className="btn secondary sm" onClick={onOpenKiosk}>Start Crew Sign-In</button>
           </div>
         </div>
       </div>
@@ -3826,7 +3864,7 @@ function PrintTaskTable({ rows, className = '' }) {
 }
 
 function MainJsaDocumentPage({ jsa, plan, className = '', pageRef }) {
-  const sigCount = Math.max(1, Math.min(100, Number(jsa.signatureLineCount) || 1));
+  const sigCount = signInLineTotal(jsa);
   return (
     <div className={`documentPage mainJsaPage ${className}`.trim()} ref={pageRef}>
       <PrintBrandHeader title="Job Safety Analysis" subtitle="JSA & Tailgate Meeting Form" pageNumber={1} totalPages={plan.totalPages} />
@@ -4428,30 +4466,41 @@ function TaskContinuationPage({ jsa, rows, pageNumber, totalPages, continuationN
   );
 }
 
+// Signature sizing is pure CSS now (.attachedSigLineImg in styles.css,
+// height driven by the --sig-row-h custom property below) -- no JS math, no
+// runtime measurement, no post-render DOM mutation. See the big comment on
+// getSignaturePages/SIGNIN_ROW_HEIGHT_PX above for why: every previous
+// attempt to compute a signature's size at capture time worked in this
+// repo's own tests and still came out wrong for Fonzo in the field. A fixed
+// row height means the CSS can size the image correctly on the very first
+// render, the same way on every export path (the primary pipeline AND the
+// legacy window.print() fallback), with nothing to get out of sync.
 function AttachedSignIn({ jsa, pages, pageOffset, totalPages, getPageRef }) {
   return (
     <>
-      {pages.map((lines, pageIdx) => {
-        const rowCount = Math.ceil(lines.length / 2);
-        return (
-          <section className="printSheet" key={pageIdx}>
-            <div className="printPage signInPage" ref={getPageRef ? (el => getPageRef(pageIdx, el)) : undefined}>
-              <PrintBrandHeader title="JSA Sign-In Sheet" subtitle={`Attached Sign-In ${pageIdx + 1} of ${pages.length}`} pageNumber={pageOffset + pageIdx + 1} totalPages={totalPages} />
-              <table className="printInfoTable signInInfoTable">
-                <tbody>
-                  <tr><th>Location:</th><td>{jsa.location}</td><th>Date:</th><td>{dateStr(jsa.date)}</td><th>Job #:</th><td>{jsa.jobNumber}</td></tr>
-                  <tr><th>Job Site:</th><td>{jsa.jobSite}</td><th>Superintendent/Foreman:</th><td>{jsa.superintendentForeman}</td><th>Overall Task:</th><td>{jsa.overallWorkTask}</td></tr>
-                </tbody>
-              </table>
-              <div className="ackBlock signInAck"><strong>Acknowledgement:</strong> I have reviewed and understand the JSA and tailgate meeting information and will exercise stop work authority for unsafe acts, conditions, or hazards.</div>
-              <div className="attachedSignatureGrid" style={{ '--signature-rows': rowCount }}>
-                {lines.map(n => <div className="attachedSigLine" key={n}>{n}.</div>)}
-              </div>
-              <footer className="printFooter">Shackelford Construction and Hauling, LLC · Attached Sign-In Sheet</footer>
+      {pages.map((lines, pageIdx) => (
+        <section className="printSheet" key={pageIdx}>
+          <div className="printPage signInPage" ref={getPageRef ? (el => getPageRef(pageIdx, el)) : undefined}>
+            <PrintBrandHeader title="JSA Sign-In Sheet" subtitle={`Attached Sign-In ${pageIdx + 1} of ${pages.length}`} pageNumber={pageOffset + pageIdx + 1} totalPages={totalPages} />
+            <table className="printInfoTable signInInfoTable">
+              <tbody>
+                <tr><th>Location:</th><td>{jsa.location}</td><th>Date:</th><td>{dateStr(jsa.date)}</td><th>Job #:</th><td>{jsa.jobNumber}</td></tr>
+                <tr><th>Job Site:</th><td>{jsa.jobSite}</td><th>Superintendent/Foreman:</th><td>{jsa.superintendentForeman}</td><th>Overall Task:</th><td>{jsa.overallWorkTask}</td></tr>
+              </tbody>
+            </table>
+            <div className="ackBlock signInAck"><strong>Acknowledgement:</strong> I have reviewed and understand the JSA and tailgate meeting information and will exercise stop work authority for unsafe acts, conditions, or hazards.</div>
+            <div className="attachedSignatureGrid" style={{ '--sig-row-h': `${SIGNIN_ROW_HEIGHT_PX}px` }}>
+              {lines.map(({ n, dataUrl }) => (
+                <div className={`attachedSigLine${dataUrl ? ' attachedSigLineDigital' : ''}`} key={n}>
+                  <span className="attachedSigLineNum">{n}.</span>
+                  {dataUrl && <img className="attachedSigLineImg" src={dataUrl} alt="" />}
+                </div>
+              ))}
             </div>
-          </section>
-        );
-      })}
+            <footer className="printFooter">Shackelford Construction and Hauling, LLC · Attached Sign-In Sheet</footer>
+          </div>
+        </section>
+      ))}
     </>
   );
 }
