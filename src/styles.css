@@ -335,8 +335,8 @@ button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:focus-v
 }
 
 /* ── Mobile bottom navigation ──
-   Below the file's existing 680px phone breakpoint (see .page/.libraryRow
-   etc. further down) the icon-rail sidebar above is replaced outright by a
+   Below the file's existing 680px phone breakpoint (see .homeSection etc.
+   further down) the icon-rail sidebar above is replaced outright by a
    fixed bottom tab bar — a phone shouldn't spend a permanent vertical strip
    on navigation chrome. Same navy sidebar surface/tokens so it still reads
    as the same brand chrome, just relocated. Hidden by default so it never
@@ -613,7 +613,6 @@ input:focus, select:focus, textarea:focus {
 .badge.warn { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
 .badge.bad { background: color-mix(in srgb, var(--danger) 16%, transparent); color: var(--danger); }
 .badge.avail { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
-.badge.soon { background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
 
 /* ── Toast ── */
 .toast {
@@ -973,33 +972,6 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 .accessRowText small { font-size: 12.5px; color: var(--muted); }
 .accessRowChevron { flex-shrink: 0; width: 16px; height: 16px; color: var(--text-very-faint); }
 
-/* ── Planned document library ──
-   One shared surface (not seven floating cards) holding compact, visibly
-   inert rows — lower contrast, no hover elevation, no pointer cursor, a
-   muted "Planned" badge instead of anything that reads as actionable. */
-.libraryCard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: clip; }
-.libraryList { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.libraryRow {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 72px;
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--line);
-  cursor: default;
-}
-/* Vertical divider between the two columns, skipped on the right column. */
-.libraryList .libraryRow:nth-child(odd) { border-right: 1px solid var(--line); }
-.libraryRowIcon { width: 15px; height: 15px; flex-shrink: 0; color: var(--text-very-faint); }
-.libraryRowText { display: grid; gap: 1px; min-width: 0; flex: 1 1 auto; }
-.libraryRowText strong { font-size: 13.5px; font-weight: 700; color: var(--muted); }
-.libraryRowText span { font-size: 12px; color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-@media (max-width: 900px) {
-  .libraryList { grid-template-columns: 1fr; }
-  .libraryList .libraryRow:nth-child(odd) { border-right: none; }
-}
-
 /* ── Home, phone widths ──
    Same content, deliberately tighter rhythm: less top-level whitespace than
    the desktop dashboard now that the sidebar's width offset is gone and the
@@ -1023,33 +995,6 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   .homeSection { gap: 10px; }
   .workspaceAccessGrid { grid-template-columns: 1fr; gap: 10px; }
   .accessRow { padding: 14px 16px; min-height: 64px; }
-
-  /* Document Library rows: readability over compactness. The description
-     was single-line-ellipsis on desktop where two columns leave little
-     width per row; single-column phone width has room to let it wrap to
-     two lines instead, with the Planned badge dropped to its own row under
-     the icon column rather than squeezed against the title. */
-  .libraryRow {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    grid-template-areas: "icon text" "icon badge";
-    column-gap: 12px;
-    row-gap: 6px;
-    align-items: start;
-    min-height: auto;
-    padding: 14px 16px;
-  }
-  .libraryRowIcon { grid-area: icon; margin-top: 2px; }
-  .libraryRowText { grid-area: text; }
-  .libraryRowText span {
-    white-space: normal;
-    overflow: hidden;
-    text-overflow: clip;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-  }
-  .libraryRow .badge.soon { grid-area: badge; justify-self: start; }
 }
 
 /* Lightweight text-only disclosure for low-priority content (future document

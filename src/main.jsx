@@ -2280,36 +2280,6 @@ function MobileBottomNav({ tab, goHome, goDocs, setTab }) {
   );
 }
 
-/* ── Planned document library ──
-   Shared by Home and Documents so the "not yet built" list is defined once.
-   Deliberately inert: no onClick, no href, cursor:default via CSS — these
-   are not disabled buttons pretending to be buttons, they're plain rows. */
-const PLANNED_DOCUMENT_TYPES = [
-  { name: 'BBS Observation', desc: 'Behavior-based safety observations and coaching notes.' },
-  { name: 'Sign-In Sheet', desc: 'Standalone sign-in sheet for meetings and training.' },
-  { name: 'Toolbox Talk', desc: 'Short-form safety talks and crew acknowledgement.' },
-  { name: 'SOP', desc: 'Standard operating procedures for recurring tasks.' },
-  { name: 'Inspection', desc: 'Site and equipment inspection checklists.' },
-];
-function PlannedDocumentList() {
-  return (
-    <div className="libraryCard">
-      <div className="libraryList">
-        {PLANNED_DOCUMENT_TYPES.map(doc => (
-          <div className="libraryRow" key={doc.name}>
-            <IconLock className="libraryRowIcon" />
-            <div className="libraryRowText">
-              <strong>{doc.name}</strong>
-              <span>{doc.desc}</span>
-            </div>
-            <span className="badge soon">Planned</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 /* Per-document-type marks for Home's start grid. Six identical page icons
    would defeat the point of the grid — on a phone the picture is what a user
    actually scans for, before the words resolve. */
@@ -2334,8 +2304,7 @@ function docNumber(id) {
    Two questions, in the order a field user actually asks them: "let me finish
    what I started" and "let me start the right document". Both are answered
    across ALL six document types on equal footing — see homeDocEntries in
-   App() for why that ordering changed — followed by the Workspace shortcuts
-   and the always-visible (not disclosure-hidden) roadmap. */
+   App() for why that ordering changed — followed by the Workspace shortcuts. */
 function HomeView({ customTemplates, setTab, docEntries }) {
   const [query, setQuery] = useState('');
   const inProgress = docEntries.filter(e => e.draft);
@@ -2463,11 +2432,6 @@ function HomeView({ customTemplates, setTab, docEntries }) {
         </div>
       </section>
 
-      <section className="homeSection">
-        <span className="homeSectionEyebrow">Document Library</span>
-        <p className="homeSectionSub">More document types are planned for future releases.</p>
-        <PlannedDocumentList />
-      </section>
     </div>
   );
 }
@@ -2499,7 +2463,7 @@ function DocCenterView({ startHandlers, onImportFile }) {
       <div className="sectionTitle">
         <div className="eyebrow">Documents</div>
         <h2>Documents</h2>
-        <p>Start or open a document type that's available now. Planned types will arrive in later releases.</p>
+        <p>Start or open a document type.</p>
       </div>
 
       <section className="homeSection">
@@ -2532,11 +2496,6 @@ function DocCenterView({ startHandlers, onImportFile }) {
           ))}
         </section>
       ))}
-
-      <section className="homeSection">
-        <span className="homeSectionEyebrow">Planned</span>
-        <PlannedDocumentList />
-      </section>
     </div>
   );
 }
