@@ -1030,13 +1030,27 @@ function LayoutDebugPanel({ containerRef, layoutMode, stepperMode, jobPairMode, 
    focus returns to whatever triggered it on close. No dependency. ── */
 function useFocusTrapDialog(onCancel) {
   const dialogRef = useRef(null);
+  // Every caller passes onCancel as an inline arrow function, so it's a new
+  // reference on every render of whatever owns the dialog's open/closed
+  // state -- with onCancel in the effect's own deps (as this used to be),
+  // the "focus the first element" line below re-ran on every one of those
+  // re-renders, not just once on open. Typing into any input inside the
+  // dialog re-renders its parent, which yanked focus straight back onto the
+  // first button -- on a touchscreen that closes the on-screen keyboard
+  // after every single keystroke (real bug, Employee Options' Template Name
+  // field, 2026-08-17/18). Reading onCancel through a ref instead means the
+  // effect only needs to run once, on mount, while still always calling the
+  // current onCancel -- initial focus is set once, like a real focus trap,
+  // not re-stolen on every keystroke.
+  const onCancelRef = useRef(onCancel);
+  onCancelRef.current = onCancel;
   useEffect(() => {
     const previouslyFocused = document.activeElement;
     const dialog = dialogRef.current;
     const focusable = dialog ? Array.from(dialog.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')) : [];
     focusable[0]?.focus();
     function onKeyDown(e) {
-      if (e.key === 'Escape') { onCancel(); return; }
+      if (e.key === 'Escape') { onCancelRef.current(); return; }
       if (e.key !== 'Tab' || !focusable.length) return;
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
@@ -1048,7 +1062,7 @@ function useFocusTrapDialog(onCancel) {
       document.removeEventListener('keydown', onKeyDown);
       if (previouslyFocused && typeof previouslyFocused.focus === 'function') previouslyFocused.focus();
     };
-  }, [onCancel]);
+  }, []);
   return dialogRef;
 }
 
@@ -1080,7 +1094,7 @@ function ConfirmReplaceDialog({ templateName, isImport, onCancel, onContinue }) 
    same overlay/sheet visual language as the Suggestions sheet (bottom sheet
    on touch, centered dialog on desktop; see .actionSheetOverlay in
    styles.css) and the same focus-trap as every other modal in the app. */
-function DocumentOptionsSheet({ onClose, saveDraft, markReady, saveName, setSaveName, saveTemplate, updateTemplate, clearDraft, legacyBrowserPrint, isGenerating }) {
+function DocumentOptionsSheet({ onClose, saveDraft, markReady, clearDraft, legacyBrowserPrint, isGenerating }) {
   const dialogRef = useFocusTrapDialog(onClose);
   return (
     <div className="actionSheetOverlay" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
@@ -1103,22 +1117,9 @@ function DocumentOptionsSheet({ onClose, saveDraft, markReady, saveName, setSave
           </div>
 
           <div className="actionSheetGroup">
-            <span className="actionSheetGroupLabel">Save as Template</span>
-            <label className="field">
-              <span>Template name</span>
-              <input value={saveName} onChange={e => setSaveName(e.target.value)} placeholder="Example: Entergy JSA" />
-            </label>
-            <div className="actionSheetInlineActions">
-              <button type="button" className="btn primary sm" onClick={saveTemplate}>Save Template</button>
-              <button type="button" className="btn ghost sm" onClick={updateTemplate}>Update Loaded</button>
-            </div>
-            <p className="helperText">Loading a template starts a fresh JSA for today and never carries over signatures or daily work details.</p>
-          </div>
-
-          <div className="actionSheetGroup">
             <button type="button" className="actionSheetAction" onClick={() => { legacyBrowserPrint(); onClose(); }} disabled={isGenerating}>
               <strong>Legacy Browser Print</strong>
-              <span>Fallback only — can produce incorrect pagination on some devices. Prefer Print / Save PDF.</span>
+              <span>Fallback only — can produce incorrect pagination on some devices. Prefer "Create Document" above.</span>
             </button>
           </div>
 
@@ -3300,6 +3301,19 @@ function StepReview({ jsa, upd, fit, saveName, setSaveName, saveTemplate, update
           </div>
 
           <div className="card">
+            <div className="cardHeader"><strong>Save as Template</strong></div>
+            <label className="field">
+              <span>Template name</span>
+              <input value={saveName} onChange={e => setSaveName(e.target.value)} placeholder="Example: Entergy JSA" />
+            </label>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button type="button" className="btn primary sm" onClick={saveTemplate}>Save Template</button>
+              <button type="button" className="btn ghost sm" onClick={updateTemplate}>Update Loaded</button>
+            </div>
+            <p className="helperText">Loading a template starts a fresh JSA for today and never carries over signatures or daily work details.</p>
+          </div>
+
+          <div className="card">
             <div className="cardHeader"><strong>Send to Someone Else to Finish</strong></div>
             <p className="helperText">Save a file you can text, email, or AirDrop to someone else. They can open it in this app and pick up right where you left off — this doesn't need to be complete first.</p>
             <button type="button" className="btn secondary" onClick={() => downloadDraftFile('jsa', jsa, buildDraftFilename(jsa.jobSite || jsa.location, 'JSA', jsa.date))}>Export Draft File</button>
@@ -3311,10 +3325,6 @@ function StepReview({ jsa, upd, fit, saveName, setSaveName, saveTemplate, update
           onClose={() => setShowDocOptions(false)}
           saveDraft={saveDraft}
           markReady={markReady}
-          saveName={saveName}
-          setSaveName={setSaveName}
-          saveTemplate={saveTemplate}
-          updateTemplate={updateTemplate}
           clearDraft={clearDraft}
           legacyBrowserPrint={legacyBrowserPrint}
           isGenerating={isGenerating}

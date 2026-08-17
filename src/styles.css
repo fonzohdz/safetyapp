@@ -1484,7 +1484,6 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 .actionSheetCloseBtn:hover { color: var(--text); }
 .actionSheetGroup { display: grid; gap: 8px; padding: 12px 4px; border-bottom: 1px solid var(--line); }
 .actionSheetGroup:last-child { border-bottom: none; }
-.actionSheetGroupLabel { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); padding: 0 12px; }
 .actionSheetAction {
   display: grid;
   gap: 2px;
@@ -1496,7 +1495,6 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 .actionSheetAction:hover:not(:disabled) { background: var(--surface-2); }
 .actionSheetAction strong { font-size: 14.5px; font-weight: 700; }
 .actionSheetAction span { font-size: 12.5px; color: var(--muted); line-height: 1.4; }
-.actionSheetInlineActions { display: flex; gap: 8px; flex-wrap: wrap; padding: 0 12px; }
 .actionSheetDestructive { padding: 12px 4px 4px; display: grid; gap: 6px; justify-items: start; }
 .actionSheetDestructive .helperText { padding: 0 12px; }
 .actionSheetGroup .field, .actionSheetGroup .helperText { padding: 0 12px; }
