@@ -2401,6 +2401,49 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 .documentPage .printFooter,
 .printPage .printFooter { flex: 0 0 auto; border-top: 1px solid #999; padding-top: 3px; text-align: center; color: #333; font-size: 7px; letter-spacing: .2px; }
 
+/* Continuation/sign-in-only classes .documentPage never needed to cover
+   before now -- TaskContinuationPage/AttachedSignIn only ever rendered
+   inside @media print or .pdfExportRoot/.printMeasureRoot, never on screen,
+   until JsaPreviewPagerModal (Fonzo, 2026-08-17/18: "preview should just be
+   a pop up where u can cycle between pages"). Values mirror the
+   .pdfExportRoot-scoped versions of these same rules exactly -- this is the
+   same real geometry that's already proven correct in generated PDFs, not a
+   fresh guess. Only reachable when a caller explicitly opts a page into
+   .documentPage (TaskContinuationPage/AttachedSignIn's own printPage/
+   continuationPage/signInPage classes are untouched), so the real print/PDF
+   pipeline -- which never passes that class -- cannot be affected by this. */
+.documentPage .continuationTaskTable td { height: 35px; font-size: 9.8px; line-height: 1.2; }
+.documentPage .continuationNotice { border: 1px solid #000; border-top: 0; padding: 4px 5px; font-size: 8px; line-height: 1.15; background: #f4f4f4; }
+.documentPage .continuationInfoTable th, .documentPage .continuationInfoTable td,
+.documentPage .signInInfoTable th, .documentPage .signInInfoTable td { font-size: 8.6px; padding: 3px 4px; }
+.documentPage .signInAck { font-size: 8.8px; line-height: 1.2; padding: 4px 5px; }
+.documentPage .attachedSignatureGrid {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: var(--sig-row-h);
+  border-left: 1px solid #000;
+  border-top: 1px solid #000;
+  margin-top: 6px;
+}
+.documentPage .attachedSigLine {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-right: 1px solid #000;
+  border-bottom: 1px solid #000;
+  padding: 5px 7px;
+  font-size: 10px;
+}
+.documentPage .attachedSigLineNum { flex: 0 0 auto; }
+.documentPage .attachedSigLineImg {
+  flex: 0 0 auto;
+  height: calc(var(--sig-row-h) - 16px);
+  width: auto;
+  max-width: 100%;
+  display: block;
+}
+
 @media (max-width: 840px) {
   .quickControls { grid-template-columns: 1fr; }
   .reviewChecklist { grid-template-columns: 1fr; }

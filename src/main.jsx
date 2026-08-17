@@ -3785,6 +3785,7 @@ function JsaPreviewPagerModal({ jsa, plan, initialIndex = 0, onClose }) {
                   totalPages={plan.totalPages}
                   continuationNumber={current.idx + 1}
                   continuationTotal={plan.continuationPages.length}
+                  className="documentPage"
                 />
               )}
               {current.kind === 'signin' && (
@@ -3795,6 +3796,7 @@ function JsaPreviewPagerModal({ jsa, plan, initialIndex = 0, onClose }) {
                   signInTotal={plan.signInPages.length}
                   pageOffset={1 + plan.continuationPages.length}
                   totalPages={plan.totalPages}
+                  className="documentPage"
                 />
               )}
             </div>
@@ -4582,9 +4584,9 @@ function PrintableJsa({ jsa }) {
   );
 }
 
-function TaskContinuationPage({ jsa, rows, pageNumber, totalPages, continuationNumber, continuationTotal, pageRef }) {
+function TaskContinuationPage({ jsa, rows, pageNumber, totalPages, continuationNumber, continuationTotal, pageRef, className = '' }) {
   return (
-    <div className="printPage continuationPage" ref={pageRef}>
+    <div className={`printPage continuationPage ${className}`.trim()} ref={pageRef}>
       <PrintBrandHeader title="JSA Continuation Sheet" subtitle={`Continuation ${continuationNumber} of ${continuationTotal}`} pageNumber={pageNumber} totalPages={totalPages} />
       <table className="printInfoTable continuationInfoTable">
         <tbody>
@@ -4614,7 +4616,7 @@ function TaskContinuationPage({ jsa, rows, pageNumber, totalPages, continuationN
 // extracted page out of the full set -- see JsaPreviewPagerModal, which
 // shows one sign-in page at a time and still needs it to correctly read
 // "Attached Sign-In 3 of 4", not "1 of 1".
-function AttachedSignIn({ jsa, pages, pageOffset, totalPages, getPageRef, indexOffset = 0, signInTotal }) {
+function AttachedSignIn({ jsa, pages, pageOffset, totalPages, getPageRef, indexOffset = 0, signInTotal, className = '' }) {
   const total = signInTotal ?? pages.length;
   return (
     <>
@@ -4622,7 +4624,7 @@ function AttachedSignIn({ jsa, pages, pageOffset, totalPages, getPageRef, indexO
         const pageIdx = localIdx + indexOffset;
         return (
         <section className="printSheet" key={pageIdx}>
-          <div className="printPage signInPage" ref={getPageRef ? (el => getPageRef(pageIdx, el)) : undefined}>
+          <div className={`printPage signInPage ${className}`.trim()} ref={getPageRef ? (el => getPageRef(pageIdx, el)) : undefined}>
             <PrintBrandHeader title="JSA Sign-In Sheet" subtitle={`Attached Sign-In ${pageIdx + 1} of ${total}`} pageNumber={pageOffset + pageIdx + 1} totalPages={totalPages} />
             <table className="printInfoTable signInInfoTable">
               <tbody>
