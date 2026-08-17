@@ -236,18 +236,23 @@ const PRINT_CONTENT_HEIGHT_PX = PRINT_CONTENT_HEIGHT_IN * PRINT_PX_PER_IN_GEOMET
 const PRINT_CONTENT_BOTTOM_PX = (PRINT_PAGE_HEIGHT_IN - PRINT_PAGE_PADDING_IN) * PRINT_PX_PER_IN_GEOMETRY;
 
 // Sign-in sheet: a fixed row height, not a fitted one — see the big comment
-// on getSignaturePages for why. 80px gives a real, legible signature (about
-// 3x the height a full 40-lines/page sheet used to allow) with margin to
-// spare: a signInPage's chrome (brand header + info table + acknowledgement
-// text) measures ~182px, leaving ~831px of real usable grid height on an
-// otherwise-empty page (measured directly via Playwright against the real
-// rendered DOM, 2026-08-17) — 9 rows of 80px is 720px, comfortably inside
-// that even allowing some slack for a Superintendent/Foreman field long
-// enough to wrap an extra line. --sig-row-h below must be this same number;
-// it exists as a CSS custom property (not a hardcoded px in styles.css) so
-// this one constant is the only place the number lives.
-const SIGNIN_ROW_HEIGHT_PX = 80;
-const SIGNIN_ROWS_PER_PAGE = 9; // 18 signature lines/page
+// on getSignaturePages for why. A signInPage's chrome (brand header + info
+// table + acknowledgement text) measures ~182px, leaving ~831px of real
+// usable grid height on an otherwise-empty page (measured directly via
+// Playwright against the real rendered DOM, 2026-08-17). 55px still reads as
+// a real, legible signature — about 2x the height of the old ~27px/row
+// layout that Fonzo confirmed was too small/prone to looking distorted, well
+// short of this fix's original 80px — while roughly 44% more signatures fit
+// per sign-in page, which is the point: fewer wasted pages on a big crew's
+// printed sheet without going back anywhere near the size that broke before
+// (Fonzo, 2026-08-17: same legibility bar, smaller box, not a smaller
+// signature squeezed into the same box). 13 rows of 55px is 715px,
+// comfortably inside 831px with a margin similar to the original 80px/9-row
+// choice. --sig-row-h below must be this same number; it exists as a CSS
+// custom property (not a hardcoded px in styles.css) so this one constant is
+// the only place the number lives.
+const SIGNIN_ROW_HEIGHT_PX = 55;
+const SIGNIN_ROWS_PER_PAGE = 13; // 26 signature lines/page
 
 function estimateTextLines(value, charsPerLine) {
   const text = String(value || '');
