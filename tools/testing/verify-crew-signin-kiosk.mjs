@@ -47,11 +47,19 @@ function waitForServer(url, timeoutMs) {
 async function drawSignature(page, canvasLocator, seed) {
   const box = await canvasLocator.boundingBox();
   const x0 = box.x + box.width * 0.15;
-  const y0 = box.y + box.height * 0.5 + seed;
+  // Vertical offset/amplitude scaled to the pad's own real height (fraction
+  // chosen so seed=0/40/80 reproduces the original absolute-pixel offsets
+  // exactly at the pad's old fixed 200px height), not hardcoded pixels --
+  // the pad's height is now dynamic (see padHeightFor in
+  // CrewSignInKiosk.jsx), and a fixed pixel offset silently drew the mouse
+  // outside a shorter canvas, which is how this caught a real bug
+  // (2026-08-17).
+  const y0 = box.y + box.height * (0.5 + seed / 200);
+  const amp = box.height * 0.1;
   await page.mouse.move(x0, y0);
   await page.mouse.down();
   for (let i = 1; i <= 8; i += 1) {
-    await page.mouse.move(x0 + i * (box.width * 0.08), y0 + Math.sin(i + seed) * 20);
+    await page.mouse.move(x0 + i * (box.width * 0.08), y0 + Math.sin(i + seed) * amp);
   }
   await page.mouse.up();
 }

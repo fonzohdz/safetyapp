@@ -29,17 +29,34 @@ import { useEffect, useRef, useState } from 'react';
    deliberately out of scope for this pass. This component only captures
    and stores the data; nothing about the print pipeline changes. */
 
-// A real signature line is wide and short, not a tall box -- 200 (down from
-// 320) keeps the pad comfortable to sign on while making the drawn stroke
-// itself closer in shape to the printed sign-in line it lands on (Fonzo,
-// 2026-08-17: "change the actual signing portion to match the actual box
-// that it's going into"). Print sizing itself doesn't depend on this ratio
-// matching exactly (see SIGNIN_ROW_HEIGHT_PX in main.jsx -- width is always
-// `auto` from the image's own real proportions), but a closer match means
-// people naturally sign at a size that was already going to look right.
-const PAD_HEIGHT = 200;
+// A real signature line is wide and short, not a tall box. SIG_BOX_RATIO is
+// measured directly against the real printed .attachedSigLineImg box (363.7
+// x 39px at the current 55px sign-in row height -- see
+// tools/testing/output/measure-sig-box.mjs, 2026-08-17) so the pad is the
+// same SHAPE as the box the ink actually lands in, not just "short enough."
+// Recomputed from padWidth on every layout pass instead of a fixed height so
+// it stays correct if the row height (SIGNIN_ROW_HEIGHT_PX in main.jsx) ever
+// changes again. Print sizing itself doesn't depend on this ratio matching
+// exactly (width there is always `auto` from the image's own real
+// proportions), but a closer match means people naturally sign at a size
+// that was already going to look right (Fonzo, 2026-08-17: "take the exact
+// sizing of the box that the signatures are going to go in and have that
+// [pad] be where our signatures are going"). MIN_PAD_HEIGHT deliberately
+// does NOT chase the exact ratio down to its logical floor -- at this
+// kiosk's real measured pad width (~760px, tools/testing/output/
+// check-pad-dims.mjs) the literal ratio gives an ~81px-tall canvas, thin
+// enough that an ordinary signature's loops/ascenders run off the bottom
+// edge (confirmed: it broke verify-crew-signin-kiosk.mjs's own synthetic
+// stroke). 130px keeps real drawing room while staying meaningfully
+// flatter/wider than the original 200px square-ish pad.
+const SIG_BOX_RATIO = 363.7 / 39; // ~9.33 -- wide and short
+const MIN_PAD_HEIGHT = 130;
 const EXIT_HOLD_MS = 1500;
 const CONFIRM_PAUSE_MS = 1200;
+
+function padHeightFor(width) {
+  return Math.max(MIN_PAD_HEIGHT, Math.round(width / SIG_BOX_RATIO));
+}
 
 export default function CrewSignInKiosk({ jsa, upd, onExit }) {
   const canvasRef = useRef(null);
@@ -51,6 +68,7 @@ export default function CrewSignInKiosk({ jsa, upd, onExit }) {
   const exitHoldTimerRef = useRef(null);
 
   const [padWidth, setPadWidth] = useState(320);
+  const [padHeight, setPadHeight] = useState(padHeightFor(320));
   const [hasStroke, setHasStroke] = useState(false);
   const [phase, setPhase] = useState('signing'); // 'signing' | 'confirmed'
   const [exitHoldProgress, setExitHoldProgress] = useState(0);
@@ -74,7 +92,9 @@ export default function CrewSignInKiosk({ jsa, upd, onExit }) {
   useEffect(() => {
     function computeWidth() {
       const w = wrapRef.current ? wrapRef.current.clientWidth : 320;
-      setPadWidth(Math.max(280, Math.min(900, w || 320)));
+      const width = Math.max(280, Math.min(900, w || 320));
+      setPadWidth(width);
+      setPadHeight(padHeightFor(width));
     }
     computeWidth();
     window.addEventListener('resize', computeWidth);
@@ -90,7 +110,7 @@ export default function CrewSignInKiosk({ jsa, upd, onExit }) {
     if (!canvas) return;
     const dpr = window.devicePixelRatio || 1;
     canvas.width = padWidth * dpr;
-    canvas.height = PAD_HEIGHT * dpr;
+    canvas.height = padHeight * dpr;
     const ctx = canvas.getContext('2d');
     ctx.scale(dpr, dpr);
     ctx.lineWidth = 3;
@@ -99,13 +119,13 @@ export default function CrewSignInKiosk({ jsa, upd, onExit }) {
     ctx.strokeStyle = '#0B1D2E';
     hasStrokeRef.current = false;
     setHasStroke(false);
-  }, [padWidth, currentNumber]);
+  }, [padWidth, padHeight, currentNumber]);
 
   function toCanvasPoint(clientX, clientY) {
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
     const scaleX = rect.width > 0 ? padWidth / rect.width : 1;
-    const scaleY = rect.height > 0 ? PAD_HEIGHT / rect.height : 1;
+    const scaleY = rect.height > 0 ? padHeight / rect.height : 1;
     return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
   }
 
@@ -272,7 +292,7 @@ export default function CrewSignInKiosk({ jsa, upd, onExit }) {
           <canvas
             ref={canvasRef}
             className="crewKioskCanvas"
-            style={{ width: padWidth, height: PAD_HEIGHT, touchAction: 'none' }}
+            style={{ width: padWidth, height: padHeight, touchAction: 'none' }}
             onPointerDown={pointerDown}
             onPointerMove={pointerMove}
             onPointerUp={pointerUp}
