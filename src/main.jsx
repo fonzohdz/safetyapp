@@ -4280,6 +4280,46 @@ function prepareSingleLineTextForCapture(pageEl) {
   };
 }
 
+/* Sized crew signatures to actually fill their sign-in line, not sit tiny in
+   a mostly-empty box (Fonzo, 2026-08-17: "you can fill up the box with your
+   name and not some tiny signature"). sigImageStyle() in AttachedSignIn
+   gives every signature a safe *default* size before this runs, sized for
+   the worst case (a full 40-lines/page sheet) so nothing overflows even if
+   this step is skipped. This function then measures each row's REAL,
+   already-laid-out box on the live DOM (real browser layout -- not
+   html2canvas's own weaker layout pass, which is what actually broke object-
+   fit/percentage sizing here before, see the attachedSigLineImg CSS comment)
+   and grows each signature to fill it, right before that page is captured.
+   No cleanup needed (unlike prepareSingleLineTextForCapture): this only sets
+   plain inline width/height on an existing element, nothing structural, and
+   every export re-measures and overwrites fresh regardless of what a prior
+   export left behind. */
+function prepareSignatureSizingForCapture(pageEl) {
+  const lines = pageEl.querySelectorAll('.attachedSigLine');
+  lines.forEach((line) => {
+    const img = line.querySelector('.attachedSigLineImg');
+    if (!img || !img.naturalWidth || !img.naturalHeight) return;
+    const numEl = line.querySelector('.attachedSigLineNum');
+    const cs = getComputedStyle(line);
+    const padTop = parseFloat(cs.paddingTop) || 0;
+    const padBottom = parseFloat(cs.paddingBottom) || 0;
+    const padLeft = parseFloat(cs.paddingLeft) || 0;
+    const padRight = parseFloat(cs.paddingRight) || 0;
+    const gap = parseFloat(cs.columnGap || cs.gap) || 0;
+    const numWidth = numEl ? numEl.getBoundingClientRect().width : 0;
+    const availableHeight = line.clientHeight - padTop - padBottom;
+    const availableWidth = line.clientWidth - padLeft - padRight - numWidth - gap;
+    if (availableHeight <= 0 || availableWidth <= 0) return;
+
+    const ratio = img.naturalWidth / img.naturalHeight;
+    let h = availableHeight * 0.92; // small margin so ink never touches the row border
+    let w = h * ratio;
+    if (w > availableWidth) { w = availableWidth; h = w / ratio; }
+    img.style.width = `${Math.max(0, w)}px`;
+    img.style.height = `${Math.max(0, h)}px`;
+  });
+}
+
 /* The deterministic PDF export pipeline (Phase 4B). Captures each logical
    page from PdfExportRoot sequentially — one canvas at a time, released
    before starting the next — and assembles them into a single PDF with
@@ -4318,6 +4358,7 @@ async function generateJsaPdf(pageRefsRef, onProgress) {
     }
 
     const cleanupSingleLineText = prepareSingleLineTextForCapture(el);
+    prepareSignatureSizingForCapture(el);
     let canvas;
     try {
       canvas = await html2canvas(el, { scale, backgroundColor: '#ffffff', useCORS: true, logging: false });
@@ -4484,11 +4525,19 @@ function TaskContinuationPage({ jsa, rows, pageNumber, totalPages, continuationN
 // the actual generated PDF raster against the live DOM at high row counts
 // (40 lines/page, the real-world case): the image box comes out badly
 // disproportionate and object-fit doesn't correct it, so every signature
-// prints flattened. SIG_TARGET_HEIGHT is comfortably under the shortest row
-// this layout ever produces (~34px content height at the densest, 40
-// lines/page, packing); SIG_MAX_WIDTH is a defensive cap in case a future
-// layout tightens column width further. FALLBACK_RATIO only applies to
-// signatures captured before this fix shipped (no stored width/height).
+// prints flattened.
+//
+// This is only the SAFE DEFAULT/fallback size -- comfortably under the
+// shortest row this layout ever produces (~34px content height at the
+// densest, 40 lines/page packing), used for the initial React render and
+// for the legacy window.print() fallback path (which never runs
+// prepareSignatureSizingForCapture below, so it has no other sizing).
+// The primary export path (generateJsaPdf -> prepareSignatureSizingForCapture)
+// overrides this with the row's real measured size right before capture, so
+// signatures actually fill their line instead of sitting small in a mostly-
+// empty box (Fonzo, 2026-08-17). SIG_MAX_WIDTH is a defensive cap in case a
+// future layout tightens column width further. FALLBACK_RATIO only applies
+// to signatures captured before this fix shipped (no stored width/height).
 const SIG_TARGET_HEIGHT = 22;
 const SIG_MAX_WIDTH = 160;
 const SIG_FALLBACK_RATIO = 2.4;
