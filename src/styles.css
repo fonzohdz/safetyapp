@@ -2867,44 +2867,26 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
    attribute alone, which only shows on mouse hover and never fires on a
    touchscreen, so on the one input method this actually gets used with it
    was functionally invisible (real-world finding, 2026-08-15: even Fonzo,
-   the intended operator, couldn't find it). The hold-to-confirm mechanic
-   (crewKioskExitHoldFill) is unchanged -- a visible label doesn't make it
-   any easier to trigger by accident, a brush/tap still does nothing. */
+   the intended operator, couldn't find it). Used to require a hold instead
+   of a tap, specifically to guard against an accidental bump -- dropped
+   that (2026-08-17) because a hold-and-drag is exactly the gesture that
+   fires iOS Safari's own text-selection magnifying-glass loupe, and the two
+   fought each other in the field. A plain tap is safe here because exiting
+   doesn't lose anything -- every signature is already persisted the moment
+   it's confirmed. */
 .crewKioskExitHold {
   position: absolute;
   top: 14px;
   right: 14px;
   display: flex;
   align-items: center;
-  gap: 6px;
   height: 30px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.25);
   background: rgba(255, 255, 255, 0.08);
-  overflow: hidden;
-  padding: 0 12px 0 4px;
+  padding: 0 14px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-}
-.crewKioskExitHold::before {
-  content: '';
-  flex: 0 0 auto;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.4);
-}
-.crewKioskExitHoldFill {
-  position: absolute;
-  left: 4px;
-  top: 4px;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: var(--crimson, #C51F3A);
-  transform-origin: left center;
-  transform: scaleX(0);
-  transition: transform 30ms linear;
 }
 .crewKioskExitHoldLabel {
   position: relative;
@@ -2979,13 +2961,6 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   place-items: center;
   font-size: 36px;
 }
-.crewKioskConfirmedOverlay h1 {
-  margin: 0;
-  font: 600 26px var(--font-condensed, 'Barlow Condensed'), sans-serif;
-  text-transform: uppercase;
-  color: var(--navy, #0B1D2E);
-}
-.crewKioskConfirmedOverlay p { margin: 0; color: var(--text-2, #43525F); font-size: 15px; }
 .crewKioskFooter {
   position: absolute;
   bottom: 16px;

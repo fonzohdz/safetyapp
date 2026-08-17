@@ -19,9 +19,15 @@ import { useEffect, useRef, useState } from 'react';
    redrawn.
 
    Deliberately open-ended -- no fixed expected-signer count. Crew size
-   varies day to day; this keeps going until whoever is running it holds the
-   exit control (see EXIT_HOLD_MS) to leave the kiosk, rather than the app
-   trying to pre-guess headcount.
+   varies day to day; this keeps going until whoever is running it taps the
+   exit control to leave the kiosk, rather than the app trying to pre-guess
+   headcount. Exit used to require a hold (to guard against a crew member in
+   line bumping it by accident), but a hold-and-drag gesture is exactly what
+   iOS Safari's own text-selection magnifying-glass loupe fires on, and the
+   two fought each other in the field (Fonzo, 2026-08-17). Switched to a
+   plain tap -- exiting doesn't lose anything (every signature is already
+   persisted the moment it's confirmed), so an accidental exit just means
+   walking back into a kiosk that already has everyone's signatures intact.
 
    Does NOT wire captured signatures into the printed sign-in sheet
    (AttachedSignIn in main.jsx still prints blank numbered lines for pen
@@ -51,7 +57,6 @@ import { useEffect, useRef, useState } from 'react';
 // flatter/wider than the original 200px square-ish pad.
 const SIG_BOX_RATIO = 363.7 / 39; // ~9.33 -- wide and short
 const MIN_PAD_HEIGHT = 130;
-const EXIT_HOLD_MS = 1500;
 const CONFIRM_PAUSE_MS = 1200;
 
 function padHeightFor(width) {
@@ -65,13 +70,11 @@ export default function CrewSignInKiosk({ jsa, upd, onExit }) {
   const hasStrokeRef = useRef(false);
   const lastPointRef = useRef(null);
   const activeTouchIdRef = useRef(null);
-  const exitHoldTimerRef = useRef(null);
 
   const [padWidth, setPadWidth] = useState(320);
   const [padHeight, setPadHeight] = useState(padHeightFor(320));
   const [hasStroke, setHasStroke] = useState(false);
   const [phase, setPhase] = useState('signing'); // 'signing' | 'confirmed'
-  const [exitHoldProgress, setExitHoldProgress] = useState(0);
 
   const signedCount = jsa.crewSignatures?.length || 0;
   const currentNumber = signedCount + 1;
@@ -233,43 +236,16 @@ export default function CrewSignInKiosk({ jsa, upd, onExit }) {
     window.setTimeout(() => setPhase('signing'), CONFIRM_PAUSE_MS);
   }
 
-  // Exit is deliberately hard to trigger by accident -- a random person
-  // waiting in line to sign should never be able to bump the app out of
-  // kiosk mode. Requires holding for EXIT_HOLD_MS, with a visible fill so
-  // whoever's running the sign-in (not a signer) can see it's working.
-  function startExitHold() {
-    setExitHoldProgress(0);
-    const start = Date.now();
-    exitHoldTimerRef.current = window.setInterval(() => {
-      const pct = Math.min(1, (Date.now() - start) / EXIT_HOLD_MS);
-      setExitHoldProgress(pct);
-      if (pct >= 1) {
-        clearExitHold();
-        onExit();
-      }
-    }, 30);
-  }
-  function clearExitHold() {
-    if (exitHoldTimerRef.current) window.clearInterval(exitHoldTimerRef.current);
-    exitHoldTimerRef.current = null;
-    setExitHoldProgress(0);
-  }
-  useEffect(() => clearExitHold, []);
-
   return (
     <div className="crewKiosk" role="dialog" aria-modal="true" aria-label="Crew sign-in">
       <button
         type="button"
         className="crewKioskExitHold"
-        onPointerDown={startExitHold}
-        onPointerUp={clearExitHold}
-        onPointerLeave={clearExitHold}
-        onPointerCancel={clearExitHold}
-        aria-label="Hold to end sign-in"
-        title="Hold to end sign-in"
+        onClick={onExit}
+        aria-label="End sign-in"
+        title="End sign-in"
       >
-        <span className="crewKioskExitHoldFill" style={{ transform: `scaleX(${exitHoldProgress})` }} />
-        <span className="crewKioskExitHoldLabel">Hold to End Sign-In</span>
+        <span className="crewKioskExitHoldLabel">End Sign-In</span>
       </button>
 
       <div className="crewKioskBody">
@@ -298,11 +274,15 @@ export default function CrewSignInKiosk({ jsa, upd, onExit }) {
             onPointerUp={pointerUp}
             onPointerCancel={pointerUp}
           />
+          {/* Used to also show "Signed" / "Pass it to the next person" text,
+              but the pad got shorter when it was reshaped to match the
+              printed box (see SIG_BOX_RATIO above), and that text no longer
+              fit without clipping. Just the checkmark now (Fonzo,
+              2026-08-17) -- it still reads as "done" at a glance, and fits
+              comfortably at any pad height. */}
           {phase === 'confirmed' && (
-            <div className="crewKioskConfirmedOverlay">
+            <div className="crewKioskConfirmedOverlay" aria-label="Signed">
               <div className="crewKioskCheck" aria-hidden="true">&#10003;</div>
-              <h1>Signed</h1>
-              <p>Pass it to the next person.</p>
             </div>
           )}
         </div>

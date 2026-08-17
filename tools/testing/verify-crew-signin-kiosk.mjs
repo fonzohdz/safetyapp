@@ -7,7 +7,7 @@
 //   3. Verify: signature count increments, canvas visibly resets between
 //      signers, previously-confirmed signatures are never touched again,
 //      the "Clear" button only affects the CURRENT in-progress signature.
-//   4. Verify the exit-hold control actually requires a hold, not a tap.
+//   4. Verify a tap on the exit control exits the kiosk.
 //   5. Verify the data actually persisted (crewSignatures array in the
 //      saved draft) and that the existing PDF export still works untouched.
 //
@@ -139,21 +139,14 @@ async function main() {
     check(footerText.includes('3 signed'), `Footer reports 3 signed so far (got "${footerText}")`);
     await page.screenshot({ path: path.join(outDir, '07-kiosk-after-3-signers.png') });
 
-    // Exit-hold control: a plain tap must NOT exit.
-    console.log('[5] Testing exit-hold control...');
+    // Exit control: a plain tap exits immediately (switched away from a
+    // hold, 2026-08-17 -- a hold-and-drag on iOS Safari fires the OS's own
+    // text-selection magnifying-glass loupe, which fought the app's own
+    // hold-progress gesture in the field).
+    console.log('[5] Testing exit control...');
     await page.locator('.crewKioskExitHold').click();
-    await page.waitForTimeout(200);
-    check(await page.locator('.crewKiosk').isVisible(), 'A plain tap on the exit control does NOT exit the kiosk');
-
-    // A real hold (pointer down, wait past EXIT_HOLD_MS, pointer up) must exit.
-    const exitBox = await page.locator('.crewKioskExitHold').boundingBox();
-    await page.mouse.move(exitBox.x + exitBox.width / 2, exitBox.y + exitBox.height / 2);
-    await page.mouse.down();
-    await page.screenshot({ path: path.join(outDir, '08-kiosk-exit-hold-in-progress.png') });
-    await page.waitForTimeout(1700);
-    await page.mouse.up();
     await page.locator('.crewKiosk').waitFor({ state: 'hidden', timeout: 3000 });
-    check(true, 'Holding the exit control for >1.5s exits the kiosk');
+    check(true, 'Tapping the exit control exits the kiosk immediately');
     await page.screenshot({ path: path.join(outDir, '09-back-on-signatures-step.png') });
 
     const stepText = await page.locator('text=/crew member.*signed so far/').innerText();
