@@ -2112,6 +2112,7 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 .previewTruthBar { display: flex; align-items: center; gap: 9px; padding: 9px 13px 0; flex-wrap: wrap; }
 .previewTruthBar p { margin: 0; color: var(--muted); font-size: 11.5px; }
 .previewTruthBar .previewFit { margin: 0; font-size: 9px; padding: 4px 7px; }
+.previewViewAllBtn { margin-left: auto; }
 .previewSheetViewport {
   position: relative;
   width: 100%;
@@ -2119,6 +2120,13 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   padding: 14px;
   box-sizing: border-box;
 }
+/* The embedded thumbnail (JsaPreview, not the pager modal) doubles as an
+   "open the full pager" button -- only page 1 fits here, so the click
+   target itself is the discoverable way to see the rest (Fonzo,
+   2026-08-17/18), backed up by the explicit "View All N Pages" button above
+   it for anyone who doesn't think to click the page image. */
+.previewSheetViewportClickable { cursor: pointer; }
+.previewSheetViewportClickable:hover .previewSheetCanvas { box-shadow: 0 8px 28px rgba(0,0,0,.36); }
 .previewSheetCanvas {
   position: absolute;
   top: 14px;
@@ -2138,6 +2146,29 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   width: 720px;
   height: 960px;
 }
+
+/* ── Print preview pager modal ── cycles through every real printed page
+   (Main JSA / each Continuation / each Sign-In), reusing the same
+   .previewSheetViewport/.previewSheetCanvas/.previewDefaultMargin scaling
+   technique as the embedded thumbnail above, just full-size and with
+   Prev/Next instead of always showing page 1. */
+.previewPagerPanel {
+  width: 100%;
+  max-width: 900px;
+  height: min(88vh, 1000px);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.previewPagerHead { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex: 0 0 auto; }
+.previewPagerLabel { font-size: 14px; }
+.previewPagerCount { color: var(--muted); font-size: 12.5px; font-weight: 400; }
+.previewPagerViewport { flex: 1 1 auto; min-height: 0; padding: 10px; }
+.previewPagerNav { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex: 0 0 auto; }
+.previewPagerDots { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; justify-content: center; max-width: 50%; }
+.previewPagerDot { width: 6px; height: 6px; border-radius: 50%; background: var(--line); flex: 0 0 auto; }
+.previewPagerDot.active { background: var(--crimson, #C51F3A); }
 
 /* ── Doc facsimile (C2 redesign phase 3b) ── see FormPrimitives.jsx's
    DocFacsimile comment: hand-built markup for the 4 pdf-lib-drawn documents
