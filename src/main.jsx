@@ -19,7 +19,7 @@ import { DOCUMENT_STORAGE_KEYS } from './documents/storage';
 import { useDraftDocument, saveStatusLabel } from './documents/useDraftDocument';
 import { usePdfExport } from './documents/usePdfExport';
 import { printedFingerprint } from './documents/printedFingerprint';
-import { downloadDraftFile, buildDraftFilename, readFileAsText, parseDraftFileText } from './shared/draftTransfer';
+import { buildDraftFilename, readFileAsText, parseDraftFileText, downloadTemplateFile, parseTemplateFileText, sanitizeForFilename } from './shared/draftTransfer';
 import {
   emptyDisciplinary, hasMeaningfulDisciplinaryContent, isDisciplinaryReady, isDisciplinaryPrintFinal,
   buildDisciplinaryExportName, warningLevelLabel,
@@ -1030,13 +1030,27 @@ function LayoutDebugPanel({ containerRef, layoutMode, stepperMode, jobPairMode, 
    focus returns to whatever triggered it on close. No dependency. ── */
 function useFocusTrapDialog(onCancel) {
   const dialogRef = useRef(null);
+  // Every caller passes onCancel as an inline arrow function, so it's a new
+  // reference on every render of whatever owns the dialog's open/closed
+  // state -- with onCancel in the effect's own deps (as this used to be),
+  // the "focus the first element" line below re-ran on every one of those
+  // re-renders, not just once on open. Typing into any input inside the
+  // dialog re-renders its parent, which yanked focus straight back onto the
+  // first button -- on a touchscreen that closes the on-screen keyboard
+  // after every single keystroke (real bug, Employee Options' Template Name
+  // field, 2026-08-17/18). Reading onCancel through a ref instead means the
+  // effect only needs to run once, on mount, while still always calling the
+  // current onCancel -- initial focus is set once, like a real focus trap,
+  // not re-stolen on every keystroke.
+  const onCancelRef = useRef(onCancel);
+  onCancelRef.current = onCancel;
   useEffect(() => {
     const previouslyFocused = document.activeElement;
     const dialog = dialogRef.current;
     const focusable = dialog ? Array.from(dialog.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')) : [];
     focusable[0]?.focus();
     function onKeyDown(e) {
-      if (e.key === 'Escape') { onCancel(); return; }
+      if (e.key === 'Escape') { onCancelRef.current(); return; }
       if (e.key !== 'Tab' || !focusable.length) return;
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
@@ -1048,7 +1062,7 @@ function useFocusTrapDialog(onCancel) {
       document.removeEventListener('keydown', onKeyDown);
       if (previouslyFocused && typeof previouslyFocused.focus === 'function') previouslyFocused.focus();
     };
-  }, [onCancel]);
+  }, []);
   return dialogRef;
 }
 
@@ -1080,7 +1094,7 @@ function ConfirmReplaceDialog({ templateName, isImport, onCancel, onContinue }) 
    same overlay/sheet visual language as the Suggestions sheet (bottom sheet
    on touch, centered dialog on desktop; see .actionSheetOverlay in
    styles.css) and the same focus-trap as every other modal in the app. */
-function DocumentOptionsSheet({ onClose, saveDraft, markReady, saveName, setSaveName, saveTemplate, updateTemplate, clearDraft, legacyBrowserPrint, isGenerating }) {
+function DocumentOptionsSheet({ onClose, saveDraft, markReady, clearDraft, legacyBrowserPrint, isGenerating }) {
   const dialogRef = useFocusTrapDialog(onClose);
   return (
     <div className="actionSheetOverlay" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
@@ -1103,22 +1117,9 @@ function DocumentOptionsSheet({ onClose, saveDraft, markReady, saveName, setSave
           </div>
 
           <div className="actionSheetGroup">
-            <span className="actionSheetGroupLabel">Save as Template</span>
-            <label className="field">
-              <span>Template name</span>
-              <input value={saveName} onChange={e => setSaveName(e.target.value)} placeholder="Example: Entergy JSA" />
-            </label>
-            <div className="actionSheetInlineActions">
-              <button type="button" className="btn primary sm" onClick={saveTemplate}>Save Template</button>
-              <button type="button" className="btn ghost sm" onClick={updateTemplate}>Update Loaded</button>
-            </div>
-            <p className="helperText">Loading a template starts a fresh JSA for today and never carries over signatures or daily work details.</p>
-          </div>
-
-          <div className="actionSheetGroup">
             <button type="button" className="actionSheetAction" onClick={() => { legacyBrowserPrint(); onClose(); }} disabled={isGenerating}>
               <strong>Legacy Browser Print</strong>
-              <span>Fallback only — can produce incorrect pagination on some devices. Prefer Print / Save PDF.</span>
+              <span>Fallback only — can produce incorrect pagination on some devices. Prefer "Create Document" above.</span>
             </button>
           </div>
 
@@ -1853,6 +1854,44 @@ function App() {
     if (templateId === id) setTemplateId('blank-jsa');
     showToast('Template deleted.');
   }
+  // Share/Import a saved TEMPLATE (job info, hazards, controls -- day fields
+  // already wiped) as a small file, same text/email/AirDrop mechanism as
+  // Import a Draft on the Documents tab, but a separate envelope kind (see
+  // TEMPLATE_EXPORT_KIND) so it can never land in the single live-draft
+  // slot by mistake. Replaces "Send to Someone Else to Finish" on the JSA
+  // Review step, which didn't fit how JSAs actually get used (Fonzo,
+  // 2026-08-17/18: "whoever starts the JSA finishes it" -- but sharing a
+  // reusable template with someone else is a real, different thing).
+  function shareTemplate(t) {
+    // Not buildDraftFilename -- that always appends "_Draft_<date>", which
+    // reads as wrong (this is a template, not a draft).
+    const day = new Date().toISOString().slice(0, 10);
+    downloadTemplateFile('jsa', t.data, `${sanitizeForFilename(t.name)}_JSA_Template_${day}`);
+  }
+  async function importTemplateFile(file) {
+    let text;
+    try {
+      text = await readFileAsText(file);
+    } catch {
+      showToast('Could not read that file.');
+      return;
+    }
+    const parsed = parseTemplateFileText(text);
+    if (!parsed.ok) { showToast(parsed.error); return; }
+    if (parsed.docType !== 'jsa') { showToast('This app only supports importing JSA templates right now.'); return; }
+    const name = parsed.data.templateName?.trim() || 'Imported Template';
+    const t = {
+      id: crypto.randomUUID?.() || String(Date.now()),
+      source: 'custom',
+      name,
+      description: 'Imported JSA template',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      data: { ...parsed.data, templateName: name },
+    };
+    setCustomTemplates(prev => [t, ...prev.filter(x => x.name.toLowerCase() !== name.toLowerCase())]);
+    showToast(`Imported template: ${name}`);
+  }
 
   function addRow() { upd({ taskRows: [...(jsa.taskRows || []), { id: makeRowId(), step: '', hazards: '', controls: '' }] }); }
   function updRow(i, patch) {
@@ -2224,7 +2263,7 @@ function App() {
             />
           )}
           {tab === 'drafts' && <DraftsView entries={draftEntries} goDocs={goDocs} />}
-          {tab === 'templates' && <TemplatesView allTemplates={allTemplates} customTemplates={customTemplates} loadTemplate={requestLoadTemplate} deleteTemplate={deleteTemplate} startBlank={requestStartBlank} />}
+          {tab === 'templates' && <TemplatesView allTemplates={allTemplates} customTemplates={customTemplates} loadTemplate={requestLoadTemplate} deleteTemplate={deleteTemplate} startBlank={requestStartBlank} shareTemplate={shareTemplate} importTemplateFile={importTemplateFile} />}
           {tab === 'settings' && <SettingsView settings={settings} setSettings={setSettings} />}
         </main>
       </div>
@@ -3300,9 +3339,16 @@ function StepReview({ jsa, upd, fit, saveName, setSaveName, saveTemplate, update
           </div>
 
           <div className="card">
-            <div className="cardHeader"><strong>Send to Someone Else to Finish</strong></div>
-            <p className="helperText">Save a file you can text, email, or AirDrop to someone else. They can open it in this app and pick up right where you left off — this doesn't need to be complete first.</p>
-            <button type="button" className="btn secondary" onClick={() => downloadDraftFile('jsa', jsa, buildDraftFilename(jsa.jobSite || jsa.location, 'JSA', jsa.date))}>Export Draft File</button>
+            <div className="cardHeader"><strong>Save as Template</strong></div>
+            <label className="field">
+              <span>Template name</span>
+              <input value={saveName} onChange={e => setSaveName(e.target.value)} placeholder="Example: Entergy JSA" />
+            </label>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button type="button" className="btn primary sm" onClick={saveTemplate}>Save Template</button>
+              <button type="button" className="btn ghost sm" onClick={updateTemplate}>Update Loaded</button>
+            </div>
+            <p className="helperText">Loading a template starts a fresh JSA for today and never carries over signatures or daily work details. Want to share a saved template with someone else? Do that from the Templates tab.</p>
           </div>
         </div>
       </div>
@@ -3311,10 +3357,6 @@ function StepReview({ jsa, upd, fit, saveName, setSaveName, saveTemplate, update
           onClose={() => setShowDocOptions(false)}
           saveDraft={saveDraft}
           markReady={markReady}
-          saveName={saveName}
-          setSaveName={setSaveName}
-          saveTemplate={saveTemplate}
-          updateTemplate={updateTemplate}
           clearDraft={clearDraft}
           legacyBrowserPrint={legacyBrowserPrint}
           isGenerating={isGenerating}
@@ -3391,7 +3433,13 @@ function DraftsView({ entries, goDocs }) {
 }
 
 /* ── Templates view ── */
-function TemplatesView({ allTemplates, customTemplates, loadTemplate, deleteTemplate, startBlank }) {
+function TemplatesView({ allTemplates, customTemplates, loadTemplate, deleteTemplate, startBlank, shareTemplate, importTemplateFile }) {
+  const importInputRef = useRef(null);
+  function onImportInputChange(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (file) importTemplateFile(file);
+  }
   return (
     <div className="sectionStack">
       <div className="sectionTitle">
@@ -3409,6 +3457,16 @@ function TemplatesView({ allTemplates, customTemplates, loadTemplate, deleteTemp
             <button className="btn secondary sm" onClick={startBlank}>Use Blank</button>
           </div>
         </div>
+        <div className="listItem">
+          <div className="itemInfo">
+            <strong>Import a Template</strong>
+            <p>Received a template file someone shared with you? Import it here to add it to your own list.</p>
+          </div>
+          <div className="itemActions">
+            <input ref={importInputRef} type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={onImportInputChange} />
+            <button className="btn secondary sm" onClick={() => importInputRef.current?.click()}>Import Template</button>
+          </div>
+        </div>
         {customTemplates.length ? customTemplates.map(t => (
           <div className="listItem" key={t.id}>
             <div className="itemInfo">
@@ -3417,6 +3475,7 @@ function TemplatesView({ allTemplates, customTemplates, loadTemplate, deleteTemp
             </div>
             <div className="itemActions">
               <button className="btn secondary sm" onClick={() => loadTemplate(t.id)}>Load</button>
+              <button className="btn ghost sm" onClick={() => shareTemplate(t)}>Share</button>
               <button className="btn ghost sm" onClick={() => deleteTemplate(t.id)}>Delete</button>
             </div>
           </div>
@@ -3641,6 +3700,8 @@ function JsaPreview({ jsa }) {
   const printDebug = usePrintDebugFlag();
   const viewportRef = useRef(null);
   const [scale, setScale] = useState(0.55);
+  const [pagerOpen, setPagerOpen] = useState(false);
+  const [pagerStart, setPagerStart] = useState(0);
 
   useLayoutEffect(() => {
     const node = viewportRef.current;
@@ -3655,6 +3716,11 @@ function JsaPreview({ jsa }) {
     return () => observer.disconnect();
   }, []);
 
+  function openPager(startIndex) {
+    setPagerStart(startIndex);
+    setPagerOpen(true);
+  }
+
   return (
     <>
       {printDebug && <PrintDebugPanel jsa={jsa} plan={plan} />}
@@ -3667,15 +3733,133 @@ function JsaPreview({ jsa }) {
       <div className="previewTruthBar">
         <span className={`previewFit ${fit.status}`}>{fit.label}</span>
         <p>Exact Letter-page preview with standard default-margin space.</p>
+        {plan.totalPages > 1 && (
+          <button type="button" className="btn ghost sm previewViewAllBtn" onClick={() => openPager(0)}>View All {plan.totalPages} Pages</button>
+        )}
       </div>
-      <div className="previewSheetViewport" ref={viewportRef} style={{ height: `${1056 * scale + 28}px` }}>
+      <div
+        className="previewSheetViewport previewSheetViewportClickable"
+        ref={viewportRef}
+        style={{ height: `${1056 * scale + 28}px` }}
+        onClick={() => openPager(0)}
+        role="button"
+        tabIndex={0}
+        aria-label="Open full print preview"
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPager(0); } }}
+      >
         <div className="previewSheetCanvas" style={{ transform: `scale(${scale})` }}>
           <div className="previewDefaultMargin">
             <MainJsaDocumentPage jsa={jsa} plan={plan} className="previewDocumentPage" />
           </div>
         </div>
       </div>
+      {pagerOpen && <JsaPreviewPagerModal jsa={jsa} plan={plan} initialIndex={pagerStart} onClose={() => setPagerOpen(false)} />}
     </>
+  );
+}
+
+/* ── Print preview pager ── a popup that cycles through every real printed
+   page (Main JSA, each Continuation, each Sign-In), not just page 1 (Fonzo,
+   2026-08-17/18: "preview should just be a pop up where u can cycle between
+   pages"). Reuses the exact same print components PrintableJsa assembles for
+   the real export (MainJsaDocumentPage/TaskContinuationPage/AttachedSignIn)
+   so what's shown here can't drift from what actually prints -- see
+   PrintableJsa above for the authoritative page-assembly logic this
+   mirrors. AttachedSignIn's indexOffset/signInTotal props exist specifically
+   so a single extracted sign-in page still reads "Attached Sign-In 3 of 4"
+   instead of "1 of 1". */
+function JsaPreviewPagerModal({ jsa, plan, initialIndex = 0, onClose }) {
+  const dialogRef = useFocusTrapDialog(onClose);
+  const viewportRef = useRef(null);
+  const [scale, setScale] = useState(0.7);
+  const [pageIdx, setPageIdx] = useState(initialIndex);
+
+  const pages = useMemo(() => [
+    { kind: 'main', label: 'Main JSA' },
+    ...plan.continuationPages.map((rows, idx) => ({
+      kind: 'continuation', rows, idx,
+      label: `Continuation ${idx + 1} of ${plan.continuationPages.length}`,
+    })),
+    ...plan.signInPages.map((lines, idx) => ({
+      kind: 'signin', lines, idx,
+      label: `Sign-In ${idx + 1} of ${plan.signInPages.length}`,
+    })),
+  ], [plan]);
+  const total = pages.length;
+  const clamped = Math.min(Math.max(0, pageIdx), total - 1);
+  const current = pages[clamped];
+  const goPrev = () => setPageIdx(i => Math.max(0, i - 1));
+  const goNext = () => setPageIdx(i => Math.min(total - 1, i + 1));
+
+  useLayoutEffect(() => {
+    const node = viewportRef.current;
+    if (!node) return undefined;
+    const update = () => {
+      const width = Math.max(200, node.clientWidth - 28);
+      const height = Math.max(200, node.clientHeight - 28);
+      setScale(Math.min(1, width / 816, height / 1056));
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  // Arrow-key paging, on top of useFocusTrapDialog's own Escape/Tab handling.
+  useEffect(() => {
+    function onKeyDown(e) {
+      if (e.key === 'ArrowLeft') goPrev();
+      else if (e.key === 'ArrowRight') goNext();
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [total]);
+
+  return (
+    <div className="dialogOverlay" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="dialogPanel previewPagerPanel" role="dialog" aria-modal="true" aria-label="Print preview" ref={dialogRef}>
+        <div className="previewPagerHead">
+          <span className="previewPagerLabel"><strong>{current.label}</strong> <span className="previewPagerCount">Page {clamped + 1} of {total}</span></span>
+          <button type="button" className="actionSheetCloseBtn" onClick={onClose} aria-label="Close preview">✕</button>
+        </div>
+        <div className="previewSheetViewport previewPagerViewport" ref={viewportRef}>
+          <div className="previewSheetCanvas" style={{ transform: `scale(${scale})` }}>
+            <div className="previewDefaultMargin">
+              {current.kind === 'main' && <MainJsaDocumentPage jsa={jsa} plan={plan} className="previewDocumentPage" />}
+              {current.kind === 'continuation' && (
+                <TaskContinuationPage
+                  jsa={jsa}
+                  rows={current.rows}
+                  pageNumber={2 + current.idx}
+                  totalPages={plan.totalPages}
+                  continuationNumber={current.idx + 1}
+                  continuationTotal={plan.continuationPages.length}
+                  className="documentPage"
+                />
+              )}
+              {current.kind === 'signin' && (
+                <AttachedSignIn
+                  jsa={jsa}
+                  pages={[current.lines]}
+                  indexOffset={current.idx}
+                  signInTotal={plan.signInPages.length}
+                  pageOffset={1 + plan.continuationPages.length}
+                  totalPages={plan.totalPages}
+                  className="documentPage"
+                />
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="previewPagerNav">
+          <button type="button" className="btn ghost sm" onClick={goPrev} disabled={clamped === 0}>‹ Prev</button>
+          <div className="previewPagerDots" aria-hidden="true">
+            {pages.map((_, i) => <span key={i} className={`previewPagerDot${i === clamped ? ' active' : ''}`} />)}
+          </div>
+          <button type="button" className="btn ghost sm" onClick={goNext} disabled={clamped === total - 1}>Next ›</button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -4449,9 +4633,9 @@ function PrintableJsa({ jsa }) {
   );
 }
 
-function TaskContinuationPage({ jsa, rows, pageNumber, totalPages, continuationNumber, continuationTotal, pageRef }) {
+function TaskContinuationPage({ jsa, rows, pageNumber, totalPages, continuationNumber, continuationTotal, pageRef, className = '' }) {
   return (
-    <div className="printPage continuationPage" ref={pageRef}>
+    <div className={`printPage continuationPage ${className}`.trim()} ref={pageRef}>
       <PrintBrandHeader title="JSA Continuation Sheet" subtitle={`Continuation ${continuationNumber} of ${continuationTotal}`} pageNumber={pageNumber} totalPages={totalPages} />
       <table className="printInfoTable continuationInfoTable">
         <tbody>
@@ -4475,13 +4659,22 @@ function TaskContinuationPage({ jsa, rows, pageNumber, totalPages, continuationN
 // row height means the CSS can size the image correctly on the very first
 // render, the same way on every export path (the primary pipeline AND the
 // legacy window.print() fallback), with nothing to get out of sync.
-function AttachedSignIn({ jsa, pages, pageOffset, totalPages, getPageRef }) {
+// indexOffset/signInTotal default to plain array position/length, which is
+// exactly right for the real print pipeline's call (the full pages array,
+// unsliced). They only need to differ when a caller passes a single
+// extracted page out of the full set -- see JsaPreviewPagerModal, which
+// shows one sign-in page at a time and still needs it to correctly read
+// "Attached Sign-In 3 of 4", not "1 of 1".
+function AttachedSignIn({ jsa, pages, pageOffset, totalPages, getPageRef, indexOffset = 0, signInTotal, className = '' }) {
+  const total = signInTotal ?? pages.length;
   return (
     <>
-      {pages.map((lines, pageIdx) => (
+      {pages.map((lines, localIdx) => {
+        const pageIdx = localIdx + indexOffset;
+        return (
         <section className="printSheet" key={pageIdx}>
-          <div className="printPage signInPage" ref={getPageRef ? (el => getPageRef(pageIdx, el)) : undefined}>
-            <PrintBrandHeader title="JSA Sign-In Sheet" subtitle={`Attached Sign-In ${pageIdx + 1} of ${pages.length}`} pageNumber={pageOffset + pageIdx + 1} totalPages={totalPages} />
+          <div className={`printPage signInPage ${className}`.trim()} ref={getPageRef ? (el => getPageRef(pageIdx, el)) : undefined}>
+            <PrintBrandHeader title="JSA Sign-In Sheet" subtitle={`Attached Sign-In ${pageIdx + 1} of ${total}`} pageNumber={pageOffset + pageIdx + 1} totalPages={totalPages} />
             <table className="printInfoTable signInInfoTable">
               <tbody>
                 <tr><th>Location:</th><td>{jsa.location}</td><th>Date:</th><td>{dateStr(jsa.date)}</td><th>Job #:</th><td>{jsa.jobNumber}</td></tr>
@@ -4500,7 +4693,8 @@ function AttachedSignIn({ jsa, pages, pageOffset, totalPages, getPageRef }) {
             <footer className="printFooter">Shackelford Construction and Hauling, LLC · Attached Sign-In Sheet</footer>
           </div>
         </section>
-      ))}
+        );
+      })}
     </>
   );
 }

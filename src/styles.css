@@ -1484,7 +1484,6 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 .actionSheetCloseBtn:hover { color: var(--text); }
 .actionSheetGroup { display: grid; gap: 8px; padding: 12px 4px; border-bottom: 1px solid var(--line); }
 .actionSheetGroup:last-child { border-bottom: none; }
-.actionSheetGroupLabel { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); padding: 0 12px; }
 .actionSheetAction {
   display: grid;
   gap: 2px;
@@ -1496,7 +1495,6 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 .actionSheetAction:hover:not(:disabled) { background: var(--surface-2); }
 .actionSheetAction strong { font-size: 14.5px; font-weight: 700; }
 .actionSheetAction span { font-size: 12.5px; color: var(--muted); line-height: 1.4; }
-.actionSheetInlineActions { display: flex; gap: 8px; flex-wrap: wrap; padding: 0 12px; }
 .actionSheetDestructive { padding: 12px 4px 4px; display: grid; gap: 6px; justify-items: start; }
 .actionSheetDestructive .helperText { padding: 0 12px; }
 .actionSheetGroup .field, .actionSheetGroup .helperText { padding: 0 12px; }
@@ -2114,6 +2112,7 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 .previewTruthBar { display: flex; align-items: center; gap: 9px; padding: 9px 13px 0; flex-wrap: wrap; }
 .previewTruthBar p { margin: 0; color: var(--muted); font-size: 11.5px; }
 .previewTruthBar .previewFit { margin: 0; font-size: 9px; padding: 4px 7px; }
+.previewViewAllBtn { margin-left: auto; }
 .previewSheetViewport {
   position: relative;
   width: 100%;
@@ -2121,6 +2120,13 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   padding: 14px;
   box-sizing: border-box;
 }
+/* The embedded thumbnail (JsaPreview, not the pager modal) doubles as an
+   "open the full pager" button -- only page 1 fits here, so the click
+   target itself is the discoverable way to see the rest (Fonzo,
+   2026-08-17/18), backed up by the explicit "View All N Pages" button above
+   it for anyone who doesn't think to click the page image. */
+.previewSheetViewportClickable { cursor: pointer; }
+.previewSheetViewportClickable:hover .previewSheetCanvas { box-shadow: 0 8px 28px rgba(0,0,0,.36); }
 .previewSheetCanvas {
   position: absolute;
   top: 14px;
@@ -2140,6 +2146,29 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   width: 720px;
   height: 960px;
 }
+
+/* ── Print preview pager modal ── cycles through every real printed page
+   (Main JSA / each Continuation / each Sign-In), reusing the same
+   .previewSheetViewport/.previewSheetCanvas/.previewDefaultMargin scaling
+   technique as the embedded thumbnail above, just full-size and with
+   Prev/Next instead of always showing page 1. */
+.previewPagerPanel {
+  width: 100%;
+  max-width: 900px;
+  height: min(88vh, 1000px);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.previewPagerHead { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex: 0 0 auto; }
+.previewPagerLabel { font-size: 14px; }
+.previewPagerCount { color: var(--muted); font-size: 12.5px; font-weight: 400; }
+.previewPagerViewport { flex: 1 1 auto; min-height: 0; padding: 10px; }
+.previewPagerNav { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex: 0 0 auto; }
+.previewPagerDots { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; justify-content: center; max-width: 50%; }
+.previewPagerDot { width: 6px; height: 6px; border-radius: 50%; background: var(--line); flex: 0 0 auto; }
+.previewPagerDot.active { background: var(--crimson, #C51F3A); }
 
 /* ── Doc facsimile (C2 redesign phase 3b) ── see FormPrimitives.jsx's
    DocFacsimile comment: hand-built markup for the 4 pdf-lib-drawn documents
@@ -2371,6 +2400,49 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
    without needing absolute positioning at all. */
 .documentPage .printFooter,
 .printPage .printFooter { flex: 0 0 auto; border-top: 1px solid #999; padding-top: 3px; text-align: center; color: #333; font-size: 7px; letter-spacing: .2px; }
+
+/* Continuation/sign-in-only classes .documentPage never needed to cover
+   before now -- TaskContinuationPage/AttachedSignIn only ever rendered
+   inside @media print or .pdfExportRoot/.printMeasureRoot, never on screen,
+   until JsaPreviewPagerModal (Fonzo, 2026-08-17/18: "preview should just be
+   a pop up where u can cycle between pages"). Values mirror the
+   .pdfExportRoot-scoped versions of these same rules exactly -- this is the
+   same real geometry that's already proven correct in generated PDFs, not a
+   fresh guess. Only reachable when a caller explicitly opts a page into
+   .documentPage (TaskContinuationPage/AttachedSignIn's own printPage/
+   continuationPage/signInPage classes are untouched), so the real print/PDF
+   pipeline -- which never passes that class -- cannot be affected by this. */
+.documentPage .continuationTaskTable td { height: 35px; font-size: 9.8px; line-height: 1.2; }
+.documentPage .continuationNotice { border: 1px solid #000; border-top: 0; padding: 4px 5px; font-size: 8px; line-height: 1.15; background: #f4f4f4; }
+.documentPage .continuationInfoTable th, .documentPage .continuationInfoTable td,
+.documentPage .signInInfoTable th, .documentPage .signInInfoTable td { font-size: 8.6px; padding: 3px 4px; }
+.documentPage .signInAck { font-size: 8.8px; line-height: 1.2; padding: 4px 5px; }
+.documentPage .attachedSignatureGrid {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: var(--sig-row-h);
+  border-left: 1px solid #000;
+  border-top: 1px solid #000;
+  margin-top: 6px;
+}
+.documentPage .attachedSigLine {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-right: 1px solid #000;
+  border-bottom: 1px solid #000;
+  padding: 5px 7px;
+  font-size: 10px;
+}
+.documentPage .attachedSigLineNum { flex: 0 0 auto; }
+.documentPage .attachedSigLineImg {
+  flex: 0 0 auto;
+  height: calc(var(--sig-row-h) - 16px);
+  width: auto;
+  max-width: 100%;
+  display: block;
+}
 
 @media (max-width: 840px) {
   .quickControls { grid-template-columns: 1fr; }
