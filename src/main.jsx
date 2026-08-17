@@ -4282,57 +4282,52 @@ function prepareSingleLineTextForCapture(pageEl) {
 
 /* Sized crew signatures to actually fill their sign-in line, not sit tiny in
    a mostly-empty box (Fonzo, 2026-08-17: "you can fill up the box with your
-   name and not some tiny signature"). sigImageStyle() in AttachedSignIn
-   gives every signature a safe *default* size before this runs, sized for
-   the worst case (a full 40-lines/page sheet) so nothing overflows even if
-   this step is skipped. This function then measures each row's REAL,
-   already-laid-out box on the live DOM (real browser layout -- not
-   html2canvas's own weaker layout pass, which is what actually broke object-
-   fit/percentage sizing here before, see the attachedSigLineImg CSS comment)
-   and grows each signature to fill it, right before that page is captured.
-   No cleanup needed (unlike prepareSingleLineTextForCapture): this only sets
-   plain inline width/height on an existing element, nothing structural, and
-   every export re-measures and overwrites fresh regardless of what a prior
-   export left behind.
+   name and not some tiny signature" -- and, critically, this may end up as
+   court evidence, so it has to actually work, not just work in testing).
+   sigImageStyle() in AttachedSignIn gives every signature a safe *default*
+   size before this runs (used for the initial render and the legacy print
+   fallback below); this then grows it to fill the real row right before
+   that page is captured.
 
-   Async and awaits img.decode() on every signature first -- naturalWidth/
-   naturalHeight are 0 until a data-URL <img> has actually finished
-   decoding, which is NOT guaranteed by the document.fonts.ready + rAF
-   settle already done earlier in generateJsaPdf (that covers fonts/layout,
-   not image decode). Without this await, the sizing below silently no-ops
-   on any image that hasn't decoded yet, quietly falling back to the small
-   default size -- confirmed 2026-08-17 as the actual cause of a real
-   generated PDF still showing small signatures despite this function
-   otherwise working correctly in slower/repeated test runs where decode
-   had already finished by coincidence. */
-async function prepareSignatureSizingForCapture(pageEl) {
+   Two earlier versions of this both passed every automated test here and
+   STILL came out small/tiny in Fonzo's own hands (2026-08-17, twice) --
+   first because object-fit/percentage-height under html2canvas doesn't
+   reliably match the live DOM, then because reading img.naturalWidth
+   requires the data-URL image to have finished decoding first, which
+   isn't guaranteed by the fonts/layout settle already done in
+   generateJsaPdf. Both fixes were real and are still in effect elsewhere,
+   but rather than add a third targeted patch on top of an approach that's
+   now failed twice in ways this repo's own tests didn't catch, this
+   deliberately no longer depends on either of those failure-prone paths:
+
+   - No object-fit, no percentage max-height on the image (the CSS approach
+     that broke under html2canvas the first time).
+   - No img.naturalWidth/naturalHeight, no img.decode() (the async image
+     state that broke the second time, silently, with no error).
+
+   Instead: measure the row's own already-rendered box (line.clientHeight --
+   a plain synchronous DOM read of an element already on the page, not
+   something that can be "not ready yet" the way image decode can), set the
+   image's height explicitly from that measurement, and leave width as
+   'auto' -- an <img> with an explicit height and width:auto preserves its
+   own intrinsic aspect ratio using the browser's ordinary, decades-old
+   image-rendering behavior, not a layout feature that needs cross-checking
+   against html2canvas. If THIS silently didn't work, ordinary images
+   (the Shackelford logo, Incident photos) would look wrong on every single
+   generated PDF, not just this one case -- which they don't. */
+function prepareSignatureSizingForCapture(pageEl) {
   const lines = pageEl.querySelectorAll('.attachedSigLine');
-  await Promise.all(Array.from(lines, async (line) => {
+  lines.forEach((line) => {
     const img = line.querySelector('.attachedSigLineImg');
     if (!img) return;
-    if (!img.naturalWidth || !img.naturalHeight) {
-      try { await img.decode(); } catch { /* broken image -- fall through to the guard below */ }
-    }
-    if (!img.naturalWidth || !img.naturalHeight) return;
-    const numEl = line.querySelector('.attachedSigLineNum');
     const cs = getComputedStyle(line);
     const padTop = parseFloat(cs.paddingTop) || 0;
     const padBottom = parseFloat(cs.paddingBottom) || 0;
-    const padLeft = parseFloat(cs.paddingLeft) || 0;
-    const padRight = parseFloat(cs.paddingRight) || 0;
-    const gap = parseFloat(cs.columnGap || cs.gap) || 0;
-    const numWidth = numEl ? numEl.getBoundingClientRect().width : 0;
     const availableHeight = line.clientHeight - padTop - padBottom;
-    const availableWidth = line.clientWidth - padLeft - padRight - numWidth - gap;
-    if (availableHeight <= 0 || availableWidth <= 0) return;
-
-    const ratio = img.naturalWidth / img.naturalHeight;
-    let h = availableHeight * 0.92; // small margin so ink never touches the row border
-    let w = h * ratio;
-    if (w > availableWidth) { w = availableWidth; h = w / ratio; }
-    img.style.width = `${Math.max(0, w)}px`;
-    img.style.height = `${Math.max(0, h)}px`;
-  }));
+    if (availableHeight <= 0) return;
+    img.style.height = `${availableHeight * 0.92}px`; // small margin so ink never touches the row border
+    img.style.width = 'auto';
+  });
 }
 
 /* The deterministic PDF export pipeline (Phase 4B). Captures each logical
@@ -4373,7 +4368,7 @@ async function generateJsaPdf(pageRefsRef, onProgress) {
     }
 
     const cleanupSingleLineText = prepareSingleLineTextForCapture(el);
-    await prepareSignatureSizingForCapture(el);
+    prepareSignatureSizingForCapture(el);
     let canvas;
     try {
       canvas = await html2canvas(el, { scale, backgroundColor: '#ffffff', useCORS: true, logging: false });
