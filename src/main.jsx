@@ -4293,12 +4293,27 @@ function prepareSingleLineTextForCapture(pageEl) {
    No cleanup needed (unlike prepareSingleLineTextForCapture): this only sets
    plain inline width/height on an existing element, nothing structural, and
    every export re-measures and overwrites fresh regardless of what a prior
-   export left behind. */
-function prepareSignatureSizingForCapture(pageEl) {
+   export left behind.
+
+   Async and awaits img.decode() on every signature first -- naturalWidth/
+   naturalHeight are 0 until a data-URL <img> has actually finished
+   decoding, which is NOT guaranteed by the document.fonts.ready + rAF
+   settle already done earlier in generateJsaPdf (that covers fonts/layout,
+   not image decode). Without this await, the sizing below silently no-ops
+   on any image that hasn't decoded yet, quietly falling back to the small
+   default size -- confirmed 2026-08-17 as the actual cause of a real
+   generated PDF still showing small signatures despite this function
+   otherwise working correctly in slower/repeated test runs where decode
+   had already finished by coincidence. */
+async function prepareSignatureSizingForCapture(pageEl) {
   const lines = pageEl.querySelectorAll('.attachedSigLine');
-  lines.forEach((line) => {
+  await Promise.all(Array.from(lines, async (line) => {
     const img = line.querySelector('.attachedSigLineImg');
-    if (!img || !img.naturalWidth || !img.naturalHeight) return;
+    if (!img) return;
+    if (!img.naturalWidth || !img.naturalHeight) {
+      try { await img.decode(); } catch { /* broken image -- fall through to the guard below */ }
+    }
+    if (!img.naturalWidth || !img.naturalHeight) return;
     const numEl = line.querySelector('.attachedSigLineNum');
     const cs = getComputedStyle(line);
     const padTop = parseFloat(cs.paddingTop) || 0;
@@ -4317,7 +4332,7 @@ function prepareSignatureSizingForCapture(pageEl) {
     if (w > availableWidth) { w = availableWidth; h = w / ratio; }
     img.style.width = `${Math.max(0, w)}px`;
     img.style.height = `${Math.max(0, h)}px`;
-  });
+  }));
 }
 
 /* The deterministic PDF export pipeline (Phase 4B). Captures each logical
@@ -4358,7 +4373,7 @@ async function generateJsaPdf(pageRefsRef, onProgress) {
     }
 
     const cleanupSingleLineText = prepareSingleLineTextForCapture(el);
-    prepareSignatureSizingForCapture(el);
+    await prepareSignatureSizingForCapture(el);
     let canvas;
     try {
       canvas = await html2canvas(el, { scale, backgroundColor: '#ffffff', useCORS: true, logging: false });
