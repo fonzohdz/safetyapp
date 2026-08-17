@@ -19,7 +19,7 @@ import { DOCUMENT_STORAGE_KEYS } from './documents/storage';
 import { useDraftDocument, saveStatusLabel } from './documents/useDraftDocument';
 import { usePdfExport } from './documents/usePdfExport';
 import { printedFingerprint } from './documents/printedFingerprint';
-import { downloadDraftFile, buildDraftFilename, readFileAsText, parseDraftFileText } from './shared/draftTransfer';
+import { buildDraftFilename, readFileAsText, parseDraftFileText, downloadTemplateFile, parseTemplateFileText, sanitizeForFilename } from './shared/draftTransfer';
 import {
   emptyDisciplinary, hasMeaningfulDisciplinaryContent, isDisciplinaryReady, isDisciplinaryPrintFinal,
   buildDisciplinaryExportName, warningLevelLabel,
@@ -1854,6 +1854,44 @@ function App() {
     if (templateId === id) setTemplateId('blank-jsa');
     showToast('Template deleted.');
   }
+  // Share/Import a saved TEMPLATE (job info, hazards, controls -- day fields
+  // already wiped) as a small file, same text/email/AirDrop mechanism as
+  // Import a Draft on the Documents tab, but a separate envelope kind (see
+  // TEMPLATE_EXPORT_KIND) so it can never land in the single live-draft
+  // slot by mistake. Replaces "Send to Someone Else to Finish" on the JSA
+  // Review step, which didn't fit how JSAs actually get used (Fonzo,
+  // 2026-08-17/18: "whoever starts the JSA finishes it" -- but sharing a
+  // reusable template with someone else is a real, different thing).
+  function shareTemplate(t) {
+    // Not buildDraftFilename -- that always appends "_Draft_<date>", which
+    // reads as wrong (this is a template, not a draft).
+    const day = new Date().toISOString().slice(0, 10);
+    downloadTemplateFile('jsa', t.data, `${sanitizeForFilename(t.name)}_JSA_Template_${day}`);
+  }
+  async function importTemplateFile(file) {
+    let text;
+    try {
+      text = await readFileAsText(file);
+    } catch {
+      showToast('Could not read that file.');
+      return;
+    }
+    const parsed = parseTemplateFileText(text);
+    if (!parsed.ok) { showToast(parsed.error); return; }
+    if (parsed.docType !== 'jsa') { showToast('This app only supports importing JSA templates right now.'); return; }
+    const name = parsed.data.templateName?.trim() || 'Imported Template';
+    const t = {
+      id: crypto.randomUUID?.() || String(Date.now()),
+      source: 'custom',
+      name,
+      description: 'Imported JSA template',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      data: { ...parsed.data, templateName: name },
+    };
+    setCustomTemplates(prev => [t, ...prev.filter(x => x.name.toLowerCase() !== name.toLowerCase())]);
+    showToast(`Imported template: ${name}`);
+  }
 
   function addRow() { upd({ taskRows: [...(jsa.taskRows || []), { id: makeRowId(), step: '', hazards: '', controls: '' }] }); }
   function updRow(i, patch) {
@@ -2225,7 +2263,7 @@ function App() {
             />
           )}
           {tab === 'drafts' && <DraftsView entries={draftEntries} goDocs={goDocs} />}
-          {tab === 'templates' && <TemplatesView allTemplates={allTemplates} customTemplates={customTemplates} loadTemplate={requestLoadTemplate} deleteTemplate={deleteTemplate} startBlank={requestStartBlank} />}
+          {tab === 'templates' && <TemplatesView allTemplates={allTemplates} customTemplates={customTemplates} loadTemplate={requestLoadTemplate} deleteTemplate={deleteTemplate} startBlank={requestStartBlank} shareTemplate={shareTemplate} importTemplateFile={importTemplateFile} />}
           {tab === 'settings' && <SettingsView settings={settings} setSettings={setSettings} />}
         </main>
       </div>
@@ -3310,13 +3348,7 @@ function StepReview({ jsa, upd, fit, saveName, setSaveName, saveTemplate, update
               <button type="button" className="btn primary sm" onClick={saveTemplate}>Save Template</button>
               <button type="button" className="btn ghost sm" onClick={updateTemplate}>Update Loaded</button>
             </div>
-            <p className="helperText">Loading a template starts a fresh JSA for today and never carries over signatures or daily work details.</p>
-          </div>
-
-          <div className="card">
-            <div className="cardHeader"><strong>Send to Someone Else to Finish</strong></div>
-            <p className="helperText">Save a file you can text, email, or AirDrop to someone else. They can open it in this app and pick up right where you left off — this doesn't need to be complete first.</p>
-            <button type="button" className="btn secondary" onClick={() => downloadDraftFile('jsa', jsa, buildDraftFilename(jsa.jobSite || jsa.location, 'JSA', jsa.date))}>Export Draft File</button>
+            <p className="helperText">Loading a template starts a fresh JSA for today and never carries over signatures or daily work details. Want to share a saved template with someone else? Do that from the Templates tab.</p>
           </div>
         </div>
       </div>
@@ -3401,7 +3433,13 @@ function DraftsView({ entries, goDocs }) {
 }
 
 /* ── Templates view ── */
-function TemplatesView({ allTemplates, customTemplates, loadTemplate, deleteTemplate, startBlank }) {
+function TemplatesView({ allTemplates, customTemplates, loadTemplate, deleteTemplate, startBlank, shareTemplate, importTemplateFile }) {
+  const importInputRef = useRef(null);
+  function onImportInputChange(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (file) importTemplateFile(file);
+  }
   return (
     <div className="sectionStack">
       <div className="sectionTitle">
@@ -3419,6 +3457,16 @@ function TemplatesView({ allTemplates, customTemplates, loadTemplate, deleteTemp
             <button className="btn secondary sm" onClick={startBlank}>Use Blank</button>
           </div>
         </div>
+        <div className="listItem">
+          <div className="itemInfo">
+            <strong>Import a Template</strong>
+            <p>Received a template file someone shared with you? Import it here to add it to your own list.</p>
+          </div>
+          <div className="itemActions">
+            <input ref={importInputRef} type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={onImportInputChange} />
+            <button className="btn secondary sm" onClick={() => importInputRef.current?.click()}>Import Template</button>
+          </div>
+        </div>
         {customTemplates.length ? customTemplates.map(t => (
           <div className="listItem" key={t.id}>
             <div className="itemInfo">
@@ -3427,6 +3475,7 @@ function TemplatesView({ allTemplates, customTemplates, loadTemplate, deleteTemp
             </div>
             <div className="itemActions">
               <button className="btn secondary sm" onClick={() => loadTemplate(t.id)}>Load</button>
+              <button className="btn ghost sm" onClick={() => shareTemplate(t)}>Share</button>
               <button className="btn ghost sm" onClick={() => deleteTemplate(t.id)}>Delete</button>
             </div>
           </div>

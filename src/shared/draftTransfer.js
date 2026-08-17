@@ -19,6 +19,15 @@
    this device's own localStorage. */
 
 export const DRAFT_EXPORT_KIND = 'sdc-field-draft';
+// Separate kind (not reusing DRAFT_EXPORT_KIND) so a template file can never
+// be accidentally imported as if it were a live in-progress draft, or vice
+// versa -- a template deliberately lacks day-specific fields (date, times,
+// signatures), which is correct for a template but would be a confusing,
+// half-blank "draft" if it landed in the single active-draft slot instead
+// of the templates list (Fonzo, 2026-08-17/18: "Send to Someone Else to
+// Finish" doesn't fit JSAs -- whoever starts one finishes it -- but sharing
+// a saved template with someone else is a real, different thing).
+export const TEMPLATE_EXPORT_KIND = 'sdc-field-template';
 
 const KNOWN_DOC_TYPES = ['jsa', 'incident', 'disciplinary', 'uncontrolledEvent', 'medicalEvent', 'separation'];
 
@@ -37,6 +46,27 @@ export function buildDraftFilename(identifyingName, typeLabel, date) {
 export function downloadDraftFile(docType, data, baseFilename) {
   const payload = {
     kind: DRAFT_EXPORT_KIND,
+    docType,
+    schemaVersion: data?.schemaVersion ?? null,
+    exportedAt: new Date().toISOString(),
+    data,
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${baseFilename}.json`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+
+// Same mechanics as downloadDraftFile, different envelope kind -- see
+// TEMPLATE_EXPORT_KIND above for why these can't share one kind.
+export function downloadTemplateFile(docType, data, baseFilename) {
+  const payload = {
+    kind: TEMPLATE_EXPORT_KIND,
     docType,
     schemaVersion: data?.schemaVersion ?? null,
     exportedAt: new Date().toISOString(),
@@ -83,6 +113,28 @@ export function parseDraftFileText(text) {
   }
   if (!parsed.data || typeof parsed.data !== 'object' || Array.isArray(parsed.data)) {
     return { ok: false, error: 'This draft file is missing its document data.' };
+  }
+  return { ok: true, docType: parsed.docType, data: parsed.data };
+}
+
+// Mirrors parseDraftFileText exactly, checked against TEMPLATE_EXPORT_KIND
+// instead -- see the constant above for why templates and drafts use
+// different envelope kinds rather than sharing one.
+export function parseTemplateFileText(text) {
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return { ok: false, error: "That file isn't a valid Safety Documentation Center template file." };
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || parsed.kind !== TEMPLATE_EXPORT_KIND) {
+    return { ok: false, error: "That file isn't a Safety Documentation Center template file." };
+  }
+  if (typeof parsed.docType !== 'string' || !KNOWN_DOC_TYPES.includes(parsed.docType)) {
+    return { ok: false, error: "This template file's document type isn't recognized. It may be from a newer version of the app." };
+  }
+  if (!parsed.data || typeof parsed.data !== 'object' || Array.isArray(parsed.data)) {
+    return { ok: false, error: 'This template file is missing its document data.' };
   }
   return { ok: true, docType: parsed.docType, data: parsed.data };
 }
