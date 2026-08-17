@@ -373,7 +373,7 @@ function getSignaturePages(jsa) {
     pages.push(Array.from({ length: size }, () => {
       const n = next++;
       const signed = crew[n - 1];
-      return signed ? { n, dataUrl: signed.dataUrl } : { n };
+      return signed ? { n, dataUrl: signed.dataUrl, width: signed.width, height: signed.height } : { n };
     }));
   }
   return pages;
@@ -4477,6 +4477,29 @@ function TaskContinuationPage({ jsa, rows, pageNumber, totalPages, continuationN
   );
 }
 
+// Explicit pixel width/height for a captured crew signature on the sign-in
+// sheet, computed in JS rather than left to CSS (object-fit: contain inside
+// a percentage-height CSS Grid row). That combo measures fine in the live
+// DOM but html2canvas renders it wrong -- confirmed 2026-08-17 by comparing
+// the actual generated PDF raster against the live DOM at high row counts
+// (40 lines/page, the real-world case): the image box comes out badly
+// disproportionate and object-fit doesn't correct it, so every signature
+// prints flattened. SIG_TARGET_HEIGHT is comfortably under the shortest row
+// this layout ever produces (~34px content height at the densest, 40
+// lines/page, packing); SIG_MAX_WIDTH is a defensive cap in case a future
+// layout tightens column width further. FALLBACK_RATIO only applies to
+// signatures captured before this fix shipped (no stored width/height).
+const SIG_TARGET_HEIGHT = 22;
+const SIG_MAX_WIDTH = 160;
+const SIG_FALLBACK_RATIO = 2.4;
+function sigImageStyle(width, height) {
+  const ratio = width > 0 && height > 0 ? width / height : SIG_FALLBACK_RATIO;
+  let h = SIG_TARGET_HEIGHT;
+  let w = h * ratio;
+  if (w > SIG_MAX_WIDTH) { h *= SIG_MAX_WIDTH / w; w = SIG_MAX_WIDTH; }
+  return { width: w, height: h };
+}
+
 function AttachedSignIn({ jsa, pages, pageOffset, totalPages, getPageRef }) {
   return (
     <>
@@ -4494,10 +4517,10 @@ function AttachedSignIn({ jsa, pages, pageOffset, totalPages, getPageRef }) {
               </table>
               <div className="ackBlock signInAck"><strong>Acknowledgement:</strong> I have reviewed and understand the JSA and tailgate meeting information and will exercise stop work authority for unsafe acts, conditions, or hazards.</div>
               <div className="attachedSignatureGrid" style={{ '--signature-rows': rowCount }}>
-                {lines.map(({ n, dataUrl }) => (
+                {lines.map(({ n, dataUrl, width, height }) => (
                   <div className={`attachedSigLine${dataUrl ? ' attachedSigLineDigital' : ''}`} key={n}>
                     <span className="attachedSigLineNum">{n}.</span>
-                    {dataUrl && <img className="attachedSigLineImg" src={dataUrl} alt="" />}
+                    {dataUrl && <img className="attachedSigLineImg" src={dataUrl} alt="" style={sigImageStyle(width, height)} />}
                   </div>
                 ))}
               </div>

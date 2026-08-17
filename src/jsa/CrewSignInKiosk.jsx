@@ -198,8 +198,13 @@ export default function CrewSignInKiosk({ jsa, upd, onExit }) {
 
   function confirmSignature() {
     if (!hasStrokeRef.current) return;
-    const dataUrl = canvasRef.current.toDataURL('image/png');
-    const next = [...(jsa.crewSignatures || []), { dataUrl, signedAt: new Date().toISOString() }];
+    const canvas = canvasRef.current;
+    const dataUrl = canvas.toDataURL('image/png');
+    // Store the captured canvas's own pixel ratio so the print pipeline can
+    // size this image correctly later without guessing -- see the
+    // attachedSigLineImg sizing note in main.jsx for why this can't just be
+    // left to CSS object-fit.
+    const next = [...(jsa.crewSignatures || []), { dataUrl, width: canvas.width, height: canvas.height, signedAt: new Date().toISOString() }];
     upd({ crewSignatures: next });
     setPhase('confirmed');
     window.setTimeout(() => setPhase('signing'), CONFIRM_PAUSE_MS);

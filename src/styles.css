@@ -2659,10 +2659,14 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   }
   .attachedSigLineNum { flex: 0 0 auto; }
   /* A captured kiosk signature ("printer ink," per Fonzo) prints inline next
-     to its number -- object-fit: contain so it scales down cleanly whether
-     the sheet has 8 lines/page (tall rows) or 40 (short rows), never
-     stretches or overflows into the border. */
-  .attachedSigLineImg { flex: 1 1 auto; max-width: 100%; max-height: 90%; object-fit: contain; object-position: left center; }
+     to its number. Sizing is NOT done here -- width/height come inline from
+     sigImageStyle() in main.jsx, computed from the signature's own stored
+     aspect ratio. object-fit: contain + a percentage max-height used to
+     live here, which matched the live DOM but rendered visibly distorted in
+     the actual html2canvas PDF raster once rows got short (confirmed
+     2026-08-17, 40 lines/page). flex: 0 0 auto so flex-grow can't stretch
+     the image past the size sigImageStyle() gave it. */
+  .attachedSigLineImg { flex: 0 0 auto; max-width: 100%; display: block; }
 
   /* .printFooter itself: no rule needed here -- the unconditional
      .documentPage .printFooter, .printPage .printFooter rule (higher
@@ -2871,7 +2875,7 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   font-size: 10px;
 }
 .pdfExportRoot .attachedSigLineNum { flex: 0 0 auto; }
-.pdfExportRoot .attachedSigLineImg { flex: 1 1 auto; max-width: 100%; max-height: 90%; object-fit: contain; object-position: left center; }
+.pdfExportRoot .attachedSigLineImg { flex: 0 0 auto; max-width: 100%; display: block; }
 .pdfExportRoot .mainJsaPage .taskTableFill,
 .pdfExportRoot .continuationPage .continuationTaskTable { flex: 1 0 auto; }
 .pdfExportRoot .printFooter { flex: 0 0 auto; }
