@@ -1279,6 +1279,43 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 
 .stepNavRow.pending .stepNavState { color: var(--text-2); }
 
+.stepNavRow.locked { opacity: .55; }
+.stepNavRow.locked .stepNavState { color: var(--text-2); }
+
+/* Touch, not narrow -- a wide landscape iPad is still 1000px+ so the
+   max-width breakpoint above never caught it, but the vertical card list
+   was still the thing eating a few hundred px of height (field report,
+   iPad Pro landscape, 2026-08-19: "the steps underneath the top bar is
+   abnoxious"). (any-pointer: coarse) is the same signal useIsTouchPrimary()
+   uses in JS, so this now matches every touch device regardless of width
+   or orientation. Collapse to a compact horizontal scroll-strip: same
+   rows, same click targets, same done/current/attention/locked states,
+   just no state subtitle line and a fraction of the height. */
+@media (any-pointer: coarse) {
+  .stepNavHead { padding: 0 2px 6px; font-size: 11.5px; }
+  .stepNavList {
+    display: flex;
+    flex-direction: row;
+    overflow-x: auto;
+    gap: 8px;
+    padding: 2px 2px 6px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .stepNavRow {
+    flex: 0 0 auto;
+    flex-direction: column;
+    min-height: auto;
+    min-width: 84px;
+    gap: 5px;
+    padding: 9px 8px;
+    text-align: center;
+  }
+  .stepNavDot { width: 24px; height: 24px; font-size: 12.5px; }
+  .stepNavText { text-align: center; justify-items: center; }
+  .stepNavText strong { font-size: 11px; white-space: normal; line-height: 1.15; }
+  .stepNavState { display: none; }
+}
+
 /* ── Step content ── */
 .stepStack { display: grid; gap: 14px; }
 
@@ -2045,6 +2082,29 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
 .reviewSummaryCard.good { border-color: color-mix(in srgb, var(--good) 40%, transparent); }
 .reviewSummaryCard.warn { border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
 .reviewSummaryCard.bad { border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
+.reviewAllGoodBanner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--good-border);
+  border-radius: var(--radius-sm);
+  background: var(--good-tint);
+}
+.reviewAllGoodCheck {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--good);
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+}
+.reviewAllGoodBanner strong { display: block; font-size: 15px; color: var(--good); }
+.reviewAllGoodBanner p { margin: 3px 0 0; font-size: 13px; color: var(--text-2); line-height: 1.45; }
 .reviewSummaryHead {
   display: flex;
   align-items: center;
@@ -2152,11 +2212,20 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
    .previewSheetViewport/.previewSheetCanvas/.previewDefaultMargin scaling
    technique as the embedded thumbnail above, just full-size and with
    Prev/Next instead of always showing page 1. */
+/* Genuinely fullscreen (Fonzo, 2026-08-19: "i meant like a fullscreen
+   version so whoever is going over it can read it legibly") -- the old
+   centered card left the actual page image well under half the screen.
+   .previewPagerViewport's own scale calc already sizes the page against
+   its real clientWidth/clientHeight, so removing the outer card's
+   size/padding constraints is enough to make the page render as large as
+   the screen allows, no change to the scaling math itself needed. */
+.previewPagerOverlay { padding: 0; }
 .previewPagerPanel {
-  width: 100%;
-  max-width: 900px;
-  height: min(88vh, 1000px);
-  padding: 16px;
+  width: 100vw;
+  height: 100dvh;
+  max-width: none;
+  border-radius: 0;
+  padding: 14px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -3041,6 +3110,40 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   place-items: center;
   font-size: 36px;
 }
+/* "Done Signing?" choice, shown on tapping End Sign-In -- covers the whole
+   kiosk (not just the pad, like .crewKioskConfirmedOverlay does) since
+   nothing behind it should be reachable until the choice is made. Two
+   ordinary taps, not a hold -- see the big comment on .crewKioskExitHold
+   above for why a hold gesture was dropped here. */
+.crewKioskExitConfirmOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: var(--navy, #0B1D2E);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.crewKioskExitConfirmPanel {
+  width: 100%;
+  max-width: 420px;
+  display: grid;
+  gap: 12px;
+  text-align: center;
+}
+.crewKioskExitConfirmPanel h2 {
+  margin: 0;
+  font: 600 clamp(24px, 4vw, 32px)/1.1 var(--font-condensed, 'Barlow Condensed'), sans-serif;
+  text-transform: uppercase;
+  letter-spacing: .01em;
+}
+.crewKioskExitConfirmPanel p { margin: 0; font-size: 15px; color: var(--text-on-navy-2, #B4C4D3); line-height: 1.5; }
+.crewKioskExitConfirmActions { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.crewKioskExitConfirmActions .btn { min-height: 60px; font-size: 16px; }
+.crewKioskExitConfirmActions .btn.ghost { background: transparent; border-color: rgba(255,255,255,.34); color: #fff; }
+.crewKioskExitConfirmActions .btn.ghost:hover { background: rgba(255,255,255,.1); }
+
 .crewKioskFooter {
   position: absolute;
   bottom: 16px;

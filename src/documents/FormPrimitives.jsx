@@ -192,9 +192,20 @@ export function StepFooter({ onBack, onNext, hasBack, hasNext, nextLabel, backLa
      - a step with NONE of its checks started yet reads "Not started"
      - a step with no checks of its own (e.g. a terminal Review step) reads
        "Done" once every check in the whole document passes, else "Not
-       started" — there's nothing on that screen itself to be half-done. */
-function stepRowState(step, activeStepId, checks) {
+       started" — there's nothing on that screen itself to be half-done.
+     - `lockedIds` (optional, e.g. JSA's Signatures/Finish & Export before
+       Job/Meeting/Work are complete) overrides all of the above with a
+       plain "Locked" state -- without this, a step whose own checks happen
+       to already be satisfied by a default value (e.g. JSA's signature
+       line count, which defaults to 30) reads "Done" even though jumping
+       to it actually gets redirected away, which is exactly backwards
+       (Fonzo field report, 2026-08-19: "i don't see signatures is actually
+       grayed out, i see it green w a check"). Still loses to "You are
+       here" so a step doesn't lock itself out from under the user who's
+       currently standing on it. */
+function stepRowState(step, activeStepId, checks, lockedIds) {
   if (step.id === activeStepId) return { kind: 'current', text: 'You are here' };
+  if (lockedIds && lockedIds.includes(step.id)) return { kind: 'locked', text: 'Locked' };
   const stepChecks = checks.filter(c => c.step === step.id);
   const okCount = stepChecks.filter(c => c.ok).length;
   const allOk = stepChecks.length ? okCount === stepChecks.length : checks.every(c => c.ok);
@@ -206,8 +217,17 @@ function stepRowState(step, activeStepId, checks) {
   return { kind: 'pending', text: 'Not started' };
 }
 
-export function StepNav({ steps, activeStepId, checks, onJump, ariaLabel = 'Document steps' }) {
-  const rows = steps.map(s => ({ step: s, ...stepRowState(s, activeStepId, checks) }));
+function IconLockDot(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14" {...props}>
+      <rect x="5" y="10.5" width="14" height="9" rx="1.5" />
+      <path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" />
+    </svg>
+  );
+}
+
+export function StepNav({ steps, activeStepId, checks, onJump, lockedIds, ariaLabel = 'Document steps' }) {
+  const rows = steps.map(s => ({ step: s, ...stepRowState(s, activeStepId, checks, lockedIds) }));
   const doneCount = rows.filter(r => r.kind === 'done').length;
   return (
     <nav className="stepNav" aria-label={ariaLabel}>
@@ -224,7 +244,7 @@ export function StepNav({ steps, activeStepId, checks, onJump, ariaLabel = 'Docu
             className={`stepNavRow ${r.kind}`}
             onClick={() => onJump(r.step.id)}
           >
-            <span className="stepNavDot" aria-hidden="true">{r.kind === 'done' ? '✓' : r.kind === 'attention' ? '!' : i + 1}</span>
+            <span className="stepNavDot" aria-hidden="true">{r.kind === 'locked' ? <IconLockDot /> : r.kind === 'done' ? '✓' : r.kind === 'attention' ? '!' : i + 1}</span>
             <span className="stepNavText">
               <strong>{r.step.label}</strong>
               <span className="stepNavState">{r.text}</span>

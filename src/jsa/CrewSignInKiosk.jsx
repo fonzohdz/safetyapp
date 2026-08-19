@@ -58,6 +58,12 @@ import { useEffect, useRef, useState } from 'react';
 const SIG_BOX_RATIO = 363.7 / 39; // ~9.33 -- wide and short
 const MIN_PAD_HEIGHT = 130;
 const CONFIRM_PAUSE_MS = 1200;
+// Set (not added to whatever was there) once signing wraps up -- there's no
+// more manual "how many lines" picker upstream (StepSignatures), so this is
+// the one place that number ever gets decided (Fonzo, 2026-08-19: "after
+// you click done it should auto add 20 extra signatures in case visitors
+// come in later or late ppl").
+const EXTRA_BLANK_LINES_AFTER_SIGNING = 20;
 
 function padHeightFor(width) {
   return Math.max(MIN_PAD_HEIGHT, Math.round(width / SIG_BOX_RATIO));
@@ -74,7 +80,7 @@ export default function CrewSignInKiosk({ jsa, upd, onExit }) {
   const [padWidth, setPadWidth] = useState(320);
   const [padHeight, setPadHeight] = useState(padHeightFor(320));
   const [hasStroke, setHasStroke] = useState(false);
-  const [phase, setPhase] = useState('signing'); // 'signing' | 'confirmed'
+  const [phase, setPhase] = useState('signing'); // 'signing' | 'confirmed' | 'confirmingExit'
 
   // Belt-and-suspenders alongside .crewKiosk's own touch-action:none --
   // locks the page itself so it can't scroll/bounce behind the fixed
@@ -252,17 +258,41 @@ export default function CrewSignInKiosk({ jsa, upd, onExit }) {
     window.setTimeout(() => setPhase('signing'), CONFIRM_PAUSE_MS);
   }
 
+  // A plain tap into a "done signing?" choice, not a hold -- exiting isn't
+  // a single accidental tap away, but this stays two ordinary taps rather
+  // than a hold-and-drag gesture (the previous hold-to-exit fought iOS
+  // Safari's own text-selection loupe in the field, 2026-08-17).
+  function requestExit() { setPhase('confirmingExit'); }
+  function continueSigning() { setPhase('signing'); }
+  function confirmDoneSigning() {
+    upd({ signatureLineCount: EXTRA_BLANK_LINES_AFTER_SIGNING });
+    onExit();
+  }
+
   return (
     <div className="crewKiosk" role="dialog" aria-modal="true" aria-label="Crew sign-in">
       <button
         type="button"
         className="crewKioskExitHold"
-        onClick={onExit}
+        onClick={requestExit}
         aria-label="End sign-in"
         title="End sign-in"
       >
         <span className="crewKioskExitHoldLabel">End Sign-In</span>
       </button>
+
+      {phase === 'confirmingExit' && (
+        <div className="crewKioskExitConfirmOverlay" role="alertdialog" aria-modal="true" aria-label="Done signing?">
+          <div className="crewKioskExitConfirmPanel">
+            <h2>Done Signing?</h2>
+            <p>{signedCount} crew member{signedCount === 1 ? '' : 's'} signed. 20 blank lines will be added after them for anyone who signs in ink later.</p>
+            <div className="crewKioskExitConfirmActions">
+              <button type="button" className="btn ghost lg" onClick={continueSigning}>Continue Signing</button>
+              <button type="button" className="btn primary lg" onClick={confirmDoneSigning}>Done Signing</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="crewKioskBody">
         <div className="crewKioskHead">

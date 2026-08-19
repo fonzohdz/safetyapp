@@ -2658,7 +2658,6 @@ function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTem
   const fit = calcFitFromPlan(plan);
   const measurements = usePageMeasurements();
   const checks = useMemo(() => getReviewChecks(jsa, measurements), [jsa, measurements]);
-  const sigCount = Math.max(1, Math.min(100, Number(jsa.signatureLineCount) || 1));
   const idx = STEPS.findIndex(s => s.id === jsaStep);
   const shellRef = useRef(null);
   const shellWidth = useElementWidth(shellRef);
@@ -2695,15 +2694,36 @@ function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTem
         const proceed = confirm(`This JSA still has ${missing.length} item${missing.length === 1 ? '' : 's'} to fix:\n\n${missing.map(c => `• ${c.label}`).join('\n')}\n\nLet the crew sign anyway?`);
         if (!proceed) return;
       }
+      // "Ready for Crew to Sign" goes straight into kiosk mode -- no
+      // intermediate "how many signature lines" screen (Fonzo, 2026-08-19:
+      // "ready for crew sign in should just take you straight to the kiosk
+      // mode, no more choosing how many signature lines there should be").
+      setJsaStep('signatures');
+      setKioskOpen(true);
+      return;
     }
     setJsaStep(STEPS[idx + 1].id);
+  }
+  // Kiosk's own "Done Signing" already auto-adds the 20 blank late/visitor
+  // lines (CrewSignInKiosk.jsx) -- closing it also moves straight on to
+  // Finish & Export, since there's nothing left to configure on Signatures.
+  function finishSigning() {
+    setKioskOpen(false);
+    setJsaStep('export');
   }
   // Signatures/Export are only reachable once Job/Meeting/Work are actually
   // filled in -- otherwise a crew could sign a JSA with no content on it via
   // a direct StepNav jump (sequential Next already can't skip steps, but the
   // sidebar could before this).
+  const contentReady = ['job', 'meeting', 'work'].every(s => stepStatus(jsa, s) === 'complete');
+  // Signatures/Export show as visually locked (not "Done") in the step nav
+  // whenever they're not actually reachable yet -- a step whose own checks
+  // happen to already pass via a default value (signature line count
+  // defaults to 30) used to read "Done" even though clicking it just got
+  // redirected away, which read backwards in the field.
+  const lockedIds = contentReady ? [] : ['signatures', 'export'];
   function guardedJump(id) {
-    if ((id === 'signatures' || id === 'export') && !['job', 'meeting', 'work'].every(s => stepStatus(jsa, s) === 'complete')) {
+    if ((id === 'signatures' || id === 'export') && !contentReady) {
       const blocker = STEPS.find(s => ['job', 'meeting', 'work'].includes(s.id) && stepStatus(jsa, s.id) !== 'complete');
       setJsaStep(blocker ? blocker.id : 'job');
       return;
@@ -2733,7 +2753,7 @@ function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTem
 
   return (
     <>
-      {kioskOpen && <CrewSignInKiosk jsa={jsa} upd={upd} onExit={() => setKioskOpen(false)} />}
+      {kioskOpen && <CrewSignInKiosk jsa={jsa} upd={upd} onExit={finishSigning} />}
       <div className="builderHeader">
         <div className="builderHeaderTitleRow">
           <div className="builderHeaderTitleBlock">
@@ -2757,13 +2777,13 @@ function JsaWorkflow({ jsa, upd, jsaStep, setJsaStep, goDocs, goJsaStart, allTem
       </div>
 
       <div className={`workflowShell withStepNav${showSideBySide ? ' withPreview' : ''}`} ref={shellRef}>
-        <StepNav steps={STEPS} activeStepId={jsaStep} checks={checks} onJump={guardedJump} />
+        <StepNav steps={STEPS} activeStepId={jsaStep} checks={checks} onJump={guardedJump} lockedIds={lockedIds} />
         <div className="workflowLeft">
           {jsaStep === 'job' && <StepJob jsa={jsa} upd={upd} prev={prev} next={next} />}
           {jsaStep === 'meeting' && <StepMeeting jsa={jsa} upd={upd} prev={prev} next={next} />}
           {jsaStep === 'work' && <StepWork jsa={jsa} upd={upd} updRow={updRow} removeRow={removeRow} customQuick={settings.customQuick || { task: [], hazard: [], control: [] }} prev={prev} next={next} />}
           {jsaStep === 'review' && <StepContentReview jsa={jsa} upd={upd} checks={checks} plan={plan} fit={fit} prev={prev} next={next} setJsaStep={setJsaStep} />}
-          {jsaStep === 'signatures' && <StepSignatures jsa={jsa} upd={upd} sigCount={sigCount} prev={prev} next={next} onOpenKiosk={() => setKioskOpen(true)} />}
+          {jsaStep === 'signatures' && <StepSignatures jsa={jsa} upd={upd} prev={prev} next={next} onOpenKiosk={() => setKioskOpen(true)} />}
           {jsaStep === 'export' && <StepExport jsa={jsa} saveName={saveName} setSaveName={setSaveName} saveTemplate={saveTemplate} updateTemplate={updateTemplate} saveDraft={saveDraft} markReady={markReady} exportPdf={exportPdf} legacyBrowserPrint={legacyBrowserPrint} pdfExportState={pdfExportState} isPdfStale={isPdfStale} downloadGeneratedPdfClick={downloadGeneratedPdfClick} clearDraft={clearDraft} prev={prev} next={next} />}
 
           {!canSideBySide && previewOpen && previewPanel}
@@ -3210,8 +3230,16 @@ function StepWork({ jsa, upd, updRow, removeRow, customQuick, prev, next }) {
   );
 }
 
-/* ── Step: Signatures ── */
-function StepSignatures({ jsa, upd, sigCount, prev, next, onOpenKiosk }) {
+/* ── Step: Signatures ──
+   No manual line-count picker anymore (Fonzo, 2026-08-19: "no more
+   choosing how many signature lines there should be") -- kiosk mode runs
+   until whoever's running it ends it, and CrewSignInKiosk's own "Done
+   Signing" auto-sets 20 blank lines after the digital ones for late
+   arrivals/visitors. This screen mostly exists so Acknowledgement Text
+   stays editable and so returning here later (StepNav jump, not the
+   Review "Ready for Crew to Sign" button, which opens the kiosk directly)
+   still has something to land on. */
+function StepSignatures({ jsa, upd, prev, next, onOpenKiosk }) {
   const crewSignedCount = jsa.crewSignatures?.length || 0;
   return (
     <div className="stepStack">
@@ -3219,29 +3247,11 @@ function StepSignatures({ jsa, upd, sigCount, prev, next, onOpenKiosk }) {
         <div className="stepPanelHeader"><h3>Signatures and Acknowledgement</h3></div>
         <div className="formGrid">
           <TA label="Acknowledgement Text" value={jsa.acknowledgement} onChange={v => upd({ acknowledgement: v })} rows={6} />
-          <div className="sigSetup">
-            <label className="field">
-              <span>{crewSignedCount > 0 ? 'Extra Blank Lines (for late/in-person sign-ins)' : 'Number of Signature Lines'}</span>
-              <input type="number" min="1" max="100" value={sigCount} onChange={e => upd({ signatureLineCount: Math.max(1, Math.min(100, Number(e.target.value) || 1)) })} />
-              <small>
-                {crewSignedCount > 0
-                  ? 'Printed after the digital signatures below, blank, for anyone who signs in ink later.'
-                  : 'Signatures always print on a separate attached sign-in sheet, up to 40 lines per sheet.'}
-              </small>
-            </label>
-            <div className="sigRuleBox">
-              <strong>Attached sign-in sheet will be generated.</strong>
-              <p>
-                {crewSignedCount > 0
-                  ? `${crewSignedCount} digital signature${crewSignedCount === 1 ? '' : 's'} print filled in, plus ${sigCount} blank line${sigCount === 1 ? '' : 's'} after them.`
-                  : `The main JSA will note an attached sign-in sheet. Requested lines: ${sigCount}.`}
-              </p>
-            </div>
-          </div>
           <div className="sigRuleBox">
             <strong>Crew Sign-In (kiosk mode)</strong>
             <p>{crewSignedCount === 0 ? 'No one has signed yet.' : `${crewSignedCount} crew member${crewSignedCount === 1 ? '' : 's'} signed so far — their signatures will print on the attached sign-in sheet.`}</p>
-            <button type="button" className="btn secondary sm" onClick={onOpenKiosk}>Start Crew Sign-In</button>
+            <p className="helperText">20 extra blank lines print after them automatically, for anyone who signs in ink later.</p>
+            <button type="button" className="btn secondary sm" onClick={onOpenKiosk}>{crewSignedCount > 0 ? 'Continue Signing' : 'Start Crew Sign-In'}</button>
           </div>
         </div>
       </div>
@@ -3262,6 +3272,7 @@ function StepSignatures({ jsa, upd, sigCount, prev, next, onOpenKiosk }) {
    to review, only paperwork to wrap up. */
 function StepContentReview({ jsa, upd, checks, plan, fit, prev, next, setJsaStep }) {
   const completeCount = checks.filter(check => check.ok).length;
+  const allGood = completeCount === checks.length;
   return (
     <div className="stepStack">
       <div className="stepPanel">
@@ -3272,36 +3283,51 @@ function StepContentReview({ jsa, upd, checks, plan, fit, prev, next, setJsaStep
         <div className="formGrid">
           <TA label="Internal Notes / Special Instructions" value={jsa.notes} onChange={v => upd({ notes: v })} rows={4} placeholder="Optional notes visible in the draft only, not on the printed JSA." />
 
-          <div className={`reviewSummaryCard ${fit.status}`}>
-            <div className="reviewSummaryHead">
+          {/* One calm line when everything's actually fine -- the full
+              checklist grid (percentage ring, 8 boxes, page-plan grid) only
+              earns its space when there's something to fix (Fonzo,
+              2026-08-19: "the review readiness ... might look good to you
+              but to a human it's annoying"). */}
+          {allGood ? (
+            <div className="reviewAllGoodBanner">
+              <span className="reviewAllGoodCheck" aria-hidden="true">✓</span>
               <div>
-                <span className="suggestionEyebrow">Review readiness</span>
-                <h4>{completeCount} of {checks.length} checks complete</h4>
+                <strong>Looks good — ready for the crew to sign.</strong>
+                <p>{plan.totalPages} page{plan.totalPages === 1 ? '' : 's'} total ({plan.continuationPages.length} continuation, {plan.signInPages.length} sign-in). {fit.message}</p>
               </div>
-              <span className={`reviewScore${completeCount === checks.length ? ' complete' : ''}`}>{Math.round((completeCount / checks.length) * 100)}%</span>
             </div>
-            <p className="reviewFitMessage">{fit.message}</p>
-            <div className="reviewChecklist">
-              {checks.map(check => (
-                <button
-                  type="button"
-                  className={`reviewCheck${check.ok ? ' ok' : ' missing'}`}
-                  key={check.label}
-                  onClick={() => setJsaStep(check.step)}
-                  disabled={check.ok || !check.step}
-                >
-                  <span>{check.ok ? '✓' : '!'}</span>
-                  <p>{check.label}</p>
-                </button>
-              ))}
+          ) : (
+            <div className={`reviewSummaryCard ${fit.status}`}>
+              <div className="reviewSummaryHead">
+                <div>
+                  <span className="suggestionEyebrow">Review readiness</span>
+                  <h4>{completeCount} of {checks.length} checks complete</h4>
+                </div>
+                <span className="reviewScore">{Math.round((completeCount / checks.length) * 100)}%</span>
+              </div>
+              <p className="reviewFitMessage">{fit.message}</p>
+              <div className="reviewChecklist">
+                {checks.map(check => (
+                  <button
+                    type="button"
+                    className={`reviewCheck${check.ok ? ' ok' : ' missing'}`}
+                    key={check.label}
+                    onClick={() => setJsaStep(check.step)}
+                    disabled={check.ok || !check.step}
+                  >
+                    <span>{check.ok ? '✓' : '!'}</span>
+                    <p>{check.label}</p>
+                  </button>
+                ))}
+              </div>
+              <div className="exportPlanGrid">
+                <div><strong>Main JSA</strong><span>1 page</span></div>
+                <div><strong>Continuation</strong><span>{plan.continuationPages.length}</span></div>
+                <div><strong>Sign-In</strong><span>{plan.signInPages.length}</span></div>
+                <div><strong>Total</strong><span>{plan.totalPages}</span></div>
+              </div>
             </div>
-            <div className="exportPlanGrid">
-              <div><strong>Main JSA</strong><span>1 page</span></div>
-              <div><strong>Continuation</strong><span>{plan.continuationPages.length}</span></div>
-              <div><strong>Sign-In</strong><span>{plan.signInPages.length}</span></div>
-              <div><strong>Total</strong><span>{plan.totalPages}</span></div>
-            </div>
-          </div>
+          )}
 
           <div className="reviewPrimaryAction">
             <button className="btn primary lg" onClick={next}>Ready for Crew to Sign</button>
@@ -3844,7 +3870,7 @@ function JsaPreviewPagerModal({ jsa, plan, initialIndex = 0, onClose }) {
   }, [total]);
 
   return (
-    <div className="dialogOverlay" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="dialogOverlay previewPagerOverlay" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="dialogPanel previewPagerPanel" role="dialog" aria-modal="true" aria-label="Print preview" ref={dialogRef}>
         <div className="previewPagerHead">
           <span className="previewPagerLabel"><strong>{current.label}</strong> <span className="previewPagerCount">Page {clamped + 1} of {total}</span></span>
