@@ -1,0 +1,42 @@
+{
+  "id": "legacy-task-rows-fixture",
+  "status": "draft",
+  "templateName": "",
+  "location": "Brandon, MS",
+  "jobSite": "Rankin Co. Booster Station",
+  "jobNumber": "512-11",
+  "date": "2026-08-19",
+  "timeIssued": "06:45",
+  "timeExpired": "17:30",
+  "superintendentForeman": "T. Odom",
+  "emergencyPhone": "911",
+  "client": "Rankin Co. Utility Auth",
+  "nearestMedicalFacility": "St Dominic Brandon",
+  "siteContactPhone": "601-555-0142",
+  "musterPoint": "gate by the trailer",
+  "assignedMentorSse": "",
+  "acknowledgement": "I have reviewed and understand the conditions of this JSA and its attached plans and will comply.",
+  "tailgateTopic": "trench safety / spoil pile placement",
+  "previousDaySafety": "None reported.",
+  "overallWorkTask": "install 8in ductile pipe, tie in @ existing main",
+  "dailyTasks": "set up trench box\ntie-in @ sta 4+50",
+  "hazardsSummary": "underground utilities (unverified)\nwet weather forecast pm",
+  "controlsSummary": "one-call ticket on file\nkeep spoil 2ft back min",
+  "taskRows": [
+    {
+      "step": "unload pipe off flatbed - old row, not sure why this is still here",
+      "hazards": "suspended loads\npinch pts\ncrush",
+      "controls": "tag lines\nstay clear of swing radius\nspotter"
+    },
+    {
+      "id": "legacy-row-2",
+      "step": "  backfill w/ select material  ",
+      "hazards": "equipment blind spots; struck-by",
+      "controls": ""
+    }
+  ],
+  "suggestionBundles": [],
+  "signatureLineCount": 12,
+  "notes": "",
+  "lastSavedAt": "2026-08-18T22:10:00.000Z"
+}
