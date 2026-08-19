@@ -2930,6 +2930,14 @@ html[data-pointer='coarse'] .layoutDebugPanel { bottom: calc(74px + env(safe-are
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  /* Pinch-zoom/double-tap-zoom and rubber-band scroll on this screen were
+     shifting things out from under people's fingers mid-signature (Fonzo,
+     field report 2026-08-19: "the screen is movable"). touch-action:none
+     tells the browser not to run its own pan/zoom gestures anywhere a touch
+     starts inside this full-screen overlay -- taps/clicks on buttons still
+     fire normally, only the browser's own gesture handling is suppressed. */
+  touch-action: none;
+  overscroll-behavior: none;
   padding: 24px;
   box-sizing: border-box;
 }

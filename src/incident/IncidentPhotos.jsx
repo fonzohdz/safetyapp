@@ -99,11 +99,15 @@ export default function IncidentPhotos({ incident, upd, showToast, prev, next })
         <p>{c.intro}</p>
       </div>
       <div className="incidentStepGrid">
+        {/* No `capture` attribute on purpose -- it forces the OS straight into
+            the camera app on iOS/Android, skipping the native chooser that
+            also offers "Photo Library". Someone texted a photo to add, that
+            photo's already in their library, not something the camera can
+            take again (Fonzo, field report 2026-08-19). */}
         <input
           ref={fileInputRef}
           type="file"
           accept="image/*"
-          capture="environment"
           multiple
           onChange={onInputChange}
           className="incPhotoFileInput"

@@ -76,6 +76,22 @@ export default function CrewSignInKiosk({ jsa, upd, onExit }) {
   const [hasStroke, setHasStroke] = useState(false);
   const [phase, setPhase] = useState('signing'); // 'signing' | 'confirmed'
 
+  // Belt-and-suspenders alongside .crewKiosk's own touch-action:none --
+  // locks the page itself so it can't scroll/bounce behind the fixed
+  // overlay while this kiosk is up (Fonzo, field report 2026-08-19: people
+  // having trouble hitting Confirm because "the screen is movable").
+  useEffect(() => {
+    const { body } = document;
+    const prevOverflow = body.style.overflow;
+    const prevTouchAction = body.style.touchAction;
+    body.style.overflow = 'hidden';
+    body.style.touchAction = 'none';
+    return () => {
+      body.style.overflow = prevOverflow;
+      body.style.touchAction = prevTouchAction;
+    };
+  }, []);
+
   const signedCount = jsa.crewSignatures?.length || 0;
   const currentNumber = signedCount + 1;
 
