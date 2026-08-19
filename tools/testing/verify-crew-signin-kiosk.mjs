@@ -164,7 +164,7 @@ async function main() {
 
     // Confirm existing PDF export pipeline still works untouched.
     console.log('[6] Confirming existing JSA PDF export still works...');
-    await page.getByRole('tab', { name: /^Review \/ Export/ }).click();
+    await page.getByRole('tab', { name: /^Finish & Export/ }).click();
     await page.locator('.reviewPrimaryAction button').click();
     await page.locator('.pdfReadyPanel').waitFor({ state: 'visible', timeout: 30000 });
     check(true, 'JSA PDF export completes without error after adding crewSignatures to the data model');

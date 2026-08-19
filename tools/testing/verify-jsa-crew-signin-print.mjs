@@ -109,7 +109,7 @@ async function main() {
     const labelText = await page.locator('.sigSetup .field span').first().innerText();
     check(labelText.toLowerCase().includes('extra blank lines'), `Signature-lines label switches to "Extra Blank Lines" copy once crew has signed (got "${labelText}")`);
 
-    await page.getByRole('tab', { name: /^Review \/ Export/ }).click();
+    await page.getByRole('tab', { name: /^Finish & Export/ }).click();
     await page.locator('.reviewPrimaryAction button').click();
     await page.locator('.pdfReadyPanel').waitFor({ state: 'visible', timeout: 30000 });
     const headline = await page.locator('.pdfReadyHeadline').innerText();

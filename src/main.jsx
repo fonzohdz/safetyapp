@@ -849,7 +849,7 @@ const STEPS = [
   { id: 'meeting', label: 'Meeting Info', helper: 'Topic, previous day, overall task' },
   { id: 'work', label: 'Tasks / Hazards', helper: 'Daily tasks, hazards, and controls' },
   { id: 'signatures', label: 'Signatures', helper: 'Crew count and acknowledgement' },
-  { id: 'review', label: 'Review / Export', helper: 'Save draft, templates, and export PDF' },
+  { id: 'review', label: 'Finish & Export', helper: 'Save draft, templates, and export PDF' },
 ];
 
 // Every real user-entered field, not just the handful originally checked --
@@ -896,7 +896,7 @@ function nextStepHint(jsa) {
     if (step.id === 'review') break;
     if (stepStatus(jsa, step.id) !== 'complete') return step.label;
   }
-  return 'Review / Export';
+  return 'Finish & Export';
 }
 // Lightweight completion count for the Home screen's progress indicator —
 // deliberately coarser than getReviewChecks (which needs live pagination
@@ -3249,7 +3249,7 @@ function StepSignatures({ jsa, upd, sigCount, prev, next, onOpenKiosk }) {
   );
 }
 
-/* ── Step: Review / Export ── */
+/* ── Step: Finish & Export ── */
 function StepReview({ jsa, upd, fit, saveName, setSaveName, saveTemplate, updateTemplate, saveDraft, markReady, exportPdf, legacyBrowserPrint, pdfExportState, isPdfStale, shareGeneratedPdfClick, downloadGeneratedPdfClick, clearDraft, prev, next, setJsaStep }) {
   const measurements = usePageMeasurements();
   const plan = useMemo(() => resolvePagePlan(jsa, measurements), [jsa, measurements]);
@@ -3263,8 +3263,8 @@ function StepReview({ jsa, upd, fit, saveName, setSaveName, saveTemplate, update
     <div className="stepStack">
       <div className="stepPanel">
         <div className="stepPanelHeader">
-          <h3>Review and Export</h3>
-          <p>Use this final check before generating the PDF.</p>
+          <h3>Finish & Export</h3>
+          <p>Last check before generating the PDF.</p>
         </div>
         <div className="formGrid">
           <TA label="Internal Notes / Special Instructions" value={jsa.notes} onChange={v => upd({ notes: v })} rows={4} placeholder="Optional notes visible in the draft only, not on the printed JSA." />
@@ -3481,7 +3481,7 @@ function TemplatesView({ allTemplates, customTemplates, loadTemplate, deleteTemp
           </div>
         )) : (
           <div className="emptyState">
-            <p>No custom templates yet. Save one from the Review step after filling in recurring job information.</p>
+            <p>No custom templates yet. Save one from the Finish & Export step after filling in recurring job information.</p>
             <button className="btn primary sm" onClick={startBlank}>Start a JSA</button>
           </div>
         )}
@@ -3489,7 +3489,7 @@ function TemplatesView({ allTemplates, customTemplates, loadTemplate, deleteTemp
       <div className="card">
         <div className="cardHeader"><h3>How Templates Work</h3></div>
         <div className="cardBody">
-          <p>A template captures job info, hazards, and controls so you don't retype them every day. Day-specific details — the date, times, tailgate topic, and signatures — reset automatically so each new JSA starts fresh. Save a template anytime from the Review step of a JSA you've filled in.</p>
+          <p>A template captures job info, hazards, and controls so you don't retype them every day. Day-specific details — the date, times, tailgate topic, and signatures — reset automatically so each new JSA starts fresh. Save a template anytime from the Finish & Export step of a JSA you've filled in.</p>
         </div>
       </div>
     </div>

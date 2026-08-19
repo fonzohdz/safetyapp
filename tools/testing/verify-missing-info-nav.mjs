@@ -69,7 +69,7 @@ async function main() {
     await jsaPending.click();
     await page.waitForTimeout(150);
     let activeLabel = await page.locator('.stepperSeg.active .stepperSegLabel').first().innerText();
-    check(activeLabel !== 'Review / Export', `JSA: clicking a pending row leaves Review (now on "${activeLabel}")`);
+    check(activeLabel !== 'Finish & Export', `JSA: clicking a pending row leaves Review (now on "${activeLabel}")`);
 
     // ── Incident: blank draft ──
     console.log('\n=== Incident ===');

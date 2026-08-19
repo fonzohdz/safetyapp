@@ -94,7 +94,7 @@ async function main() {
     await page.goto(BASE_URL, { waitUntil: 'networkidle' });
 
     await page.getByRole('button', { name: 'Continue JSA' }).click();
-    await page.getByRole('tab', { name: /^Review \/ Export/ }).click();
+    await page.getByRole('tab', { name: /^Finish & Export/ }).click();
 
     // Read the JS-estimated page plan (pre-generation heuristic/measured plan)
     // shown in the Review step's own UI, for comparison against the actual

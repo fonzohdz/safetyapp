@@ -92,7 +92,7 @@ async function main() {
       page.on('pageerror', (e) => pageErrors.push(`[jsa] ${e.message}`));
       await page.goto(BASE_URL, { waitUntil: 'networkidle' });
       await page.getByRole('button', { name: 'Continue JSA' }).click();
-      await page.getByRole('tab', { name: /^Review \/ Export/ }).click();
+      await page.getByRole('tab', { name: /^Finish & Export/ }).click();
       await page.locator('.previewSheetCanvas').waitFor({ state: 'visible', timeout: 10000 });
       await page.evaluate(() => window.scrollTo(0, 600));
       await page.waitForTimeout(200);
